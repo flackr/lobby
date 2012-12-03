@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src="../../server/lobby-game-host.js"></script>
+    <script>
+      function $(id) {
+        return document.getElementById(id);
+      }
+
+      function connect(host) {
+        new lobby.Host(host);
+      }
+    </script>
+  </head>
+  <body>
+    <input type="text" id="lobby" value="Lobby address">
+    <button onclick="connect($('lobby').value)">Connect</button>
+  </body>
+</html>
