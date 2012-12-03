@@ -1,0 +1,89 @@
+#dialogs {
+  background-color: rgba(0, 0, 0, 0.2);
+  bottom: 0;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 20;
+}
+
+.dialog {
+  -webkit-box-shadow: 5px 5px 5px rgba(0, 0, 0, 0.5);
+  background: #eee;
+  border: 1px solid #999;
+  font: 12px 'sans';
+  left: 50%;
+  min-height: 80px;
+  min-width: 200px;
+  position: fixed;
+  top: 50%;
+}
+
+.dialog.positioning {
+  opacity: 0;
+}
+
+.dialog-title {
+  -webkit-box-orient: horizontal;
+  -webkit-box-pack: justify;
+  background: #ccc;
+  border-bottom: 1px solid #999;
+  display: -webkit-box;
+  padding: 8px 0 5px 10px;
+  font: 16px 'sans';
+}
+
+.dialog-title > div:first-child {
+  -webkit-box-flex: 1;
+}
+
+.dialog-content {
+  padding: 10px;
+}
+
+.dialog-content > * {
+  margin: 10px 0;
+}
+
+.close-icon {
+  -webkit-box-flex: 0;
+  background-image: url("../images/cancel.png");
+  display: inline-block;
+  height: 16px;
+  margin: 0 10px;
+  width: 16px;
+}
+
+.dialog-content > section > title {
+  display: block;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.button-bar {
+  -webkit-box-orient: horizontal;
+  -webkit-box-pack: end;
+  display: -webkit-box;
+  padding: 5px 10px;
+}
+
+/* ------------ info dialog ------------------ */
+
+#info-dialog-message {
+  text-align: center;
+}
+
+/* ------------ promotion dialog ------------------ */
+
+.promotion-option {
+  display: inline-block;
+  height: 60px;
+  position: relative;
+  width: 60px;
+}
+
+
+
+
+

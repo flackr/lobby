@@ -1,0 +1,141 @@
+#screen {
+  -webkit-box-orient: vertical;
+  bottom: 0;
+  display: -webkit-box;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+#game-content {
+  -webkit-box-orient: horizontal;
+  display: -webkit-box;
+}
+
+#board-area {
+  -webkit-box-sizing: content-box;
+  background: rgb(242, 242, 237);
+  border: 1px solid black; 
+  display: inline-block;
+  height: 500px;
+  margin: 20px 0 5px 20px;
+  padding: 0;
+  width: 500px;
+  position: relative;
+}
+
+#controls {
+  margin: 5px 0 5px 20px;
+}
+
+.chess-board {
+  -webkit-box-sizing: border-box;
+  display: table;
+  height: 100%;
+  padding: 5% 8% 0 0;
+  width: 100%;
+}
+
+.chess-board > * {
+  display: table-row;
+  position: relative;
+}
+
+.chess-board > * > * {
+  -webkit-box-sizing: border-box;
+  display: table-cell;
+  font-family: 'Arial', 'Sans';
+  height: 10%; /* 10%; */
+  padding: 0;
+  position: relative;
+  margin: 0;
+  text-align: center;
+  vertical-align: middle;
+  width: 10%;
+}
+
+.black-square {
+  background: rgb(181, 136, 99);
+}
+
+.white-square {
+  background: rgb(240, 217, 181);
+}
+
+.selected-square {
+  border: 2px solid blue;
+}
+
+.BK,
+.BQ,
+.BB,
+.BR,
+.BN,
+.BP,
+.WK,
+.WQ,
+.WR,
+.WB,
+.WN,
+.WP {
+  -webkit-box-sizing: border-box;
+  background-position: center center;
+  background-size: 90%;
+  background-repeat: no-repeat;
+  bottom: 0;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+.BK {
+  background-image: url('../images/Chess_kdt45.svg');
+}
+
+.BQ {
+  background-image: url('../images/Chess_qdt45.svg');
+}
+
+.BR {
+  background-image: url('../images/Chess_rdt45.svg');
+}
+
+.BB {
+  background-image: url('../images/Chess_bdt45.svg');
+}
+
+.BN {
+  background-image: url('../images/Chess_ndt45.svg');
+}
+
+.BP {
+  background-image: url('../images/Chess_pdt45.svg');
+}
+
+.WK {
+  background-image: url('../images/Chess_klt45.svg');
+}
+
+.WQ {
+  background-image: url('../images/Chess_qlt45.svg');
+}
+
+.WR {
+  background-image: url('../images/Chess_rlt45.svg');
+}
+
+.WB {
+  background-image: url('../images/Chess_blt45.svg');
+}
+
+.WN {
+  background-image: url('../images/Chess_nlt45.svg');
+}
+
+.WP {
+  background-image: url('../images/Chess_plt45.svg');
+}
+
+

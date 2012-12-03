@@ -1,0 +1,48 @@
+
+#move-list {
+  -webkit-box-orient: vertical;
+  background: rgb(255, 255, 245);
+  border: 1px solid black;
+  display: -webkit-box;
+  height: 500px;
+  margin: 20px 0 5px 0;
+  position: relative;
+  width: 200px;
+}
+
+.scoresheet {
+  height: 100%;
+  overflow-y: auto;
+  width: 100%;
+}
+
+.scoresheet-move {
+  display: table-row;
+  line-height: 19px;
+}
+
+.scoresheet-move > * {
+  border-bottom: 1px solid #ddd;
+  display: table-cell;
+  font-family: 'Arial', 'Sans';
+  font-size: 12px;
+}
+
+.move-index {
+  border-right: 1px solid black;
+  font-weight: bold;
+  text-align: right;
+  padding: 0 5px;
+  width: 10%;
+}
+
+.black-move,
+.white-move {
+  font-family: "Arial Unicode MS";
+  text-align: center;
+  width: 45%;
+}
+
+.white-move {
+  border-right: 1px solid #ddd;
+}

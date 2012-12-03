@@ -1,0 +1,89 @@
+<!DOCTYPE=html>
+<html>
+<head>
+  <link rel="stylesheet" href="css/dialog.css">
+  <link rel="stylesheet" href="css/chessboard.css">
+  <link rel="stylesheet" href="css/scoresheet.css">
+  <script src="js/dialog.js"></script>
+  <script src="js/chessboard.js"></script>
+  <script src="js/scoresheet.js"></script>
+</head>
+<body>
+<div id="screen">
+  <div id="game-content">
+    <div id="board-area">
+    </div>
+    <div id="move-list">
+    </div>  
+  </div>
+  <div id="controls">
+    <input type="button" value="Offer Draw" onclick="offerDraw();">
+    <input type="button" value="Resign" onclick="resign();">
+    <input type="button" value="Request Take Back" onclick="undo();">
+    <input type="button" value="Save">
+    <input type="button" value="New Game" onclick="newGame()">
+    <input type="button" value="Show Games">
+  </div>
+</div>
+<div id="dialogs" hidden>
+  <div id="info-dialog" class="dialog" hidden>
+    <div class="dialog-title">
+      <div id="info-dialog-title"></div>
+      <div class="close-icon cancel-button"></div>
+    </div>
+    <div class="dialog-content">
+      <div id="info-dialog-message"></div>
+    </div>
+    <div class="button-bar">
+      <button class="close-button">OK</button>
+    </div>
+  </div>
+  <div id="promotion-dialog" class="dialog" hidden>
+    <div class="dialog-title">
+      Pawn Promotion
+    </div>
+    <div class="dialog-content">
+      <div id="promotion-options">
+        <div id="queen-promotion" class="promotion-option"></div>
+        <div id="rook-promotion" class="promotion-option"></div>
+        <div id="bishop-promotion" class="promotion-option"></div>
+        <div id="knight-promotion"  class="promotion-option"></div>
+      </div>
+    </div>
+  </div>
+  <!-- TODO: confirm dialog for draw offer or resignation -->
+
+</div>
+<script>
+  function $(name) {
+    return document.getElementById(name);
+  }
+
+  function offerDraw() {
+    // TODO: Implement me.  Requires agreement of other player.
+  }
+
+  function resign() {
+    // TODO: Implement me.
+  }
+
+  function undo() {
+    // TODO: Implement me. Requires agreement of other player.
+  }
+
+  function newGame() {
+    // TODO: disable control while game in progress.
+    chessboard.reset();
+    scoresheet.reset();
+  }
+
+  chessboard = new ChessBoard();
+  $('board-area').appendChild(chessboard);
+  chessboard.reset();
+
+  scoresheet = new Scoresheet();
+  $('move-list').appendChild(scoresheet);
+
+</script>
+</body>
+</html>
