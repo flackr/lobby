@@ -2,7 +2,6 @@
  * An API for hosting a game on the lobby server.
  */
 
-var lobby = {};
 lobby.Host = function() {
   var Host = function(lobbyUrl) {
     this.ws = new WebSocket(lobbyUrl, ['game-protocol']);
