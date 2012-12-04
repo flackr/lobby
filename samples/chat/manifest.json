@@ -1,0 +1,20 @@
+{
+  "name": "Lobby Chat",
+  "description": "A chat game for Lobby",
+  "version": "0.1",
+  "manifest_version": 2,
+
+  "permissions": [
+    "experimental",
+    {"socket": [
+      "tcp-connect",
+      "tcp-listen"
+    ]}
+  ],
+
+  "app": {
+    "background": {
+      "scripts": ["bin/background.js"]
+    }
+  }
+}

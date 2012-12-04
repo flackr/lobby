@@ -2,8 +2,15 @@
  * An API for hosting a game on the lobby server.
  */
 
+lobby.serverCapable = function() {
+  return chrome.socket && chrome.socket.listen;
+};
+
 lobby.Host = function() {
   var Host = function(lobbyUrl) {
+    lobby.util.EventSource.apply(this);
+
+    this.clients = {};
     this.ws = new WebSocket(lobbyUrl, ['game-protocol']);
     this.ws.onopen = this.registerServer.bind(this);
     this.ws.onclose = this.connectionLost.bind(this);
@@ -17,10 +24,11 @@ lobby.Host = function() {
       accepting: true,
       observable: true,
       password: '',
+      port: 9998,
     };
   }
 
-  Host.prototype = {
+  Host.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
 
     registerServer: function(evt) {
       console.log('Connected, registering server');
@@ -49,7 +57,7 @@ lobby.Host = function() {
     onError: function(evt) {
       console.log('Error: ' + evt.data);
     },
-  };
+  });
 
   return Host;
 }();

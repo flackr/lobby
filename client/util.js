@@ -2,6 +2,15 @@ var lobby = {};
 
 lobby.util = {};
 
+lobby.util.extend = function(base, derived) {
+  var proto = {};
+    for (var i in base)
+          proto[i] = base[i];
+      for (var i in derived)
+            proto[i] = derived[i];
+        return proto;
+}
+
 lobby.util.EventSource = function() {
   this.listeners_ = {};
 };
