@@ -3,7 +3,7 @@ var lobby = {};
 lobby.util = {};
 
 lobby.util.EventSource = function() {
-  this.eventListeners_ = {};
+  this.listeners_ = {};
 };
 
 lobby.util.EventSource.prototype = {
