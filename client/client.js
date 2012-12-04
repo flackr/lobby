@@ -2,6 +2,20 @@
  * A client API to communicate to the game host.
  */
 
+/**
+ * Usage of Client
+ *
+ * var client = new Client('ws://localhost:9999/');
+ * client.addEventListener('connected', function() {
+ *   // called when the connection to the game host is made.
+ * });
+ * client.addEventListener('disconnected', function() {
+ *   // called when the connection to the game host is lost/disconnected.
+ * });
+ * client.addEventListener('message', function(message) {
+ *   // Handles the message from the game host.
+ * });
+ */
 lobby.Client = function() {
   var Client = function(hostUrl) {
     this.ws = new WebSocket(hostUrl, ['game-protocol']);
