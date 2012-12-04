@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script src='util.js'></script>
+    <script src='client.js'></script>
+    <script>
+      function $(id) {
+        return document.getElementById(id);
+      }
+      function connect(host) {
+        new lobby.Client(host);
+      }
+    </script>
+  </head>
+  <body>
+    <input type='text' id='client' value='ws://localhost:9999/'>
+    <button onclick='connect($("client").value)'>Connect</button>
+  </body>
+</html>

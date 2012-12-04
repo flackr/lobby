@@ -1,29 +1,35 @@
-// namespace mock
-var mock = {};
+/**
+ * A client API to communicate to the game host.
+ */
 
-mock.search = function(search_options) {
-  var game = {
-    'game': 'Mock Game Name',
-    'connection_details': 'Connect to the game address.',
-    'players': 5,
-    'status': 'awaiting_players',
-    'accepting': true,
-    'observable': true,
-    'public': true
+lobby.Client = function() {
+  var Client = function(hostUrl) {
+    this.ws = new WebSocket(hostUrl, ['game-protocol']);
+    this.ws.onopen = this.openConnection.bind(this);
+    this.ws.onclose = this.closeConnection.bind(this);
+    this.ws.onmessage = this.receiveMessage.bind(this);
+    this.ws.onerror = this.onError.bind(this);
+    this.clientInfo = {
+      name: 'game client'
+    };
+  }
+
+  Client.prototype = {
+    openConnection: function(evt) {
+      console.log('Connected to game host');
+      this.ws.send(JSON.stringify({type: 'clientconnection',
+                                   details: this.clientInfo}));
+    },
+    closeConnection: function(evt) {
+      console.log('Connection to game host lost.');
+    },
+    receiveMessage: function(evt) {
+      console.log('message received: ', evt.data);
+    },
+    onError: function(evt) {
+      console.log('Error: ', evt.data);
+    }
   };
 
-  var game_list = [];
-
-  for (var i = 0; i < 20; i++)
-    game_list.push(game);
-
-  return game_list;
-};
-
-// namespace client
-var client = {};
-
-// Returns a list of games that match the criteria defined in search_options.
-client.search = function(search_options) {
-  return search_options.return_mock_data ? mock.search(search_options) : [];
-};
+  return Client;
+}();
