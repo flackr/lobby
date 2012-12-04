@@ -9,6 +9,7 @@ lobby.Client = function() {
     this.ws.onclose = this.closeConnection.bind(this);
     this.ws.onmessage = this.receiveMessage.bind(this);
     this.ws.onerror = this.onError.bind(this);
+    this.eventSource = new lobby.util.EventSource();
     this.clientInfo = {
       name: 'game client'
     };
@@ -16,18 +17,27 @@ lobby.Client = function() {
 
   Client.prototype = {
     openConnection: function(evt) {
-      console.log('Connected to game host');
+      console.log('Connected to game host', evt);
+      this.eventSource.dispatchEvent('connected');
       this.ws.send(JSON.stringify({type: 'clientconnection',
                                    details: this.clientInfo}));
     },
     closeConnection: function(evt) {
       console.log('Connection to game host lost.');
+      this.eventSource.dispatchEvent('disconnected');
     },
     receiveMessage: function(evt) {
       console.log('message received: ', evt.data);
+      this.eventSource.dispatchEvent('message', evt.data);
     },
     onError: function(evt) {
       console.log('Error: ', evt.data);
+    },
+    addEventListener: function(type, callback) {
+      this.eventSource.addEventListener(type, callback);
+    },
+    removeEventListener: function(type, callback) {
+      this.eventSource.removeEventListener(type, callback);
     }
   };
 
