@@ -35,7 +35,7 @@ lobby.client.connect = function(hostUrl, clientInfo) {
 
 /**
  * Adds event listener. Type must be one of 'connected', 'disconnected',
- * 'message'
+ * 'message', 'error'.
  */
 lobby.client.addEventListener = function(type, callback) {
   lobby.client.eventSource_.addEventListener(type, callback);
@@ -43,7 +43,7 @@ lobby.client.addEventListener = function(type, callback) {
 
 /**
  * Removes event listener. Type must be one of 'connected', 'disconnected',
- * 'message'
+ * 'message', 'error'.
  */
 lobby.client.removeEventListener = function(type, callback) {
   lobby.client.eventSource_.removeEventListener(type, callback);
@@ -71,4 +71,5 @@ lobby.client.receiveMessage_ = function(message) {
 
 lobby.client.onError_ = function(evt) {
   console.log('Error: ', evt);
+  lobby.client.eventSource_.dispatchEvent('error', evt);
 };
