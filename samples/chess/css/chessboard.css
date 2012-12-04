@@ -55,6 +55,25 @@
   width: 10%;
 }
 
+.triangle-top-left {
+  -webkit-transform: translate(5px, -3px);
+  border-right: 10px solid transparent;
+  border-top: 10px solid black;
+  content: '';
+  display: inline-block;
+  height: 0;
+  width: 0;
+}
+
+.triangle-bottom-right {
+  -webkit-transform: translate(0px, 3px);
+  border-bottom: 10px solid black;
+  border-left: 10px solid transparent;
+  display: inline-block;
+  height: 0;
+  width: 0;
+}
+
 .black-square {
   background: rgb(181, 136, 99);
 }
