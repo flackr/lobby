@@ -7,7 +7,15 @@ ChessBoard = (function() {
   var Color = {
     BLACK: 'B',
     WHITE: 'W'
-  }
+  };
+
+  /**
+   * Views of the board.
+   */
+  var View = {
+    BLACK_AT_TOP: 0, 
+    WHITE_AT_TOP: 1
+  };
 
   /**
    * Mapping from piece type specified in FEN notation to class constructor.
@@ -81,18 +89,50 @@ ChessBoard = (function() {
 
     /**
      * Index of current move for scoresheet.
+     * @type {Number}
+     * @private
      */
     moveIndex_: 1,
 
+    /**
+     * View of the board.
+     * @type {enum}
+     * @private
+     */
+    view_: View.BLACK_AT_TOP,
+
     decorate: function() {
       this.classList.add('chess-board');
-      for (var rank = 7; rank >= 0; rank--) {
+      this.addEventListener('click', this.onClick.bind(this));
+      this.layoutBoard_();
+    },
+
+    /**
+     * Positions squares and labels on the chessboard from either a white or
+     * black perspective.
+     */
+    layoutBoard_: function() {
+      var fromRank = 7;
+      var toRank= -1;
+      var deltaRank = -1;
+      var fromFile = 0;
+      var toFile = 8;
+      var deltaFile = 1;
+      if (this.view_ == View.WHITE_AT_TOP) {
+        var fromRank = 0;
+        var toRank= 8;
+        var deltaRank = 1;
+        var fromFile = 7;
+        var toFile = -1;
+        var deltaFile = -1;
+      }
+      for (var rank = fromRank; rank != toRank; rank += deltaRank) {
         var row = document.createElement('div');
         this.appendChild(row);
         var rankLabel = document.createElement('div');
         rankLabel.textContent = String(1 + rank);
         row.appendChild(rankLabel);
-        for (var file = 0; file < 8; file++) {
+        for (var file = fromFile; file != toFile; file += deltaFile) {
           var square = document.createElement('div');
           var squareColor = (rank + file) % 2 == 0 ?
             'black-square' : 'white-square';
@@ -104,14 +144,21 @@ ChessBoard = (function() {
       var row = document.createElement('div');
       this.appendChild(row);
       var flipper = document.createElement('div');
-      flipper.className = 'flip-board';
       row.appendChild(flipper);
-      for (var i = 0; i < 8; i++) {
+      var left = document.createElement('div');
+      left.className = 'triangle-top-left';
+      flipper.appendChild(left);
+      var right = document.createElement('div');
+      right.className = 'triangle-bottom-right';
+      flipper.appendChild(right);
+
+      for (var i = fromFile; i != toFile; i += deltaFile) {
         var fileLabel = document.createElement('div');
         fileLabel.textContent = String.fromCharCode(65 + i);
         row.appendChild(fileLabel);
       }
-      this.addEventListener('click', this.onClick.bind(this));
+
+      flipper.addEventListener('click', this.onFlipView.bind(this));
     },
 
     /**
@@ -241,7 +288,7 @@ ChessBoard = (function() {
       }
       fen.push(segments.join(''));
       fen.push(this.playerToMove_ == Color.WHITE ? 'w' : 'b');
-      fen.push(this.castling_ != '' ? this.castling : '-');
+      fen.push(this.castling_ != '' ? this.castling_ : '-');
       fen.push(this.enpassant_ ? this.enpassant_.toLowerCase() : '-');
 
       // TODO - fix ply counts once tracked.
@@ -447,6 +494,16 @@ ChessBoard = (function() {
           this.selectSquare(id, true);
         }
       }
+    },
+
+    onFlipView: function() {
+      var savePosition = this.toString();
+      while (this.firstChild)
+        this.removeChild(this.firstChild);
+      this.view_ = this.view_ == View.BLACK_AT_TOP ? 
+          View.WHITE_AT_TOP : View.BLACK_AT_TOP;
+      this.layoutBoard_();
+      this.setPosition(savePosition);
     },
 
     /**
