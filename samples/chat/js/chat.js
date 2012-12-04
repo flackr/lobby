@@ -16,7 +16,8 @@ function ChatServer(connection) {
 }
 
 ChatServer.prototype = {
-  onMessageReceived: function(message) {
+  onMessageReceived: function(clientIndex, message) {
+    console.log('Server received '+message+' from client '+clientIndex);
     // Rebroadcast all messages to all clients
     for (var i in this.connection_.clients) {
       this.connection_.send(i, message);

@@ -153,9 +153,17 @@ lobby.Host = function() {
             return;
           }
           self.clients[clientIndex].state = 'connected';
+          self.dispatchEvent('connect', clientIndex);
         });
       } else {
-        console.log('Received ' + message);
+        var json;
+        try {
+          json = JSON.parse(message);
+        } catch (e) {
+          this.closeClientConnection(clientIndex);
+          return false;
+        }
+        this.dispatchEvent('message', clientIndex, json);
       }
       return true;
     },
@@ -166,6 +174,7 @@ lobby.Host = function() {
       // on the now closed connection.
       // TODO(flackr): Safely only call this once.
       if (this.clients[clientIndex]) {
+        self.dispatchEvent('disconnect', clientIndex);
         chrome.socket.disconnect(this.clients[clientIndex].socketId);
         chrome.socket.destroy(this.clients[clientIndex].socketId);
         delete this.clients[clientIndex];
