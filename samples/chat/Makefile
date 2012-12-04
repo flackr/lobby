@@ -1,6 +1,6 @@
 .PHONY: all
 
-all: lobby/util.js lobby/client.js lobby/host.js
+all: lobby/util.js lobby/client.js lobby/host.js lobby/sha1.js
 
 
 lobby/util.js: ../../client/util.js
@@ -12,5 +12,9 @@ lobby/client.js: ../../client/client.js
 	cp $^ $@
 
 lobby/host.js: ../../server/host.js
+	mkdir -p lobby
+	cp $^ $@
+
+lobby/sha1.js: ../../server/sha1.js
 	mkdir -p lobby
 	cp $^ $@

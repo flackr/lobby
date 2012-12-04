@@ -8,6 +8,32 @@ lobby.serverCapable = function() {
 
 lobby.Host = function() {
 
+  var constructWebsocketResponseKey = function(clientKey) {
+    var toArray = function(str) {
+      var a = [];
+      for (var i = 0; i < str.length; i++) {
+        a.push(str.charCodeAt(i));
+      }
+      return a;
+    }
+    var toString = function(a) {
+      var str = '';
+      for (var i = 0; i < a.length; i++) {
+        str += String.fromCharCode(a[i]);
+      }
+      return str;
+    }
+    // Magic string used for websocket connection key hashing:
+    // http://en.wikipedia.org/wiki/WebSocket
+    var magicStr = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+    // clientKey is base64 encoded key.
+    clientKey += magicStr;
+    var sha1 = new lobby.Sha1();
+    sha1.reset();
+    sha1.update(toArray(clientKey));
+    return btoa(toString(sha1.digest()));
+  };
+
   var ArrayBufferToString = function(buffer) {
     return String.fromCharCode.apply(null, new Uint8Array(buffer));
   };
@@ -40,7 +66,8 @@ lobby.Host = function() {
       password: '',
       port: 9998,
     };
-    this.listen(this.gameInfo.port);
+    if (lobby.serverCapable())
+      this.listen(this.gameInfo.port);
   }
 
   Host.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
@@ -57,7 +84,7 @@ lobby.Host = function() {
           chrome.socket.accept(self.socketId_, function(acceptInfo) {
             var clientIndex = self.clients.length;
             console.log('Client connected on index '+clientIndex);
-            self.clients[clientIndex] = {socketId: acceptInfo.socketId, state: 'connecting'};
+            self.clients[clientIndex] = {socketId: acceptInfo.socketId, state: 'connecting', data: ''};
             self.dispatchEvent('connection', clientIndex);
             self.listenOnSocket(clientIndex);
           });
@@ -66,8 +93,6 @@ lobby.Host = function() {
     },
 
     // Receive messages from the client identified by |clientIndex|.
-    // TODO(flackr): Allow receiving parts of messages as they may get split up
-    // into separate packets.
     listenOnSocket: function(clientIndex) {
       var self = this;
       chrome.socket.read(this.clients[clientIndex].socketId, function(readInfo) {
@@ -77,38 +102,56 @@ lobby.Host = function() {
         }
         if (!readInfo.data.byteLength)
           return;
-        var message = ArrayBufferToString(readInfo.data);
-        if (self.clients[clientIndex].state == 'connecting') {
-          // Sanitize newlines in header.
-          message = message.replace('\r\n', '\n').split('\n');
-          var messageDetails = {};
-          for (var i = 0; i < message.length; i++) {
-            var details = message[i].split(':');
-            if (details.length == 2)
-              messageDetails[details[0].trim()] = details[1].trim();
-          }
-          if (messageDetails['Upgrade'] != 'websocket' ||
-              !messageDetails['Sec-WebSocket-Key'] ||
-              !messageDetails['Sec-WebSocket-Protocol']) {
-            closeClientConnection(clientIndex);
+        self.clients[clientIndex].data += ArrayBufferToString(readInfo.data).replace('\r\n', '\n');
+        var messages = self.clients[clientIndex].data.split('\n\n');
+        for (var i = 0; i < messages.length - 1; i++)
+          if (!self.handleClientMessage(clientIndex, messages[i]))
             return;
-          }
-          // TODO(flackr): Generate real response key.
-          var responseKey = '';
-          var response =
-              'HTTP/1.1 101 Switching Protocols\n' +
-              'Upgrade: websocket\n' +
-              'Connection: Upgrade\n' +
-              'Sec-WebSocket-Accept: ' + responseKey + '\n' +
-              'Sec-WebSocket-Protocol: ' + messageDetails['Sec-WebSocket-Protocol'] + '\n' +
-              '\n';
-          self.send(clientIndex, response);
-          self.clients[clientIndex].state = 'connected';
-        } else {
-          console.log('Received ' + message);
-        }
+        self.clients[clientIndex].data = messages[messages.length - 1];
         self.listenOnSocket(clientIndex);
       });
+    },
+
+    handleClientMessage: function(clientIndex, message) {
+      if (this.clients[clientIndex].state == 'connecting') {
+        console.log('Received:\n' + message);
+        message = message.split('\n');
+        var messageDetails = {};
+        for (var i = 0; i < message.length; i++) {
+          var details = message[i].split(':');
+          if (details.length == 2)
+            messageDetails[details[0].trim()] = details[1].trim();
+        }
+        console.log(messageDetails);
+        if (messageDetails['Upgrade'] != 'websocket' ||
+            !messageDetails['Sec-WebSocket-Key'] ||
+            !messageDetails['Sec-WebSocket-Protocol']) {
+          this.closeClientConnection(clientIndex);
+          return false;
+        }
+        var responseKey = constructWebsocketResponseKey(
+            messageDetails['Sec-WebSocket-Key']);
+        var response =
+            'HTTP/1.1 101 Switching Protocols\n' +
+            'Upgrade: websocket\n' +
+            'Connection: Upgrade\n' +
+            'Sec-WebSocket-Accept: ' + responseKey + '\n' +
+            'Sec-WebSocket-Protocol: ' + messageDetails['Sec-WebSocket-Protocol'] + '\n' +
+            '\n';
+        console.log('Sending response:\n' + response);
+        response = StringToArrayBuffer(response);
+        var self = this;
+        chrome.socket.write(this.clients[clientIndex].socketId, response, function(writeInfo) {
+          if (writeInfo.resultCode < 0 || writeInfo.bytesWritten != response.byteLength) {
+            self.closeClientConnection(self.clients[clientIndex].socketId);
+            return;
+          }
+          self.clients[clientIndex].state = 'connected';
+        });
+      } else {
+        console.log('Received ' + message);
+      }
+      return true;
     },
 
     closeClientConnection: function(clientIndex) {
@@ -126,7 +169,7 @@ lobby.Host = function() {
     // Send |message| to the client identified by |clientIndex|.
     send: function(clientIndex, message) {
       var self = this;
-      data = StringToArrayBuffer(JSON.stringify(message));
+      data = StringToArrayBuffer(JSON.stringify(message) + '\n\n');
       chrome.socket.write(this.clients[clientIndex].socketId, data, function(writeInfo) {
         if (writeInfo.resultCode < 0 ||
             writeInfo.bytesWritten !== data.byteLength) {
