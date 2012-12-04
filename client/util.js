@@ -36,7 +36,8 @@ lobby.util.EventSource.prototype = {
     if (!this.listeners_[type])
       return;
     for (var i = this.listeners_[type].length - 1; i >= 0; i--) {
-      this.listeners_[type][i](args);
+      this.listeners_[type][i].apply(
+          /* this */ null, /* args */ Array.prototype.slice.call(arguments, 1));
     }
   }
 };
