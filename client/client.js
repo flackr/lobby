@@ -30,6 +30,7 @@ lobby.client.connect = function(hostUrl, clientInfo) {
     lobby.client.receiveMessage_(evt.data);
   };
   lobby.client.ws_.onerror = lobby.client.onError_;
+  console.log('lobby.client.connect finished successfully.');
 };
 
 /**
