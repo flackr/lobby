@@ -5,8 +5,8 @@ function $(id) {
 document.addEventListener('DOMContentLoaded', function() {
   $('createGame').style.display = lobby.serverCapable() ? 'block' : 'none';
   $('createGameBtn').addEventListener('click', function() {
-    var cs = new ChatServer(new Host($('lobbyUrl').value));
-    var cc = new ChatClient(new LocalClient(cs));
+    var cs = new ChatServer(window.host = new lobby.Host($('lobbyUrl').value));
+    // var cc = new ChatClient(new LocalClient(cs));
   });
 });
 
