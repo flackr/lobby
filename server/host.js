@@ -81,14 +81,20 @@ lobby.Host = function() {
             console.log('Failed to listen on port '+port);
             return;
           }
-          chrome.socket.accept(self.socketId_, function(acceptInfo) {
-            var clientIndex = self.clients.length;
-            console.log('Client connected on index '+clientIndex);
-            self.clients[clientIndex] = {socketId: acceptInfo.socketId, state: 'connecting', data: ''};
-            self.dispatchEvent('connection', clientIndex);
-            self.listenOnSocket(clientIndex);
-          });
+          self.acceptConnection(port);
         });
+      });
+    },
+
+    acceptConnection: function(port) {
+      var self = this;
+      chrome.socket.accept(self.socketId_, function(acceptInfo) {
+        var clientIndex = self.clients.length;
+        console.log('Client connected on index '+clientIndex);
+        self.clients[clientIndex] = {socketId: acceptInfo.socketId, state: 'connecting', data: ''};
+        self.dispatchEvent('connection', clientIndex);
+        self.listenOnSocket(clientIndex);
+        self.acceptConnection(port);
       });
     },
 
