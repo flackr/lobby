@@ -1,59 +1,73 @@
 /**
  * A client API to communicate to the game host.
+ *
+ * Public APIs:
+ *
+ * lobby.client.connect(hostUrl, clientInfo);
+ * lobby.client.addEventListener(type, callback);
+ * lobby.client.removeEventListener(type, callback);
  */
+
+lobby.client = {};
+
+lobby.client.ws_;
+lobby.client.eventSource_ = new lobby.util.EventSource();
 
 /**
- * Usage of Client
- *
- * var client = new Client('ws://localhost:9999/');
- * client.addEventListener('connected', function() {
- *   // called when the connection to the game host is made.
- * });
- * client.addEventListener('disconnected', function() {
- *   // called when the connection to the game host is lost/disconnected.
- * });
- * client.addEventListener('message', function(message) {
- *   // Handles the message from the game host.
- * });
+ * Connects to the host. It also sends clientInfo when the connection is open.
  */
-lobby.Client = function() {
-  var Client = function(hostUrl) {
-    this.ws = new WebSocket(hostUrl, ['game-protocol']);
-    this.ws.onopen = this.openConnection.bind(this);
-    this.ws.onclose = this.closeConnection.bind(this);
-    this.ws.onmessage = this.receiveMessage.bind(this);
-    this.ws.onerror = this.onError.bind(this);
-    this.eventSource = new lobby.util.EventSource();
-    this.clientInfo = {
-      name: 'game client'
-    };
+lobby.client.connect = function(hostUrl, clientInfo) {
+  if (lobby.client.ws_) {
+    console.log('already connected.');
+    return;
   }
-
-  Client.prototype = {
-    openConnection: function(evt) {
-      console.log('Connected to game host', evt);
-      this.eventSource.dispatchEvent('connected');
-      this.ws.send(JSON.stringify({type: 'clientconnection',
-                                   details: this.clientInfo}));
-    },
-    closeConnection: function(evt) {
-      console.log('Connection to game host lost.');
-      this.eventSource.dispatchEvent('disconnected');
-    },
-    receiveMessage: function(evt) {
-      console.log('message received: ', evt.data);
-      this.eventSource.dispatchEvent('message', evt.data);
-    },
-    onError: function(evt) {
-      console.log('Error: ', evt.data);
-    },
-    addEventListener: function(type, callback) {
-      this.eventSource.addEventListener(type, callback);
-    },
-    removeEventListener: function(type, callback) {
-      this.eventSource.removeEventListener(type, callback);
-    }
+  lobby.client.ws_ = new WebSocket(hostUrl, ['game-protocol']);
+  lobby.client.ws_.onopen = function(evt) {
+    lobby.client.openConnection_(evt, clientInfo);
   };
+  lobby.client.ws_.onclose = lobby.client.closeConnection_;
+  lobby.client.ws_.onmessage = function(evt) {
+    lobby.client.receiveMessage_(evt.data);
+  };
+  lobby.client.ws_.onerror = lobby.client.onError_;
+};
 
-  return Client;
-}();
+/**
+ * Adds event listener. Type must be one of 'connected', 'disconnected',
+ * 'message'
+ */
+lobby.client.addEventListener = function(type, callback) {
+  lobby.client.eventSource_.addEventListener(type, callback);
+};
+
+/**
+ * Removes event listener. Type must be one of 'connected', 'disconnected',
+ * 'message'
+ */
+lobby.client.removeEventListener = function(type, callback) {
+  lobby.client.eventSource_.removeEventListener(type, callback);
+};
+
+/**
+ * Below are helper functions.
+ */
+lobby.client.openConnection_ = function(evt, clientInfo) {
+  console.log('connected to the game host', evt);
+  lobby.client.eventSource_.dispatchEvent('connected');
+  lobby.client.ws_.send(JSON.stringify({type: 'clientconnection',
+                                        details: clientInfo}));
+};
+
+lobby.client.closeConnection_ = function(evt) {
+  console.log('Connection to game host lost.');
+  lobby.client.eventSource_.dispatchEvent('disconnected');
+};
+
+lobby.client.receiveMessage_ = function(message) {
+  console.log('message received: ', message);
+  lobby.client.eventSource_.dispatchEvent('message', message);
+};
+
+lobby.client.onError_ = function(evt) {
+  console.log('Error: ', evt);
+};
