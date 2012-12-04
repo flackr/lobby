@@ -108,7 +108,7 @@ lobby.Host = function() {
         }
         if (!readInfo.data.byteLength)
           return;
-        self.clients[clientIndex].data += ArrayBufferToString(readInfo.data).replace('\r\n', '\n');
+        self.clients[clientIndex].data += ArrayBufferToString(readInfo.data).replace(/\r\n/g,'\n');
         var messages = self.clients[clientIndex].data.split('\n\n');
         for (var i = 0; i < messages.length - 1; i++)
           if (!self.handleClientMessage(clientIndex, messages[i]))
@@ -145,7 +145,7 @@ lobby.Host = function() {
             'Sec-WebSocket-Protocol: ' + messageDetails['Sec-WebSocket-Protocol'] + '\n' +
             '\n';
         console.log('Sending response:\n' + response);
-        response = StringToArrayBuffer(response);
+        response = StringToArrayBuffer(response.replace(/\n/g, '\r\n'));
         var self = this;
         chrome.socket.write(this.clients[clientIndex].socketId, response, function(writeInfo) {
           if (writeInfo.resultCode < 0 || writeInfo.bytesWritten != response.byteLength) {
@@ -175,7 +175,7 @@ lobby.Host = function() {
     // Send |message| to the client identified by |clientIndex|.
     send: function(clientIndex, message) {
       var self = this;
-      data = StringToArrayBuffer(JSON.stringify(message) + '\n\n');
+      data = StringToArrayBuffer(JSON.stringify(message) + '\r\n\r\n');
       chrome.socket.write(this.clients[clientIndex].socketId, data, function(writeInfo) {
         if (writeInfo.resultCode < 0 ||
             writeInfo.bytesWritten !== data.byteLength) {
