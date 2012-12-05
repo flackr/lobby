@@ -45,8 +45,7 @@ lobby.GameLobby = (function() {
   }
 
   /**
-   * Morphs an HTML element into a game lobby. This also holds a reference to
-   * its search box.
+   * Morphs an HTML element into a game lobby.
    * @param {!Element} el Element to embelish.
    */
   GameLobby.decorate = function(el) {
@@ -85,6 +84,7 @@ lobby.GameLobby = (function() {
     filter_: undefined,
 
     searchQuery_: '',
+    searchbox_: undefined,
 
     /**
      * Connects the list update mechanism.
@@ -112,7 +112,6 @@ lobby.GameLobby = (function() {
         self.searchQuery_ =searchInput.value;
         self.requestListUpdate(false);
       });
-
       this.requestListUpdate(true);
     },
 
@@ -145,6 +144,8 @@ lobby.GameLobby = (function() {
 
       while(this.firstChild)
         this.removeChild(this.firstChild);
+
+      this.appendChild(this.searchbox_);
 
       // TODO - display data.
 
