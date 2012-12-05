@@ -47,6 +47,36 @@ lobby.Host = function() {
     return buffer;
   };
 
+  var WebsocketFrameString = function(str) {
+    var length = str.length;
+    if (str.length > 65535)
+      length += 10;
+    else if (str.length > 125)
+      length += 4;
+    else
+      length += 2;
+    var lengthBytes = 0;
+    var buffer = new ArrayBuffer(length);
+    var bv = new Uint8Array(buffer);
+    bv[0] = 128 | 1; // Fin and type text.
+    bv[1] = str.length > 65535 ? 127 :
+            (str.length > 125 ? 126 : str.length);
+    if (str.length > 65535)
+      lengthBytes = 8;
+    else if (str.length > 125)
+      lengthBytes = 2;
+    var len = str.length;
+    for (var i = lengthBytes - 1; i >= 0; i--) {
+      bv[2 + i] = len & 255;
+      len = len >> 8;
+    }
+    var dataStart = lengthBytes + 2;
+    for (var i = 0; i < str.length; i++) {
+      bv[dataStart + i] = str.charCodeAt(i);
+    }
+    return buffer;
+  }
+
   var Host = function(lobbyUrl) {
     lobby.util.EventSource.apply(this);
 
@@ -108,12 +138,73 @@ lobby.Host = function() {
         }
         if (!readInfo.data.byteLength)
           return;
-        self.clients[clientIndex].data += ArrayBufferToString(readInfo.data).replace(/\r\n/g,'\n');
-        var messages = self.clients[clientIndex].data.split('\n\n');
-        for (var i = 0; i < messages.length - 1; i++)
-          if (!self.handleClientMessage(clientIndex, messages[i]))
-            return;
-        self.clients[clientIndex].data = messages[messages.length - 1];
+        if (self.clients[clientIndex].state == 'connecting') {
+          self.clients[clientIndex].data += ArrayBufferToString(readInfo.data).replace(/\r\n/g,'\n');
+          var messages = self.clients[clientIndex].data.split('\n\n');
+          for (var i = 0; i < messages.length - 1; i++)
+            if (!self.handleClientMessage(clientIndex, messages[i]))
+              return;
+          self.clients[clientIndex].data = messages[messages.length - 1];
+        } else {
+          var data = self.clients[clientIndex].rawData;
+
+          var a = new Uint8Array(readInfo.data);
+          for (var i = 0; i < a.length; i++)
+            data.push(a[i]);
+
+          while (data.length) {
+            var length_code = -1;
+            var data_start = 6;
+            var mask;
+            var fin = (data[0] & 128) >> 7;
+            var op = data[0] & 15;
+
+            if (data.length > 1)
+              length_code = data[1] & 127;
+            if (length_code > 125) {
+              if ((length_code == 126 && data.length > 7) ||
+                  (length_code == 127 && data.length > 14)) {
+                if (length_code == 126) {
+                  length_code = data[2] * 256 + data[3];
+                  mask = data.slice(4, 8);
+                  data_start = 8;
+                } else if (length_code == 127) {
+                  length_code = 0;
+                  for (var i = 0; i < 8; i++) {
+                    length_code = length_code * 256 + data[2 + i];
+                  }
+                  mask = data.slice(10, 14);
+                  data_start = 14;
+                }
+              } else {
+                length_code = -1; // Insufficient data to compute length
+              }
+            } else {
+              if (data.length > 5)
+                mask = data.slice(2, 6);
+            }
+
+            if (length_code > -1 && data.length >= data_start + length_code) {
+              var decoded = data.slice(data_start, data_start + length_code).map(function(byte, index) {
+                return byte ^ mask[index % 4];
+              });
+              if (fin && op > 0) {
+                // Unfragmented message.
+                self.handleClientMessage(clientIndex, ArrayBufferToString(decoded));
+              } else {
+                // Fragmented message.
+                self.clients[clientIndex].data += ArrayBufferToString(decoded);
+                if (fin) {
+                  self.handleClientMessage(clientIndex, self.clients[clientIndex].data);
+                  self.clients[clientIndex].data = '';
+                }
+              }
+              self.clients[clientIndex].rawData = data.slice(data_start + length_code);
+            } else {
+              break; // Insufficient data to complete frame.
+            }
+          }
+        }
         self.listenOnSocket(clientIndex);
       });
     },
@@ -153,6 +244,8 @@ lobby.Host = function() {
             return;
           }
           self.clients[clientIndex].state = 'connected';
+          self.clients[clientIndex].rawData = [];
+          self.clients[clientIndex].data = '';
           self.dispatchEvent('connect', clientIndex);
         });
       } else {
@@ -184,7 +277,7 @@ lobby.Host = function() {
     // Send |message| to the client identified by |clientIndex|.
     send: function(clientIndex, message) {
       var self = this;
-      data = StringToArrayBuffer(JSON.stringify(message) + '\r\n\r\n');
+      var data = WebsocketFrameString(JSON.stringify(message));
       chrome.socket.write(this.clients[clientIndex].socketId, data, function(writeInfo) {
         if (writeInfo.resultCode < 0 ||
             writeInfo.bytesWritten !== data.byteLength) {
