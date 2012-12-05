@@ -3,6 +3,7 @@ function $(id) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  lobby.GameLobby.decorate($('chat-lobby'));
   $('createGame').style.display = lobby.serverCapable() ? 'block' : 'none';
   $('createGameBtn').addEventListener('click', function() {
     var host;
@@ -11,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
       window.client = new ChatClient($('connection'), new lobby.Client(address), $('localAlias').value);
     });
   });
-  $('chat-game-list').onSelectGame = function(game) {
+  $('chat-lobby').onSelectGame = function(game) {
     window.client = new ChatClient($('connection'), new lobby.Client(game), $('alias').value);
   };
 });

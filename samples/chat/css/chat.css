@@ -41,15 +41,21 @@ body.connected > #connection,
 }
 
 #chat-game-lobby-container {
+  -webkit-box-orient: vertical;
+  -webkit-box-align: justify;
+  -webkit-box-patck: stretch;
   border: 1px solid black;
+  display: -webkit-box;
   height: 300px;
   margin: 40px 20px 20px 20px;
 }
 
-#chat-game-list {
+#chat-lobby {
+  -webkit-box-flex: 1;
+  position: relative;
   width: 100%;
 }
 
-#chat-game-list .game-list-name-column {
+#chat-lobby .game-list-name-column {
   display: none;
 }
