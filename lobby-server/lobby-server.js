@@ -53,9 +53,18 @@ lobby.Server = function() {
       var requestPath = request.url.slice(0, separatorIndex);
       var requestQuery = request.url.slice(separatorIndex);
       if (requestPath == '/search') {
-        // TODO(flackr): Handle search queries.
-        response.writeHead(200, {'Content-Type': 'text/plain'});
-        response.end('Not implemented yet.');
+        response.writeHead(200, {'Content-Type': 'application/json',
+                                 'Access-Control-Allow-Origin': '*'});
+        var results = [];
+        if (separatorIndex != -1) {
+          var query = requestQuery.split('q=')[1];
+          for (var i = 0, game; game = games[i++];) {
+            if (game.description.indexOf(query) != -1) {
+              results.push(game);
+            }
+          }
+        }
+        response.end(JSON.stringify({'games': results}));
       } else if (requestPath == '/list') {
         response.writeHead(200, {'Content-Type': 'application/json',
                                  'Access-Control-Allow-Origin': '*'});

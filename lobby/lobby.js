@@ -33,6 +33,8 @@ lobby.GameLobby = (function() {
   // TODO: Implement click spamming safeguard.
   var lastRefresh = null;
 
+  var listUrl;
+
   /**
    * Constructor.
    */
@@ -43,12 +45,23 @@ lobby.GameLobby = (function() {
   }
 
   /**
-   * Morphs an HTML element into a game lobby.
-   * @param {!Element} el Element to embelish.
+   * Adds a searchbox for the game lobby.
    */
-  GameLobby.decorate = function(el) {
+  GameLobby.addSearchbox = function(el) {
+    el.innerHTML =
+      '<input type="text" class="lobby-search">' +
+      '<button class="lobby-search-button">Search</button>';
+  };
+
+  /**
+   * Morphs an HTML element into a game lobby. This also holds a reference to
+   * its search box.
+   * @param {!Element} el Element to embelish.
+   * @param {!Element} searchBox search box div element.
+   */
+  GameLobby.decorate = function(el, searchBox) {
     el.__proto__ = GameLobby.prototype;
-    el.decorate();
+    el.decorate(searchBox);
   };
 
   /**
@@ -83,12 +96,22 @@ lobby.GameLobby = (function() {
      */
     filter_: undefined,
 
+    searchQuery_: '',
+
     /**
      * Connects the list update mechanism.
      */
-    decorate: function() {
+    decorate: function(searchbox) {
 
       this.games_ = [];
+
+      var self = this;
+      searchbox.getElementsByTagName('button')[0].addEventListener('click',
+          function(evt) {
+            self.searchQuery_ =
+                searchbox.getElementsByTagName('input')[0].value;
+            self.requestListUpdate(false);
+          });
 
       this.requestListUpdate(true);
     },
@@ -219,7 +242,8 @@ lobby.GameLobby = (function() {
           self.updateGameList(json.games, autoRepeat);
         }
       };
-      var url = lobbyUrl + '/list';
+      var url = self.searchQuery_?
+          lobbyUrl + '/search?q=' + self.searchQuery_ : lobbyUrl + '/list';
       xmlHttp.open( "GET", url, true );
       xmlHttp.send( null );
     },
@@ -227,9 +251,7 @@ lobby.GameLobby = (function() {
     onSelectGame: function(data) {
       // TODO: Launch game.
       console.log('selected ' + data.name + ' hosted by ' + data.gameId);
-    },
-   
-   
+    }
   };
 
   /**
@@ -253,8 +275,14 @@ lobby.GameLobby = (function() {
         lobbyUrl = defaultLobbyUrl;
     }
     var lobbies = document.querySelectorAll('.game-lobby-list');
-    for (var i = 0; i < lobbies.length; i++)
-      GameLobby.decorate(lobbies[i]);
+    for (var i = 0; i < lobbies.length; i++) {
+      var searchbox = document.createElement('div');
+      var lobbyList = document.createElement('div');
+      lobbies[i].appendChild(searchbox);
+      lobbies[i].appendChild(lobbyList);
+      GameLobby.addSearchbox(searchbox);
+      GameLobby.decorate(lobbyList, searchbox);
+    }
   }
 
   window.addEventListener('load', initialize, false);
