@@ -77,21 +77,22 @@ lobby.Host = function() {
     return buffer;
   }
 
-  var Host = function(lobbyUrl) {
+  // port {@number} port number to host a game.
+  var Host = function(lobbyUrl, port) {
     lobby.util.EventSource.apply(this);
 
     this.lobbyUrl_ = lobbyUrl;
     this.clients = [];
     this.gameInfo = {
-      gameId: 'default',
-      name: 'Default',
-      description: 'This is the default game description',
-      status: 'awaiting_players',
-      accepting: true,
-      observable: true,
-      password: false,
-      players: [],
-      port: 9998,
+      'gameId': 'default',
+      'name': 'Default',
+      'description': 'This is the default game description',
+      'status': 'awaiting_players',
+      'accepting': true,
+      'observable': true,
+      'password': false,
+      'players': [],
+      'port': port,
     };
     if (lobby.serverCapable())
       this.listen(this.gameInfo.port);
