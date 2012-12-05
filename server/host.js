@@ -199,7 +199,7 @@ lobby.Host = function() {
                   self.clients[clientIndex].data = '';
                 }
               }
-              self.clients[clientIndex].rawData = data.slice(data_start + length_code);
+              data = self.clients[clientIndex].rawData = data.slice(data_start + length_code);
             } else {
               break; // Insufficient data to complete frame.
             }
