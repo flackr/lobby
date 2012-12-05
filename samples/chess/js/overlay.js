@@ -76,7 +76,8 @@ ChessLobbyOverlay.prototype = {
   initialize: function(name) {
     Overlay.prototype.initialize.call(this, name);
 
-    var gameLobby = $('chess-lobby-list');
+    var gameLobby = $('chess-lobby');
+    lobby.GameLobby.decorate(gameLobby);
 
     gameLobby.setFilter({name: 'chess'});
 
@@ -95,6 +96,9 @@ ChessLobbyOverlay.prototype = {
     $('refresh-game-list').addEventListener('click', this.onRefresh.bind(this));
     $('chess-game-list-close').addEventListener('click', this.close.bind(this));
 
+    gameLobby.onSelectGame = function(game) {
+      window.client = new chess.GameClient(new lobby.Client(game));
+    };
   },
 
   onNewGame: function(event) {
@@ -107,7 +111,7 @@ ChessLobbyOverlay.prototype = {
   },
 
   onRefresh: function(event) {
-    $('chess-lobby-list').refresh();
+    $('chess-lobby').refresh();
   },
 
   show: function() {

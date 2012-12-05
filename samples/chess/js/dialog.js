@@ -14,6 +14,12 @@ Dialog = (function() {
     return $(name + '-dialog');
   }
 
+  Dialog.Style = {
+    OK: 0,
+    OKCANCEL: 1,
+    CANCEL: 2,
+  }
+
   Dialog.prototype = {
 
      name: null,
@@ -156,14 +162,11 @@ Dialog = (function() {
     return registry_[name];
   }
 
-  Dialog.showInfoDialog = function(title, message) {
+  Dialog.showInfoDialog = function(title, message, opt_style) {
     var dialog = Dialog.getInstance('info');
-    if (!dialog) {
-       dialog = new InfoDialog();
-       Dialog.register('info', dialog);
-    }
     dialog.setTitle(title);
     dialog.setMessage(message);
+    dialog.setStyle(opt_style ? opt_style : Dialog.Style.OK);
     dialog.show();
   }
 
@@ -208,7 +211,32 @@ InfoDialog.prototype = {
   setMessage: function(message) {
     $('info-dialog-message').textContent = message;
   },
+
+  setStyle: function(style) {
+    var setStyle = function(buttonType, state) {
+      var button = $('info-dialog').querySelector('.' + buttonType + '-button');
+      button.hidden = !state;
+    };
+    switch(style) {
+    case Dialog.Style.OK:
+      setStyle('close', true);
+      setStyle('cancel', false);
+      break;
+    case Dialog.Style.CANCEL:
+      setStyle('close', false);
+      setStyle('cancel', false);
+      break;
+    case Dialog.Style.OKCANCEL:
+      setStyle('close', true);
+      setStyle('cancel', true);
+      break;
+    default:
+      console.log('unknown style');
+    }
+  }
 };
+
+
 
 PawnPromotionDialog = function() {
   Dialog.apply(this, ['promotion']);

@@ -425,9 +425,6 @@ ChessBoard = (function() {
 
         this.updateLegalMoves();
 
-        // test
-        console.log(this.toString());
-
         // Update scoresheet after advancing to next player turn in order
         // to determine if player is in check or checkmate.  TODO: Add
         // + or # as required.  Still a bit of plumbing. TOD: Promotions are
@@ -459,6 +456,18 @@ ChessBoard = (function() {
         chess.scoresheet.addMove(scoresheetMoveIndex, 
                                  scoreColor, 
                                  displayMove);
+
+
+        if (window.client) {
+          var message = {
+            moveFrom: fromSquare,
+            moveTo: toSquare,
+            position: this.toString(),
+            text: displayMove,
+            echo: false,
+          };
+          window.client.sendMessage(message);
+        }
       }
       return true;
     },

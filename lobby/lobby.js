@@ -45,33 +45,21 @@ lobby.GameLobby = (function() {
   }
 
   /**
-   * Adds a searchbox for the game lobby.
-   */
-  GameLobby.addSearchbox = function(el) {
-    el.innerHTML =
-      '<input type="text" class="lobby-search">' +
-      '<button class="lobby-search-button">Search</button>';
-  };
-
-  /**
    * Morphs an HTML element into a game lobby. This also holds a reference to
    * its search box.
    * @param {!Element} el Element to embelish.
-   * @param {!Element} searchBox search box div element.
    */
-  GameLobby.decorate = function(el, searchBox) {
+  GameLobby.decorate = function(el) {
     el.__proto__ = GameLobby.prototype;
-    el.decorate(searchBox);
+    el.decorate();
   };
 
   /**
    * Force an immediate update of the game list.
+   * @deprecated
    */
   GameLobby.refresh = function() {
-    var lobbies = document.querySelectorAll('.game-lobby-list');
-    for (var i = 0; i < lobbies.length; i++) {
-      lobbies[i].requestListUpdate(false);
-    }
+    console.log('call to deprecated method.');
   };
 
   GameLobby.setUrl = function(url) {
@@ -101,17 +89,29 @@ lobby.GameLobby = (function() {
     /**
      * Connects the list update mechanism.
      */
-    decorate: function(searchbox) {
+    decorate: function() {
 
       this.games_ = [];
 
+      var searchbox = document.createElement('div');
+      var searchInput = document.createElement('input');
+      searchInput.className = 'lobby-search';
+      var searchButton = document.createElement('button');
+      searchButton.classname = 'lobby-search-button';
+      searchButton.textContent = 'Search';
+      searchbox.appendChild(searchInput);
+      searchbox.appendChild(searchButton);
+      this.appendChild(searchbox);
+
+      var lobbyList = document.createElement('div');
+      lobbyList.className = 'game-lobby-list';
+      this.appendChild(lobbyList);
+
       var self = this;
-      searchbox.getElementsByTagName('button')[0].addEventListener('click',
-          function(evt) {
-            self.searchQuery_ =
-                searchbox.getElementsByTagName('input')[0].value;
-            self.requestListUpdate(false);
-          });
+      searchButton.addEventListener('click', function(evt) {
+        self.searchQuery_ =searchInput.value;
+        self.requestListUpdate(false);
+      });
 
       this.requestListUpdate(true);
     },
@@ -189,9 +189,6 @@ lobby.GameLobby = (function() {
         var entry = document.createElement('div');
         entry.className = 'game-entry';
 
-        // TODO - custom status flags.
-        // Status, accepting, observable and password can be squeezed into a
-        // set of icons with tooltips.
         var flags = document.createElement('div');
         flags.classList.add('game-status-flags');
         flags.classList.add('game-list-status-column');
@@ -273,15 +270,6 @@ lobby.GameLobby = (function() {
       }
       if (!lobbyUrl)
         lobbyUrl = defaultLobbyUrl;
-    }
-    var lobbies = document.querySelectorAll('.game-lobby-list');
-    for (var i = 0; i < lobbies.length; i++) {
-      var searchbox = document.createElement('div');
-      var lobbyList = document.createElement('div');
-      lobbies[i].appendChild(searchbox);
-      lobbies[i].appendChild(lobbyList);
-      GameLobby.addSearchbox(searchbox);
-      GameLobby.decorate(lobbyList, searchbox);
     }
   }
 

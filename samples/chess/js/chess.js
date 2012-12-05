@@ -17,10 +17,7 @@ chess.undo = function(){
 }
 
 chess.newGame = function() {
-  // TODO: disable control while game in progress.
   Overlay.show('chess-lobby');
-  chess.chessboard.reset();
-  chess.scoresheet.reset();
 }
 
 chess.createGame = function(path, port) {
@@ -30,6 +27,8 @@ chess.createGame = function(path, port) {
   host.addEventListener('ready', function(address) {
     window.client = new chess.GameClient(new lobby.Client(address));
   });
+  chess.chessboard.reset();
+  chess.scoresheet.reset();
 }
 
 chess.GameServer = function(connection, name) {
@@ -47,16 +46,15 @@ chess.GameServer = function(connection, name) {
 
 chess.GameServer.prototype = {
   onMessageReceived: function(clientIndex, message) {
+    var echo = !!message.echo;
     if (message.alias) {
       this.clients_[clientIndex] = message.alias;
       this.updatePlayers();
     } else {
-      // Add user alias to message text.
-      message.text = (this.clients_[clientIndex] || 'Anonymous') + ': ' + message.text;
-
       // Rebroadcast all messages to all clients.
       for (var i in this.connection_.clients) {
-        this.connection_.send(i, message);
+        if (echo || i != clientIndex)
+          this.connection_.send(i, message);
       }
     }
   },
@@ -78,6 +76,7 @@ chess.GameServer.prototype = {
 
 chess.GameClient = function(connection) {
   this.connection_ = connection;
+  this.id_ = Date.now();
   this.name_ = 'Anonymous'; // TODO: set when creating a game.
   this.connection_.addEventListener('connected', this.onConnected.bind(this));
   this.connection_.addEventListener('disconnected', this.onDisconnected.bind(this));
@@ -92,11 +91,21 @@ chess.GameClient.prototype = {
   },
 
   onMessageReceived: function(message) {
-    // TODO: Implement me.
+    if (message.moveFrom) {
+      chess.chessboard.move(message,moveFrom, message.moveTo);
+    }
+
+    for (key in message) {
+       console.log(key + ': ' + message[key]);
+    }
   },
 
-  sendMessage: function() {
-    // TODO: Implement me.
+  /**
+   * Sends a message to all clients.
+   */
+  sendMessage: function(message) {
+    message.sender = this.id_;
+    this.connection_.send(message);
   },
 
   onKeyPress: function(evt) {
