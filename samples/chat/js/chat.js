@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', function() {
   $('createGame').style.display = lobby.serverCapable() ? 'block' : 'none';
   $('createGameBtn').addEventListener('click', function() {
     var host;
-    window.server = new ChatServer(host = new lobby.Host($('lobbyUrl').value), $('gameName').value);
+    window.server = new ChatServer(host = new lobby.Host($('lobbyUrl').value, parseInt($('port').value)), $('gameName').value);
     host.addEventListener('ready', function(address) {
       window.client = new ChatClient($('connection'), new lobby.Client(address), $('localAlias').value);
     });
@@ -20,9 +20,9 @@ function ChatServer(connection, name) {
   this.clients_ = [];
   this.connection_ = connection;
   this.connection_.updateInfo({
-    gameId: 'chat',
-    description: name,
-    status: 'running',
+    'gameId': 'chat',
+    'description': name,
+    'status': 'running'
   });
   this.connection_.addEventListener('message', this.onMessageReceived.bind(this));
   this.connection_.addEventListener('disconnection', this.onDisconnection.bind(this));
