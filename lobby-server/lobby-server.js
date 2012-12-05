@@ -42,6 +42,8 @@ lobby.Server = function() {
           return 'text/css';
         if (filePath.substr(filePath.length - 3) == '.js')
           return 'text/javascript';
+        if (filePath.substr(filePath.length - 4) == '.svg')
+          return 'image/svg+xml';
         return 'text/plain';
       }
 
