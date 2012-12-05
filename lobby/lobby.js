@@ -231,11 +231,11 @@ lobby.GameLobby = (function() {
     if (!lobbyUrl) {
       var query = window.location.search;
       if (query && query.length > 0) {
-        var params = query.split('&');
+        var params = query.slice(1).split('&');
         for (var i = 0; i < params.length; i++) {
           var pair = params[i].split('=');
           if (pair[0] == 'lobby')
-             lobbyUrl = pair[1];
+             lobbyUrl = 'http://' + pair[1];
         }
       }
       if (!lobbyUrl)

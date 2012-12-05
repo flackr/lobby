@@ -1,0 +1,55 @@
+body > #connection {
+  display: none;
+}
+
+body.connected > #preconnection {
+  display: none;
+}
+
+html,
+body,
+#connection {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+#connection {
+  -webkit-box-orient: vertical;
+  -moz-box-orient: vertical;
+  box-orient: vertical;
+}
+
+body.connected > #connection,
+.input-bar {
+  display: -webkit-box;
+  display: -moz-box;
+  display: box;
+}
+
+.input,
+.log {
+  -webkit-box-flex: 1;
+  -moz-box-flex: 1;
+  box-flex: 1;
+  display: block;
+}
+
+.log {
+  white-space: pre-wrap;
+}
+
+#chat-game-lobby-container {
+  border: 1px solid black;
+  height: 300px;
+  margin: 40px 20px 20px 20px;
+}
+
+#chat-game-list {
+  width: 100%;
+}
+
+#chat-game-list .game-list-name-column {
+  display: none;
+}

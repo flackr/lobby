@@ -10,9 +10,15 @@
 
 lobby.Client = function() {
 
-  var Client = function(hostUrl) {
+  var Client = function(gameInfo) {
     lobby.util.EventSource.apply(this);
 
+    var hostUrl;
+    if (typeof gameInfo == 'string') {
+      hostUrl = gameInfo;
+    } else {
+      hostUrl = 'ws://' + gameInfo.publicAddress + ':' + gameInfo.port;
+    }
     this.ws_ = new WebSocket(hostUrl, ['game-protocol']);
     this.ws_.onopen = this.onConnected.bind(this);
     this.ws_.onclose = this.onDisconnected.bind(this);

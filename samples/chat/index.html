@@ -2,7 +2,7 @@
 <html>
   <head>
     <link rel="stylesheet" href="lobby/lobby.css">
-    <link rel="stylesheet" href="chat.css">
+    <link rel="stylesheet" href="css/chat.css">
     <script src="lobby/util.js"></script>
     <script src="lobby/client.js"></script>
     <script src="lobby/host.js"></script>
@@ -11,17 +11,23 @@
     <script src="js/chat.js"></script>
   </head>
   <body>
-    <div id="createGame">
-      <p>Create a new "game"</p>
-      Lobby URL: <input type="text" id="lobbyUrl" value="ws://localhost:9999/"><br>
-      Game name: <input type="text" id="gameName"><br>
-      Alias: <input type="text" id="localName"><br>
-      <button id="createGameBtn">Create</button>
+    <div id="preconnection">
+      <div id="createGame">
+        <p>Create a new "game"</p>
+        Lobby URL: <input type="text" id="lobbyUrl" value="ws://localhost:9999/"><br>
+        Game name: <input type="text" id="gameName"><br>
+        Alias: <input type="text" id="localName"><br>
+        <button id="createGameBtn">Create</button>
+      </div>
+      <div id="chat-game-lobby-container">
+        <div id="chat-game-list" class="game-lobby-list">
+        </div>
+      </div>
     </div>
-    <div id="connected">
-    </div>
-    <div id="chat-game-lobby-container">
-      <div id="chat-game-list" class="game-lobby-list">
+    <div id="connection">
+      <div class="log"></div>
+      <div class="input-bar">
+        <input type="text" class="input"><button class="send">Send</button>
       </div>
     </div>
   </body>

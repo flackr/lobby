@@ -122,7 +122,6 @@ lobby.Host = function() {
         var clientIndex = self.clients.length;
         console.log('Client connected on index '+clientIndex);
         self.clients[clientIndex] = {socketId: acceptInfo.socketId, state: 'connecting', data: ''};
-        self.dispatchEvent('connection', clientIndex);
         self.listenOnSocket(clientIndex);
         self.acceptConnection(port);
       });
@@ -246,7 +245,7 @@ lobby.Host = function() {
           self.clients[clientIndex].state = 'connected';
           self.clients[clientIndex].rawData = [];
           self.clients[clientIndex].data = '';
-          self.dispatchEvent('connect', clientIndex);
+          self.dispatchEvent('connection', clientIndex);
         });
       } else {
         var json;
@@ -267,7 +266,7 @@ lobby.Host = function() {
       // on the now closed connection.
       // TODO(flackr): Safely only call this once.
       if (this.clients[clientIndex]) {
-        self.dispatchEvent('disconnect', clientIndex);
+        self.dispatchEvent('disconnection', clientIndex);
         chrome.socket.disconnect(this.clients[clientIndex].socketId);
         chrome.socket.destroy(this.clients[clientIndex].socketId);
         delete this.clients[clientIndex];
