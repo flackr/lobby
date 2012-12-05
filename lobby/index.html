@@ -1,9 +1,18 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Lobby</title>
+  <title>Lobby</title>
+  <link rel="stylesheet" href="lobby.css">
+  <script src="lobby.js"></script>
 </head>
 <body>
-<p>Default HTML for the lobby server.</p>
+<div class="full-screen vertical-layout">
+<h1>Game Lobby <input id="refresh-button" type="button" value="Refresh"
+    onclick="lobby.GameLobby.refresh();"></h1>
+<div class="game-list-container vertical-layout">
+  <div class="game-lobby-list">
+  </div>
+</div>
+</div>
 </body>
 </html>
