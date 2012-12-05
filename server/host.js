@@ -152,7 +152,7 @@ lobby.Host = function() {
       var self = this;
       chrome.socket.read(this.clients[clientIndex].socketId, function(readInfo) {
         if (readInfo.resultCode <= 0) {
-          self.closeClientConnection(self.clients[clientIndex].socketId);
+          self.closeClientConnection(clientIndex);
           return;
         }
         if (!readInfo.data.byteLength)
