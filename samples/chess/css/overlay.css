@@ -1,0 +1,69 @@
+#overlays {
+  background-color: #fff;
+  bottom: 0;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 10;
+}
+
+.overlay {
+  height: 100%;
+  position: relative;
+  width: 100%;
+}
+
+/* ------------ game lobby -------------------*/
+
+#chess-lobby-container {
+  bottom: 40px;
+  left: 0;
+  margin: 20px 20px 10px 20px;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
+
+#chess-lobby-button-bar {
+  -webkit-box-orient: horizontal;
+  -webkit-box-pack: justify;
+  -webkit-box-align: center;
+  -webkit-padding-start: 20px;
+  -webkit-padding-end: 20px;
+  bottom: 0;
+  display: -webkit-box;
+  font: 12px 'Arial';
+  height: 50px;
+  left: 0;
+  margin: 0;
+  position: absolute;
+  right: 0;
+}
+
+#chess-lobby-button-bar span {
+  -webkit-margin-end: 10px;
+}
+
+#chess-lobby-button-bar input[type=url],
+#chess-lobby-button-bar input[type=text] {
+  -webkit-margin-end: 10px;
+  -webkit-padding-start: 5px;
+  display: block;
+}
+
+#chess-lobby-button-bar input {
+  height: 2em;
+}
+
+#chess-lobby-url {
+  -webkit-box-flex: 1;
+}
+
+#chess-lobby-list .game-list-name-column {
+  display: none;
+}
+
+
+
+
