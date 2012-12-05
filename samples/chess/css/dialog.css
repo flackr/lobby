@@ -68,18 +68,6 @@
   padding: 5px 10px;
 }
 
-/* ------------ game lobby -------------------*/
-
-#chess-lobby-container {
-  height: 400px;
-  width: 700px;
-}
-
-
-#chess-lobby-list .game-list-name-column {
-  display: none;
-}
-
 /* ------------ info dialog ------------------ */
 
 #info-dialog-message {

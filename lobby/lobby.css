@@ -39,6 +39,8 @@ h1 {
   background: #f5f5f5;
   border: 1px solid black;
   margin: 20px;
+  overflow-x: hidden;
+  overfloy-y: auto;
   position: relative;
 }
 

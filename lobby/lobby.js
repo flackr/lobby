@@ -21,7 +21,6 @@ lobby.GameLobby = (function() {
    * URL for the Lobby used if not specified as a query parameter of the form:
    * '?lobby=url'.
    * @type {string}
-   * @const
    */
   var defaultLobbyUrl = 'http://localhost:9999';
 
@@ -66,6 +65,10 @@ lobby.GameLobby = (function() {
     lobbyUrl = url;
   };
 
+  GameLobby.setDefaultUrl = function(url) {
+    defaultLobbyUrl = url;
+  };
+
   GameLobby.prototype = {
     __proto__: HTMLDivElement.prototype,
 
@@ -90,12 +93,20 @@ lobby.GameLobby = (function() {
       this.requestListUpdate(true);
     },
 
+    refresh: function() {
+      this.requestListUpdate(false);
+    },
+
     /**
      * Sets filter for restricting games.
      * @param {Object<string,string>} filter.
      */
     setFilter: function(filter) {
       this.filter_ = filter;
+    },
+
+    getUrl: function() {
+      return lobbyUrl;
     },
 
     /**

@@ -2,6 +2,7 @@
 <html>
 <head>
   <link rel="stylesheet" href="css/dialog.css">
+  <link rel="stylesheet" href="css/overlay.css">
   <link rel="stylesheet" href="css/chessboard.css">
   <link rel="stylesheet" href="css/scoresheet.css">
   <link rel="stylesheet" href="lobby/lobby.css">
@@ -13,6 +14,7 @@
   <script src="lobby/lobby.js"></script>
   <script src="js/chess.js"></script>
   <script src="js/dialog.js"></script>
+  <script src="js/overlay.js"></script>
   <script src="js/chessboard.js"></script>
   <script src="js/scoresheet.js"></script>
 </head>
@@ -25,10 +27,27 @@
     </div>  
   </div>
   <div id="controls">
-    <input id="chess-button-offer-draw" type="button" value="Offer Draw">
-    <input id="chess-button-resign" type="button" value="Resign">
-    <input id="chess-button-undo" type="button" value="Request Take Back">
+    <input id="chess-button-offer-draw" type="button" value="Offer Draw" disabled>
+    <input id="chess-button-resign" type="button" value="Resign" disabled>
+    <input id="chess-button-undo" type="button" value="Request Take Back" disabled>
     <input id="chess-button-new-game" type="button" value="New Game">
+  </div>
+</div>
+<!-- Overlays fill the full screen area when open -->
+<div id="overlays" hidden>
+  <div id="chess-lobby-overlay" class="overlay" hidden>
+    <div id="chess-lobby-container" class="game-list-container">
+      <div id="chess-lobby-list" class="game-lobby-list"></div>
+    </div>
+    <div id="chess-lobby-button-bar">
+      <span>Lobby URL:</span>
+      <input id="chess-lobby-url" type="url">
+      <span>port:</span>
+      <input id="chess-lobby-port" value="9999" type="text"size="4">
+      <input id="host-new-chess-game" type="button" value="Create Game">
+      <input id="refresh-game-list" type="button" value="Refresh List">
+      <input id="chess-game-list-close" type="button" value="Close">
+    </div>
   </div>
 </div>
 <div id="dialogs" hidden>
@@ -57,20 +76,7 @@
       </div>
     </div>
   </div>
-  <div id="chess-lobby-dialog" class="dialog" hidden>
-    <div class="dialog-title">
-      <div id="cless-lobby-dialog-title">Game Lobby</div>
-      <div class="close-icon cancel-button"></div>
-    </div>
-    <div class="dialog-content">
-      <div id="chess-lobby-container" class="game-list-container">
-        <div id="chess-lobby-list" class="game-lobby-list"></div>
-      </div>
-    </div>
-    <div class="button-bar">
-      <button class="close-button">OK</button>
-    </div>
-  </div>
+ 
   <!-- TODO: confirm dialog for draw offer or resignation -->
 
 </div>

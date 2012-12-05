@@ -23,6 +23,11 @@ Dialog = (function() {
      initialize: function(name) {
        this.name = name;
        var element = getElement(name);
+
+
+       if (!element)
+         console.log('unable to find dialog = ' + name);
+
        // Add listeners for close and cancel.
        var closeButtons = element.getElementsByClassName('close-button');
        for (var i = 0; i < closeButtons.length; i++)
@@ -182,25 +187,6 @@ Dialog = (function() {
 })();
 
 /**
- * The chess lobby shows a list of games and provides the option for creating
- * a new game.
- */
-function ChessLobbyDialog() {
-  Dialog.apply(this, ['chess-lobby']);
-}
-
-ChessLobbyDialog.prototype = {
-  __proto__: Dialog.prototype,
-
-  initialize: function(name) {
-    Dialog.prototype.initialize.call(this, name);
-    $('chess-lobby-list').setFilter({name: 'chess'});
-  },
-
-};
-
-
-/**
  * Displays a simple information dialog with a customizable title and message.
  */
 InfoDialog = function() {
@@ -278,7 +264,6 @@ PawnPromotionDialog.prototype = {
 };
 
 window.addEventListener('load', function() {
-  Dialog.register('chess-lobby', new ChessLobbyDialog());
   Dialog.register('info', new InfoDialog());
   Dialog.register('promotion', new PawnPromotionDialog());
 }, false);
