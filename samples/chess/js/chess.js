@@ -22,7 +22,7 @@ chess.newGame = function() {
 
 chess.createGame = function(path, port) {
   var url = 'ws://' + path + ':' + port + '/';
-  var host = new lobby.Host(url);
+  var host = new lobby.Host(url, 9998);
   window.server = new chess.GameServer(host, 'Blow your socks off crazy blitz chess action.');
   host.addEventListener('ready', function(address) {
     window.client = new chess.GameClient(new lobby.Client(address));

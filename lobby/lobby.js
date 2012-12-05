@@ -93,15 +93,15 @@ lobby.GameLobby = (function() {
 
       this.games_ = [];
 
-      var searchbox = document.createElement('div');
+      this.searchbox_ = document.createElement('div');
       var searchInput = document.createElement('input');
       searchInput.className = 'lobby-search';
       var searchButton = document.createElement('button');
       searchButton.classname = 'lobby-search-button';
       searchButton.textContent = 'Search';
-      searchbox.appendChild(searchInput);
-      searchbox.appendChild(searchButton);
-      this.appendChild(searchbox);
+      this.searchbox_.appendChild(searchInput);
+      this.searchbox_.appendChild(searchButton);
+      this.appendChild(this.searchbox_);
 
       var lobbyList = document.createElement('div');
       lobbyList.className = 'game-lobby-list';
