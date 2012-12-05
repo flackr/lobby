@@ -45,23 +45,12 @@ lobby.GameLobby = (function() {
   }
 
   /**
-   * Adds a searchbox for the game lobby.
-   */
-  GameLobby.addSearchbox = function(el) {
-    el.innerHTML =
-      '<input type="text" class="lobby-search">' +
-      '<button class="lobby-search-button">Search</button>';
-  };
-
-  /**
-   * Morphs an HTML element into a game lobby. This also holds a reference to
-   * its search box.
+   * Morphs an HTML element into a game lobby.
    * @param {!Element} el Element to embelish.
-   * @param {!Element} searchBox search box div element.
    */
-  GameLobby.decorate = function(el, searchBox) {
+  GameLobby.decorate = function(el) {
     el.__proto__ = GameLobby.prototype;
-    el.decorate(searchBox);
+    el.decorate();
   };
 
   /**
@@ -97,6 +86,7 @@ lobby.GameLobby = (function() {
     filter_: undefined,
 
     searchQuery_: '',
+    searchbox_: undefined,
 
     /**
      * Connects the list update mechanism.
@@ -105,13 +95,19 @@ lobby.GameLobby = (function() {
 
       this.games_ = [];
 
+      var searchbox = document.createElement('div');
+      searchbox.innerHTML = '<input type="text" class="lobby-search">' +
+          '<button class="lobby-search-button">Search</button>';
+
       var self = this;
-      searchbox.getElementsByTagName('button')[0].addEventListener('click',
-          function(evt) {
-            self.searchQuery_ =
-                searchbox.getElementsByTagName('input')[0].value;
-            self.requestListUpdate(false);
-          });
+      this.searchbox_ = searchbox;
+      this.searchbox_.getElementsByTagName('button')[0]
+          .addEventListener('click',
+              function(evt) {
+                self.searchQuery_ =
+                    searchbox.getElementsByTagName('input')[0].value;
+                self.requestListUpdate(false);
+              });
 
       this.requestListUpdate(true);
     },
@@ -145,6 +141,8 @@ lobby.GameLobby = (function() {
 
       while(this.firstChild)
         this.removeChild(this.firstChild);
+
+      this.appendChild(this.searchbox_);
 
       // TODO - display data.
 
@@ -276,12 +274,7 @@ lobby.GameLobby = (function() {
     }
     var lobbies = document.querySelectorAll('.game-lobby-list');
     for (var i = 0; i < lobbies.length; i++) {
-      var searchbox = document.createElement('div');
-      var lobbyList = document.createElement('div');
-      lobbies[i].appendChild(searchbox);
-      lobbies[i].appendChild(lobbyList);
-      GameLobby.addSearchbox(searchbox);
-      GameLobby.decorate(lobbyList, searchbox);
+      GameLobby.decorate(lobbies[i]);
     }
   }
 
