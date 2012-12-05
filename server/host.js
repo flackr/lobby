@@ -80,12 +80,8 @@ lobby.Host = function() {
   var Host = function(lobbyUrl) {
     lobby.util.EventSource.apply(this);
 
+    this.lobbyUrl_ = lobbyUrl;
     this.clients = [];
-    this.ws = new WebSocket(lobbyUrl, ['game-protocol']);
-    this.ws.onopen = this.registerServer.bind(this);
-    this.ws.onclose = this.connectionLost.bind(this);
-    this.ws.onmessage = this.lobbyMessageReceived.bind(this);
-    this.ws.onerror = this.onError.bind(this);
     this.gameInfo = {
       gameId: 'default',
       name: 'Default',
@@ -93,7 +89,8 @@ lobby.Host = function() {
       status: 'awaiting_players',
       accepting: true,
       observable: true,
-      password: '',
+      password: false,
+      players: [],
       port: 9998,
     };
     if (lobby.serverCapable())
@@ -101,6 +98,17 @@ lobby.Host = function() {
   }
 
   Host.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
+
+    updateInfo: function(info) {
+      if (info) {
+        for (var i in info) {
+          this.gameInfo[i] = info[i];
+        }
+      }
+      // TODO(flackr): Throttle game info updates to the lobby.
+      if (this.ws_ && this.ws_.readyState == 1)
+        this.ws_.send(JSON.stringify({type: 'update', details: this.gameInfo}));
+    },
 
     listen: function(port) {
       var self = this;
@@ -112,8 +120,21 @@ lobby.Host = function() {
             return;
           }
           self.acceptConnection(port);
+          self.registerServer();
+          self.dispatchEvent('ready', 'ws://localhost:'+port+'/');
         });
       });
+    },
+
+    registerServer: function() {
+      var self = this;
+      this.ws_ = new WebSocket(this.lobbyUrl_, ['game-protocol']);
+      this.ws_.onopen = function(evt) {
+        self.ws_.send(JSON.stringify({type: 'register', details: self.gameInfo}));
+      };
+      this.ws_.onclose = this.connectionLost.bind(this);
+      this.ws_.onmessage = this.lobbyMessageReceived.bind(this);
+      this.ws_.onerror = this.onError.bind(this);
     },
 
     acceptConnection: function(port) {
@@ -210,7 +231,6 @@ lobby.Host = function() {
 
     handleClientMessage: function(clientIndex, message) {
       if (this.clients[clientIndex].state == 'connecting') {
-        console.log('Received:\n' + message);
         message = message.split('\n');
         var messageDetails = {};
         for (var i = 0; i < message.length; i++) {
@@ -218,7 +238,6 @@ lobby.Host = function() {
           if (details.length == 2)
             messageDetails[details[0].trim()] = details[1].trim();
         }
-        console.log(messageDetails);
         if (messageDetails['Upgrade'] != 'websocket' ||
             !messageDetails['Sec-WebSocket-Key'] ||
             !messageDetails['Sec-WebSocket-Protocol']) {
@@ -234,7 +253,6 @@ lobby.Host = function() {
             'Sec-WebSocket-Accept: ' + responseKey + '\n' +
             'Sec-WebSocket-Protocol: ' + messageDetails['Sec-WebSocket-Protocol'] + '\n' +
             '\n';
-        console.log('Sending response:\n' + response);
         response = StringToArrayBuffer(response.replace(/\n/g, '\r\n'));
         var self = this;
         chrome.socket.write(this.clients[clientIndex].socketId, response, function(writeInfo) {
@@ -285,11 +303,6 @@ lobby.Host = function() {
       });
     },
 
-    registerServer: function(evt) {
-      console.log('Connected, registering server');
-      this.ws.send(JSON.stringify({type: 'register', details: this.gameInfo}));
-    },
-
     connectionLost: function(evt) {
       console.log('Connection to lobby lost');
     },
@@ -298,15 +311,11 @@ lobby.Host = function() {
       try {
         var json = JSON.parse(evt.data);
         if (json.type == 'ping') {
-          this.ws.send(JSON.stringify({type: 'pong'}));
+          this.ws_.send(JSON.stringify({type: 'pong'}));
         }
       } catch(e) {
-        this.ws.close();
+        this.ws_.close();
       }
-    },
-
-    updateLobby: function() {
-      this.ws.send(JSON.stringify({type: 'update', details: this.gameInfo}));
     },
 
     onError: function(evt) {

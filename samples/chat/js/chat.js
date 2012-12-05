@@ -6,34 +6,57 @@ document.addEventListener('DOMContentLoaded', function() {
   $('createGame').style.display = lobby.serverCapable() ? 'block' : 'none';
   $('createGameBtn').addEventListener('click', function() {
     var host;
-    window.server = new ChatServer(host = new lobby.Host($('lobbyUrl').value));
-    // TODO(flackr): Replace this with with a fake client rather than actually
-    // connecting.
-    window.client = new ChatClient($('connection'), new lobby.Client('ws://localhost:' + host.gameInfo.port + '/'));
+    window.server = new ChatServer(host = new lobby.Host($('lobbyUrl').value), $('gameName').value);
+    host.addEventListener('ready', function(address) {
+      window.client = new ChatClient($('connection'), new lobby.Client(address), $('localAlias').value);
+    });
   });
   $('chat-game-list').onSelectGame = function(game) {
-    window.client = new ChatClient($('connection'), new lobby.Client(game));
+    window.client = new ChatClient($('connection'), new lobby.Client(game), $('alias').value);
   };
 });
 
-function ChatServer(connection) {
+function ChatServer(connection, name) {
+  this.clients_ = [];
   this.connection_ = connection;
+  this.connection_.updateInfo({
+    gameId: 'chat',
+    description: name,
+    status: 'running',
+  });
   this.connection_.addEventListener('message', this.onMessageReceived.bind(this));
 }
 
 ChatServer.prototype = {
   onMessageReceived: function(clientIndex, message) {
-    console.log('Server received '+message+' from client '+clientIndex);
-    // Rebroadcast all messages to all clients
-    for (var i in this.connection_.clients) {
-      this.connection_.send(i, message);
+    if (message.alias) {
+      this.clients_[clientIndex] = message.alias;
+      this.updatePlayers();
+    } else {
+      // Add user alias to message text.
+      message.text = (this.clients_[clientIndex] || 'Anonymous') + ': ' + message.text;
+
+      // Rebroadcast all messages to all clients.
+      for (var i in this.connection_.clients) {
+        this.connection_.send(i, message);
+      }
     }
+  },
+
+  updatePlayers: function() {
+    var aliases = [];
+    for (var i in this.clients_)
+      aliases.push(this.clients_[i]);
+    this.connection_.updateInfo({
+      players: aliases
+    });
   }
 };
 
-function ChatClient(rootNode, connection) {
+function ChatClient(rootNode, connection, name) {
   this.connection_ = connection;
   this.rootNode_ = rootNode;
+  this.name_ = name || 'Anonymous';
   this.connection_.addEventListener('connected', this.onConnected.bind(this));
   this.connection_.addEventListener('disconnected', this.onDisconnected.bind(this));
   this.connection_.addEventListener('message', this.onMessageReceived.bind(this));
@@ -46,6 +69,7 @@ ChatClient.prototype = {
 
   onConnected: function() {
     document.body.classList.add('connected');
+    this.connection_.send({alias: this.name_});
   },
 
   onMessageReceived: function(message) {
