@@ -141,7 +141,6 @@ lobby.Host = function() {
       var self = this;
       chrome.socket.accept(self.socketId_, function(acceptInfo) {
         var clientIndex = self.clients.length;
-        console.log('Client connected on index '+clientIndex);
         self.clients[clientIndex] = {socketId: acceptInfo.socketId, state: 'connecting', data: ''};
         self.listenOnSocket(clientIndex);
         self.acceptConnection(port);
@@ -284,7 +283,7 @@ lobby.Host = function() {
       // on the now closed connection.
       // TODO(flackr): Safely only call this once.
       if (this.clients[clientIndex]) {
-        self.dispatchEvent('disconnection', clientIndex);
+        this.dispatchEvent('disconnection', clientIndex);
         chrome.socket.disconnect(this.clients[clientIndex].socketId);
         chrome.socket.destroy(this.clients[clientIndex].socketId);
         delete this.clients[clientIndex];

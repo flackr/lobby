@@ -25,6 +25,7 @@ function ChatServer(connection, name) {
     status: 'running',
   });
   this.connection_.addEventListener('message', this.onMessageReceived.bind(this));
+  this.connection_.addEventListener('disconnection', this.onDisconnection.bind(this));
 }
 
 ChatServer.prototype = {
@@ -41,6 +42,11 @@ ChatServer.prototype = {
         this.connection_.send(i, message);
       }
     }
+  },
+
+  onDisconnection: function(clientIndex) {
+    delete this.clients_[clientIndex];
+    this.updatePlayers();
   },
 
   updatePlayers: function() {
