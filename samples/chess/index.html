@@ -4,13 +4,17 @@
   <link rel="stylesheet" href="css/dialog.css">
   <link rel="stylesheet" href="css/chessboard.css">
   <link rel="stylesheet" href="css/scoresheet.css">
-  <link rel="stylesheet" href="../../lobby/lobby.css">
+  <link rel="stylesheet" href="lobby/lobby.css">
 
-  <script src="../../lobby/lobby.js"></script>
+  <script src="lobby/util.js"></script>
+  <script src="lobby/client.js"></script>
+  <script src="lobby/host.js"></script>
+  <script src="lobby/sha1.js"></script>
+  <script src="lobby/lobby.js"></script>
+  <script src="js/chess.js"></script>
   <script src="js/dialog.js"></script>
   <script src="js/chessboard.js"></script>
   <script src="js/scoresheet.js"></script>
-
 </head>
 <body>
 <div id="screen">
@@ -21,12 +25,10 @@
     </div>  
   </div>
   <div id="controls">
-    <input type="button" value="Offer Draw" onclick="offerDraw();">
-    <input type="button" value="Resign" onclick="resign();">
-    <input type="button" value="Request Take Back" onclick="undo();">
-    <input type="button" value="Save">
-    <input type="button" value="New Game" onclick="newGame()">
-    <input type="button" value="Show Games">
+    <input id="chess-button-offer-draw" type="button" value="Offer Draw">
+    <input id="chess-button-resign" type="button" value="Resign">
+    <input id="chess-button-undo" type="button" value="Request Take Back">
+    <input id="chess-button-new-game" type="button" value="New Game">
   </div>
 </div>
 <div id="dialogs" hidden>
@@ -72,37 +74,5 @@
   <!-- TODO: confirm dialog for draw offer or resignation -->
 
 </div>
-<script>
-  function $(name) {
-    return document.getElementById(name);
-  }
-
-  function offerDraw() {
-    // TODO: Implement me.  Requires agreement of other player.
-  }
-
-  function resign() {
-    // TODO: Implement me.
-  }
-
-  function undo() {
-    // TODO: Implement me. Requires agreement of other player.
-  }
-
-  function newGame() {
-    // TODO: disable control while game in progress.
-    Dialog.show('chess-lobby');
-    //chessboard.reset();
-    //scoresheet.reset();
-  }
-
-  chessboard = new ChessBoard();
-  $('board-area').appendChild(chessboard);
-  chessboard.reset();
-
-  scoresheet = new Scoresheet();
-  $('move-list').appendChild(scoresheet);
-
-</script>
 </body>
 </html>

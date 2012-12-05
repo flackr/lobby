@@ -456,9 +456,9 @@ ChessBoard = (function() {
           if (!piece.isPawn())
             displayMove = piece.pieceType_.toUpperCase() + displayMove;
         }
-        scoresheet.addMove(scoresheetMoveIndex, 
-                           scoreColor, 
-                           displayMove);
+        chess.scoresheet.addMove(scoresheetMoveIndex, 
+                                 scoreColor, 
+                                 displayMove);
       }
       return true;
     },
