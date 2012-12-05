@@ -57,7 +57,8 @@ lobby.Server = function() {
         response.writeHead(200, {'Content-Type': 'text/plain'});
         response.end('Not implemented yet.');
       } else if (requestPath == '/list') {
-        response.writeHead(200, {'Content-Type': 'application/json'});
+        response.writeHead(200, {'Content-Type': 'application/json',
+                                 'Access-Control-Allow-Origin': '*'});
         response.end(JSON.stringify({'games': games}));
       } else {
         if (requestPath == '/')

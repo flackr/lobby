@@ -62,11 +62,12 @@ h1 {
   border-right: 1px solid rgba(80, 80, 40, 0.3);
   display: table-cell;
   padding: 5px 10px;
-  width: 10%;
+  white-space: nowrap;
 }
 
 .game-entry > *:last-child {
-  width: 70%;
+  width: 100%;
+  white-space: normal;
 }
 
 .game-entry-header {
@@ -108,5 +109,3 @@ h1 {
 .status-password-protected {
   background-image: url('locked.svg');
 }
-
-

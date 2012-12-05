@@ -181,6 +181,28 @@ Dialog = (function() {
 
 })();
 
+/**
+ * The chess lobby shows a list of games and provides the option for creating
+ * a new game.
+ */
+function ChessLobbyDialog() {
+  Dialog.apply(this, ['chess-lobby']);
+}
+
+ChessLobbyDialog.prototype = {
+  __proto__: Dialog.prototype,
+
+  initialize: function(name) {
+    Dialog.prototype.initialize.call(this, name);
+    $('chess-lobby-list').setFilter({name: 'chess'});
+  },
+
+};
+
+
+/**
+ * Displays a simple information dialog with a customizable title and message.
+ */
 InfoDialog = function() {
   Dialog.apply(this, ['info']);
 }
@@ -188,6 +210,7 @@ InfoDialog = function() {
 InfoDialog.prototype = {
   __proto__: Dialog.prototype,
 
+  // TODO: Remove this unless additional initialization required.
   initialize: function(name) {
     Dialog.prototype.initialize.call(this, name);
   },
@@ -254,4 +277,8 @@ PawnPromotionDialog.prototype = {
   }
 };
 
-
+window.addEventListener('load', function() {
+  Dialog.register('chess-lobby', new ChessLobbyDialog());
+  Dialog.register('info', new InfoDialog());
+  Dialog.register('promotion', new PawnPromotionDialog());
+}, false);

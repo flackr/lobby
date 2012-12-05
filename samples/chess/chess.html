@@ -4,9 +4,13 @@
   <link rel="stylesheet" href="css/dialog.css">
   <link rel="stylesheet" href="css/chessboard.css">
   <link rel="stylesheet" href="css/scoresheet.css">
+  <link rel="stylesheet" href="../../lobby/lobby.css">
+
+  <script src="../../lobby/lobby.js"></script>
   <script src="js/dialog.js"></script>
   <script src="js/chessboard.js"></script>
   <script src="js/scoresheet.js"></script>
+
 </head>
 <body>
 <div id="screen">
@@ -51,6 +55,20 @@
       </div>
     </div>
   </div>
+  <div id="chess-lobby-dialog" class="dialog" hidden>
+    <div class="dialog-title">
+      <div id="cless-lobby-dialog-title">Game Lobby</div>
+      <div class="close-icon cancel-button"></div>
+    </div>
+    <div class="dialog-content">
+      <div id="chess-lobby-container" class="game-list-container">
+        <div id="chess-lobby-list" class="game-lobby-list"></div>
+      </div>
+    </div>
+    <div class="button-bar">
+      <button class="close-button">OK</button>
+    </div>
+  </div>
   <!-- TODO: confirm dialog for draw offer or resignation -->
 
 </div>
@@ -73,8 +91,9 @@
 
   function newGame() {
     // TODO: disable control while game in progress.
-    chessboard.reset();
-    scoresheet.reset();
+    Dialog.show('chess-lobby');
+    //chessboard.reset();
+    //scoresheet.reset();
   }
 
   chessboard = new ChessBoard();

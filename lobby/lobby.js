@@ -1,18 +1,37 @@
 
-var lobby = {};
+var lobby = lobby || {};
 
 lobby.GameLobby = (function() {
 
   /**
    * How often we automaticaly request an update to the games list in ms.
+   * @type {Number}
+   * @const
    */
   var recheckInterval = 20000;
 
   /**
-   *  Ignore a recheck if too close to the previous.
+   * Ignore a recheck if too close to the previous.
+   * @type {Number}
+   * @const
    */
   var minimumListRefreshInterval = 2000;
 
+  /**
+   * URL for the Lobby used if not specified as a query parameter of the form:
+   * '?lobby=url'.
+   * @type {string}
+   * @const
+   */
+  var defaultLobbyUrl = 'http://localhost:9999';
+
+  /**
+   * Resolved URL for the lobby.
+   * @type {string}
+   */
+  var lobbyUrl = undefined;
+
+  // TODO: Implement click spamming safeguard.
   var lastRefresh = null;
 
   /**
@@ -31,7 +50,7 @@ lobby.GameLobby = (function() {
   GameLobby.decorate = function(el) {
     el.__proto__ = GameLobby.prototype;
     el.decorate();
-  }
+  };
 
   /**
    * Force an immediate update of the game list.
@@ -41,7 +60,11 @@ lobby.GameLobby = (function() {
     for (var i = 0; i < lobbies.length; i++) {
       lobbies[i].requestListUpdate(false);
     }
-  }
+  };
+
+  GameLobby.setUrl = function(url) {
+    lobbyUrl = url;
+  };
 
   GameLobby.prototype = {
     __proto__: HTMLDivElement.prototype,
@@ -53,9 +76,9 @@ lobby.GameLobby = (function() {
     games_: undefined,
 
     /**
-     * Columns to report in the game list.
+     * Optional filter for restricting games.
      */
-    columns_: undefined,
+    filter_: undefined,
 
     /**
      * Connects the list update mechanism.
@@ -65,6 +88,14 @@ lobby.GameLobby = (function() {
       this.games_ = [];
 
       this.requestListUpdate(true);
+    },
+
+    /**
+     * Sets filter for restricting games.
+     * @param {Object<string,string>} filter.
+     */
+    setFilter: function(filter) {
+      this.filter_ = filter;
     },
 
     /**
@@ -87,9 +118,10 @@ lobby.GameLobby = (function() {
       var header = document.createElement('div');
       header.className = 'game-entry game-entry-header';
       this.appendChild(header);
-      var addField = function(row, name) {
+      var addField = function(row, name, className) {
         var label = document.createElement('div');
         label.textContent = name;
+        label.className = className;
         row.appendChild(label);
       }
       var addStatusIcon = function(parent, name, state) {
@@ -100,13 +132,26 @@ lobby.GameLobby = (function() {
         parent.appendChild(element);
       };
  
-      addField(header, 'Status');
-      addField(header, 'Game');
-      addField(header, 'Hosted By');
-      addField(header, 'Description');
+      addField(header, 'Status', 'game-list-status-column');
+      addField(header, 'Game', 'game-list-name-column');
+      addField(header, 'Hosted By', 'game-list-hosted-column');
+      addField(header, 'Description', 'game-list-description-column');
 
       for (var i = 0; i < list.length; i++) {
         var data = this.games_[i];
+
+        if (this.filter_) {
+          var match = true;
+          for (var key in this.filter_) {
+            if(this.filter_[key] != data[key]) {
+              match = false;
+              continue;
+            }
+          }
+          if (!match)
+            continue;
+        }
+
         var entry = document.createElement('div');
         entry.className = 'game-entry';
 
@@ -114,11 +159,11 @@ lobby.GameLobby = (function() {
         // Status, accepting, observable and password can be squeezed into a
         // set of icons with tooltips.
         var flags = document.createElement('div');
-        flags.className = 'game-status-flags';
+        flags.classList.add('game-status-flags');
+        flags.classList.add('game-list-status-column');
         addStatusIcon(flags,
                       'status-waiting',
                       data.status == 'awaiting_players');
-
         addStatusIcon(flags,
                       'status-accepting-players',
                       data.accepting);
@@ -131,9 +176,9 @@ lobby.GameLobby = (function() {
 
         entry.appendChild(flags);
 
-        addField(entry, data.name);
-        addField(entry, data.gameId);
-        addField(entry, data.description);
+        addField(entry, data.name, 'game-list-name-column');
+        addField(entry, data.gameId, 'game-list-hosted-column');
+        addField(entry, data.description, 'game-list-description-column');
 
         this.appendChild(entry);
 
@@ -163,7 +208,7 @@ lobby.GameLobby = (function() {
           self.updateGameList(json.games, autoRepeat);
         }
       };
-      var url = window.location + 'list';
+      var url = lobbyUrl + '/list';
       xmlHttp.open( "GET", url, true );
       xmlHttp.send( null );
     },
@@ -171,7 +216,8 @@ lobby.GameLobby = (function() {
     onSelectGame: function(data) {
       // TODO: Launch game.
       console.log('selected ' + data.name + ' hosted by ' + data.gameId);
-    }
+    },
+   
    
   };
 
@@ -181,6 +227,20 @@ lobby.GameLobby = (function() {
    * each instance.  
    */
   function initialize() {
+   
+    if (!lobbyUrl) {
+      var query = window.location.search;
+      if (query && query.length > 0) {
+        var params = query.split('&');
+        for (var i = 0; i < params.length; i++) {
+          var pair = params[i].split('=');
+          if (pair[0] == 'lobby')
+             lobbyUrl = pair[1];
+        }
+      }
+      if (!lobbyUrl)
+        lobbyUrl = defaultLobbyUrl;
+    }
     var lobbies = document.querySelectorAll('.game-lobby-list');
     for (var i = 0; i < lobbies.length; i++)
       GameLobby.decorate(lobbies[i]);
