@@ -16,13 +16,7 @@
 
 
 #chess-game-icon {
-  /**
-   * http://en.wikipedia.org/wiki/File:Chess.svg
-   * Released under lesser GPL.
-   * background-image: url('../images/Chess.svg');
-   */
   background-image: url('../images/black_chess.png');
-
   background-size: 48px;
   display: block;
   height: 48px;

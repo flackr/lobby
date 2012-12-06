@@ -40,6 +40,7 @@ chess.GameServer = function(connection, name) {
     gameId: 'chess',
     name: 'chess',
     description: name,
+    observable: false, // TODO: Fix to allow spectators.
     status: 'awaiting_players',
   });
   this.connection_.addEventListener('message', this.onMessageReceived.bind(this));
@@ -74,10 +75,8 @@ chess.GameServer.prototype = {
     this.connection_.updateInfo({
       players: aliases
     });
-    // TODO - Wait for player to accept join before starting game in order to allow
-    // observers.  For quick testing, just assuming 2nd player is enough to start the game.
     if (aliases.length > 1)  {
-       Dialog.getInstance('info').dismiss(); // TODO - not quite working.
+       Dialog.dismiss('info');
     }
   }
 };

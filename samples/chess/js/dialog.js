@@ -178,12 +178,14 @@ Dialog = (function() {
 
   Dialog.showPromotionDialog = function(square, callback) {
     var dialog = Dialog.getInstance('promotion');
-    if (!dialog) {
-       dialog = new PawnPromotionDialog();
-       Dialog.register('promotion', dialog);
-    }
     dialog.setSquare(square);
     dialog.setCallback(callback);
+    dialog.show();
+  }
+
+  Dialog.showJoinGameDialog = function(game) {
+    var dialog = Dialog.getInstance('join-game');
+    dialog.setGame(game);
     dialog.show();
   }
 
@@ -277,6 +279,33 @@ GameDetailsDialog.prototype = {
   }
 };
 
+
+/* ----- Join Game Dialog ----- */
+
+JoinGameDialog = function() {
+  Dialog.apply(this, ['join-game']);
+}
+
+JoinGameDialog.prototype = {
+  __proto__: Dialog.prototype,
+
+  initialize: function(name) {
+    Dialog.prototype.initialize.call(this, name);
+    var self = this;
+    $('play-button').addEventListener('click', function() {
+      window.client = new chess.GameClient(new lobby.Client(self.game));
+      self.close();
+      Overlay.dismiss('chess-lobby');
+    });
+  },
+
+  setGame: function(game) {
+     this.game = game;
+  }
+
+};
+
+
 /* ----- Pawn Promotion ----- */
 
 PawnPromotionDialog = function() {
@@ -335,5 +364,6 @@ PawnPromotionDialog.prototype = {
 window.addEventListener('load', function() {
   Dialog.register('info', new InfoDialog());
   Dialog.register('game-details', new GameDetailsDialog());
+  Dialog.register('join-game', new JoinGameDialog());
   Dialog.register('promotion', new PawnPromotionDialog());
 }, false);

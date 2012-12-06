@@ -79,7 +79,7 @@ ChessLobbyOverlay.prototype = {
     var gameLobby = $('chess-lobby');
     lobby.GameLobby.decorate(gameLobby);
 
-    //gameLobby.setFilter({name: 'chess'});
+    gameLobby.setFilter({name: 'chess'});
 
     var lobbyUrl = gameLobby.getUrl();
     var index = lobbyUrl.indexOf('://');
@@ -96,8 +96,13 @@ ChessLobbyOverlay.prototype = {
     $('refresh-game-list').addEventListener('click', this.onRefresh.bind(this));
     $('chess-game-list-close').addEventListener('click', this.close.bind(this));
 
+    var self = this;
     gameLobby.onSelectGame = function(game) {
-      window.client = new chess.GameClient(new lobby.Client(game));
+      $('join-game-nickname').value = chess.nickname;
+      Dialog.showJoinGameDialog(game);
+
+      //window.client = new chess.GameClient(new lobby.Client(game));
+      //self.close();
     };
   },
 
