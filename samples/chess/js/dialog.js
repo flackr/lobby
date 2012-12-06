@@ -259,12 +259,11 @@ GameDetailsDialog.prototype = {
   commit: function() {
     $('host-new-chess-game').disabled = true;
     var lobbyUrl = $('chess-lobby-url').value;
-    var lobbyPort = $('chess-lobby-port').value;
     var listenPort = $('game-detail-port').value;
     var description = 'Level: ' + $('player-level').value + ', Time Controls: ' +
         $('time-controls').value;
     chess.nickname = $('nickname').value;
-    chess.createGame(lobbyUrl, lobbyPort, listenPort, description);
+    chess.createGame(lobbyUrl, listenPort, description);
     Overlay.dismiss('chess-lobby');
     // Wait for current dialog to finish closing before opening waiting dialog.
     setTimeout(function() {

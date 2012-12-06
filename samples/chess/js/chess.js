@@ -22,8 +22,8 @@ chess.newGame = function() {
   Overlay.show('chess-lobby');
 }
 
-chess.createGame = function(lobbyUrl, lobbyPort, listenPort, description) {
-  var url = 'ws://' + lobbyUrl + ':' + lobbyPort + '/';
+chess.createGame = function(lobbyUrl, listenPort, description) {
+  var url = 'ws://' + lobbyUrl + '/';
   var host = new lobby.Host(url, parseInt(listenPort));
   window.server = new chess.GameServer(host, description);
   host.addEventListener('ready', function(address) {

@@ -87,12 +87,7 @@ ChessLobbyOverlay.prototype = {
     if (index > 0) {
       lobbyUrl = lobbyUrl.substring(index + 3);
     }
-    var lobbyUrl = lobbyUrl.split(':');
-
-    $('chess-lobby-url').value = lobbyUrl[0];
-    if (lobbyUrl.length > 0)
-    $('chess-lobby-port').value = lobbyUrl[1];
-
+    $('chess-lobby-url').value = lobbyUrl;
     $('host-new-chess-game').addEventListener('click', this.onNewGame.bind(this));
     $('refresh-game-list').addEventListener('click', this.onRefresh.bind(this));
     $('chess-game-list-close').addEventListener('click', this.close.bind(this));
@@ -101,9 +96,6 @@ ChessLobbyOverlay.prototype = {
     gameLobby.onSelectGame = function(game) {
       $('join-game-nickname').value = chess.nickname;
       Dialog.showJoinGameDialog(game);
-
-      //window.client = new chess.GameClient(new lobby.Client(game));
-      //self.close();
     };
   },
 
