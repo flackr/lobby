@@ -3,7 +3,8 @@ function $(id) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  lobby.GameLobby.decorate($('chat-lobby'), 'chat');
+  lobby.GameLobby.setGameId('chat');
+  lobby.GameLobby.decorate($('chat-lobby'));
   $('createGame').style.display = lobby.serverCapable() ? 'block' : 'none';
   $('createGameBtn').addEventListener('click', function() {
     var host;
