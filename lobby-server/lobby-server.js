@@ -5,6 +5,7 @@
 var port = 9999;
 var http = require('http'),
     fs = require('fs'),
+    net = require('net'),
     path = require('path'),
     ws = require('websocket');
 
@@ -140,7 +141,26 @@ lobby.Server = function() {
               game.publicAddress = connection.remoteAddress;
               game.ping = undefined;
               pingInterval = setInterval(ping, 10000);
-              self.onGameCreated(game);
+              var connectivitySocket = net.connect(
+                  { host: game.publicAddress,
+                    port: game.port
+                  });
+              connectivitySocket.on('connect', function(connect) {
+                console.log('(youngki) registering ', game);
+                self.onGameCreated(game);
+                connectivitySocket.end();
+              });
+              connectivitySocket.on('error', function(error) {
+                console.log(game.publicAddress,
+                            game.port, 'is not connectible.');
+                connectivitySocket.end();
+                connection.sendUTF(JSON.stringify(
+                    {type:'error',
+                     details:'game server address is not connectable'}));
+              });
+              connectivitySocket.on('end', function() {
+                console.log('connectivitySocket ends.');
+              });
             }
           } else {
             if (json.type == 'update') {

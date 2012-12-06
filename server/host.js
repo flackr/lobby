@@ -312,6 +312,8 @@ lobby.Host = function() {
         var json = JSON.parse(evt.data);
         if (json.type == 'ping') {
           this.ws_.send(JSON.stringify({type: 'pong'}));
+        } else if (json.type == 'error') {
+          this.dispatchEvent('error', json.details);
         }
       } catch(e) {
         this.ws_.close();

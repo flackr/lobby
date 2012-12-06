@@ -26,6 +26,7 @@ function ChatServer(connection, name) {
     'status': 'running'
   });
   this.connection_.addEventListener('message', this.onMessageReceived.bind(this));
+  this.connection_.addEventListener('error', this.onError.bind(this));
   this.connection_.addEventListener('disconnection', this.onDisconnection.bind(this));
 }
 
@@ -43,6 +44,10 @@ ChatServer.prototype = {
         this.connection_.send(i, message);
       }
     }
+  },
+
+  onError: function(errorMessage) {
+    console.log('Error: ', errorMessage);
   },
 
   onDisconnection: function(clientIndex) {
