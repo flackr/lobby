@@ -22,7 +22,7 @@ lobby.GameLobby = (function() {
    * '?lobby=url'.
    * @type {string}
    */
-  var defaultLobbyUrl = 'http://localhost:9999';
+  var defaultLobbyUrl = 'http://lobby-flack.dotcloud.com';
 
   /**
    * Resolved URL for the lobby.
@@ -128,7 +128,7 @@ lobby.GameLobby = (function() {
     },
 
     getUrl: function() {
-      return lobbyUrl;
+      return lobbyUrl || defaultLobbyUrl;
     },
 
     /**
@@ -241,7 +241,7 @@ lobby.GameLobby = (function() {
         }
       };
       var url = self.searchQuery_?
-          lobbyUrl + '/search?q=' + self.searchQuery_ : lobbyUrl + '/list';
+          self.getUrl() + '/search?q=' + self.searchQuery_ : self.getUrl() + '/list';
       xmlHttp.open( "GET", url, true );
       xmlHttp.send( null );
     },

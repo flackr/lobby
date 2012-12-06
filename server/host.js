@@ -92,6 +92,7 @@ lobby.Host = function() {
       'observable': true,
       'password': false,
       'players': [],
+      'ifaces': [],
       'port': port,
     };
     if (lobby.serverCapable())
@@ -113,6 +114,14 @@ lobby.Host = function() {
 
     listen: function(port) {
       var self = this;
+      chrome.socket.getNetworkList(function(results){
+        var addresses = [];
+        for (var i = 0; i < results.length; i++) {
+          if (results[i].address.match(/^([0-9]?[0-9]?[0-9]\.){3}[0-9]?[0-9]?[0-9]$/g))
+            addresses.push(results[i].address);
+        }
+        self.updateInfo({'ifaces': addresses});
+      });
       chrome.socket.create('tcp', {}, function(socketInfo) {
         self.socketId_ = socketInfo.socketId;
         chrome.socket.listen(self.socketId_, '0.0.0.0', port, function(result) {
@@ -121,10 +130,25 @@ lobby.Host = function() {
             return;
           }
           self.acceptConnection(port);
-          self.registerServer();
+          self.discoverIp();
           self.dispatchEvent('ready', 'ws://localhost:'+port+'/');
         });
       });
+    },
+
+    discoverIp: function() {
+      var self = this;
+      var xhr = new XMLHttpRequest();
+      xhr.open('GET', 'http://www.dynprojects.com/ipcheck.php', true);
+      xhr.send();
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState == 4) {
+          if (xhr.status == 200) {
+            self.gameInfo.publicAddress = xhr.responseText;
+          }
+          self.registerServer();
+        }
+      }
     },
 
     registerServer: function() {

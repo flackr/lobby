@@ -138,25 +138,28 @@ lobby.Server = function() {
           if (!game) {
             if (json.type == 'register') {
               game = json.details;
-              game.publicAddress = connection.remoteAddress;
+              game.publicAddress = game.publicAddress || connection.remoteAddress;
               game.ping = undefined;
               pingInterval = setInterval(ping, 10000);
+              self.onGameCreated(game);
               var connectivitySocket = net.connect(
                   { host: game.publicAddress,
                     port: game.port
                   });
               connectivitySocket.on('connect', function(connect) {
-                console.log('(youngki) registering ', game);
-                self.onGameCreated(game);
+                game.visibility = 'public';
                 connectivitySocket.end();
               });
               connectivitySocket.on('error', function(error) {
                 console.log(game.publicAddress,
                             game.port, 'is not connectible.');
+                game.visibility = 'private';
                 connectivitySocket.end();
-                connection.sendUTF(JSON.stringify(
-                    {type:'error',
-                     details:'game server address is not connectable'}));
+                connection.sendUTF(JSON.stringify({
+                    type: 'error',
+                    code: 'not_reachable',
+                    details: 'Game server address ' + game.publicAddress +
+                             ':' + game.port + ' is not connectable'}));
               });
               connectivitySocket.on('end', function() {
                 console.log('connectivitySocket ends.');
