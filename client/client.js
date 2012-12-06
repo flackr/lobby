@@ -17,7 +17,12 @@ lobby.Client = function() {
     if (typeof gameInfo == 'string') {
       hostUrl = gameInfo;
     } else {
-      hostUrl = 'ws://' + gameInfo.publicAddress + ':' + gameInfo.port;
+      if ((!gameInfo.visibility || gameInfo.visibility == 'private') &&
+          gameInfo.ifaces && gameInfo.ifaces.length > 0) {
+        hostUrl = 'ws://' + gameInfo.ifaces[0] + ':' + gameInfo.port;
+      } else {
+        hostUrl = 'ws://' + gameInfo.publicAddress + ':' + gameInfo.port;
+      }
     }
     this.ws_ = new WebSocket(hostUrl, ['game-protocol']);
     this.ws_.onopen = this.onConnected.bind(this);
