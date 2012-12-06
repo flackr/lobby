@@ -92,7 +92,11 @@ chess.GameClient.prototype = {
 
   onMessageReceived: function(message) {
     if (message.moveFrom) {
-      chess.chessboard.move(message,moveFrom, message.moveTo);
+      chess.chessboard.move(
+          message.moveFrom, 
+          message.moveTo, 
+          /* trial */ false, 
+          /* message response */ true);
     }
 
     for (key in message) {

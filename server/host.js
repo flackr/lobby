@@ -210,12 +210,14 @@ lobby.Host = function() {
               });
               if (fin && op > 0) {
                 // Unfragmented message.
-                self.handleClientMessage(clientIndex, ArrayBufferToString(decoded));
+                if (length_code > 0)
+                  self.handleClientMessage(clientIndex, ArrayBufferToString(decoded));
               } else {
                 // Fragmented message.
                 self.clients[clientIndex].data += ArrayBufferToString(decoded);
                 if (fin) {
-                  self.handleClientMessage(clientIndex, self.clients[clientIndex].data);
+                  if (length_code > 0)
+                    self.handleClientMessage(clientIndex, self.clients[clientIndex].data);
                   self.clients[clientIndex].data = '';
                 }
               }

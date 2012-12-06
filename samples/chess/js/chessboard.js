@@ -304,14 +304,18 @@ ChessBoard = (function() {
      *     notation.
      * @param {string} toSquare ID of the square to move to in algebraic
      *     notation.
+     * @param {boolean} trialMove  True if the move a trial moved used to prune
+     *     the list of legal moves.
+     * @param {boolean} messageResponse  True if the move is made in response
+     *      to a messgae from another client.
      * @return {boolean} True if the move was legal, false if rejected.
      */
-    move: function(fromSquare, toSquare, opt_trial_move) {
+    move: function(fromSquare, toSquare, trialMove, messageResponse) {
 
       var opposingPlayer = this.playerToMove_ == Color.WHITE ? 
           Color.BLACK : Color.WHITE;
 
-      if (!opt_trial_move) {
+      if (!trialMove) {
         // Make sure correct player is moving.
         var movingPiece = $(fromSquare).firstChild;
         if (movingPiece.pieceColor_ != this.playerToMove_)
@@ -342,7 +346,7 @@ ChessBoard = (function() {
       //       Implement 50 move no pawn push + no capture.
       //       Implement insufficient mating material.
 
-      if (!opt_trial_move) {
+      if (!trialMove) {
         var displayMove = null;
 
         // Update castling restrictions.
@@ -458,7 +462,7 @@ ChessBoard = (function() {
                                  displayMove);
 
 
-        if (window.client) {
+        if (window.client && ! messageResponse) {
           var message = {
             moveFrom: fromSquare,
             moveTo: toSquare,
@@ -494,7 +498,10 @@ ChessBoard = (function() {
       if (id) {
         if(this.selectedSquare_) {
           if (id != this.selectedSquare_) {
-            this.move(this.selectedSquare_, id);
+            this.move(this.selectedSquare_, 
+                      id, 
+                      /* trial */ false, 
+                      /* message */ false);
             this.selectSquare(this.selectedSquare_, false);
           } else {
             this.selectSquare(id, false);
@@ -552,13 +559,13 @@ ChessBoard = (function() {
           // Make trial move
           var target = moves[i];
           var candidateCapture = $(target).firstChild;
-          this.move(key, target, true);
+          this.move(key, target, /* trial */ true, /* message */ false);
           // Prune moves that leave the king in check.
           var opposingMoves = this.getCandidateMoves_(opposingPlayer);
           if (this.isInCheck(this.playerToMove_, opposingMoves)) 
             moves.splice(i, 1);
           // Undo trial move.
-          this.move(target, key, true);
+          this.move(target, key, /* trial */ true, /* message */ false);
           if (candidateCapture)
              $(target).appendChild(candidateCapture);
         }
