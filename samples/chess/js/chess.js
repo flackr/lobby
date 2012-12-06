@@ -4,6 +4,8 @@ function $(id) {
   return document.getElementById(id);
 }
 
+chess.nickname = 'Anonymous';
+
 chess.offerDraw = function () {
   // TODO: Implement me.  Requires agreement of other player.
 }
@@ -20,10 +22,10 @@ chess.newGame = function() {
   Overlay.show('chess-lobby');
 }
 
-chess.createGame = function(path, port) {
-  var url = 'ws://' + path + ':' + port + '/';
-  var host = new lobby.Host(url, 9998);
-  window.server = new chess.GameServer(host, 'Blow your socks off crazy blitz chess action.');
+chess.createGame = function(lobbyUrl, lobbyPort, listenPort, description) {
+  var url = 'ws://' + lobbyUrl + ':' + lobbyPort + '/';
+  var host = new lobby.Host(url, parseInt(listenPort));
+  window.server = new chess.GameServer(host, description);
   host.addEventListener('ready', function(address) {
     window.client = new chess.GameClient(new lobby.Client(address));
   });
@@ -48,6 +50,7 @@ chess.GameServer.prototype = {
   onMessageReceived: function(clientIndex, message) {
     var echo = !!message.echo;
     if (message.alias) {
+      console.log('player[' + clientIndex + '] = ' + message.alias);
       this.clients_[clientIndex] = message.alias;
       this.updatePlayers();
     } else {
@@ -71,13 +74,17 @@ chess.GameServer.prototype = {
     this.connection_.updateInfo({
       players: aliases
     });
+    // TODO - Wait for player to accept join before starting game in order to allow
+    // observers.  For quick testing, just assuming 2nd player is enough to start the game.
+    if (aliases.length > 1)  {
+       Dialog.getInstance('info').dismiss(); // TODO - not quite working.
+    }
   }
 };
 
 chess.GameClient = function(connection) {
   this.connection_ = connection;
-  this.id_ = Date.now();
-  this.name_ = 'Anonymous'; // TODO: set when creating a game.
+  this.name_ = chess.nickname;
   this.connection_.addEventListener('connected', this.onConnected.bind(this));
   this.connection_.addEventListener('disconnected', this.onDisconnected.bind(this));
   this.connection_.addEventListener('message', this.onMessageReceived.bind(this));
@@ -86,8 +93,7 @@ chess.GameClient = function(connection) {
 chess.GameClient.prototype = {
 
   onConnected: function() {
-    document.body.classList.add('connected');
-    this.connection_.send({alias: this.name_});
+    this.connection_.send({alias: this.name_, echo: true});
   },
 
   onMessageReceived: function(message) {
@@ -97,10 +103,10 @@ chess.GameClient.prototype = {
           message.moveTo, 
           /* trial */ false, 
           /* message response */ true);
-    }
-
-    for (key in message) {
-       console.log(key + ': ' + message[key]);
+    } else {
+      for (key in message) {
+         console.log(key + ': ' + message[key]);
+      }
     }
   },
 
@@ -112,13 +118,7 @@ chess.GameClient.prototype = {
     this.connection_.send(message);
   },
 
-  onKeyPress: function(evt) {
-    if (evt.keyCode == 13)
-      this.sendMessage();
-  },
-
   onDisconnected: function() {
-    document.body.classList.remove('connected');
   }
 };
 
@@ -129,9 +129,12 @@ window.addEventListener('DOMContentLoaded', function() {
   chess.scoresheet = new Scoresheet();
   $('move-list').appendChild(chess.scoresheet);
 
+/*
+  Teporarily disabling until implemented.
   $('chess-button-offer-draw').addEventListener('click', chess.offerDraw);
   $('chess-button-resign').addEventListener('click', chess.resign);
   $('chess-button-undo').addEventListener('click', chess.undo);
+*/
   $('chess-button-new-game').addEventListener('click', chess.newGame);
 
 }, false);

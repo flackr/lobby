@@ -1,0 +1,42 @@
+
+#game-header{
+  -webkit-box-align: center;
+  -webkit-box-pack: justify;
+  -webkit-box-orient: horizontal;
+  display: -webkit-box;
+  margin: 10px;
+}
+
+#game-title {
+  -webkit-margin-start: 10px;
+  -webkit-box-flex: 1;
+  display: block;
+  font: 24px 'Arial';
+}
+
+
+#chess-game-icon {
+  /**
+   * http://en.wikipedia.org/wiki/File:Chess.svg
+   * Released under lesser GPL.
+   * background-image: url('../images/Chess.svg');
+   */
+  background-image: url('../images/black_chess.png');
+
+  background-size: 48px;
+  display: block;
+  height: 48px;
+  margin: 0;
+  padding: 0;
+  width: 48px;
+}
+
+#chess-button-new-game {
+  background: rgb(80, 80, 40);
+  border: none;
+  border-radius: 4px;
+  color: white;
+  display; block;
+  font: 18px 'Arial';
+  height: 2em;
+}

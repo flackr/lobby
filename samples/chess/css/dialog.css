@@ -65,7 +65,13 @@
   -webkit-box-orient: horizontal;
   -webkit-box-pack: end;
   display: -webkit-box;
-  padding: 5px 10px;
+  padding: 10px 10px;
+}
+
+.dialog button,
+.dialog input[type=text],
+.dialog select {
+  height: 2em;
 }
 
 /* ------------ info dialog ------------------ */
@@ -73,6 +79,33 @@
 #info-dialog-message {
   text-align: center;
 }
+
+/* ------------- game settings -----------------*/
+
+#game-details-form {
+  dislpay: table;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.game-detail {
+  display: table-row;
+}
+
+.game-details-name,
+.game-details-value {
+  display: table-cell;
+}
+
+.game-details-name {
+  -webkit-padding-end: 10px;
+}
+
+.game-details-value > * {
+  margin: 3px;
+  width: 100%;
+}
+
 
 /* ------------ promotion dialog -------------- */
 

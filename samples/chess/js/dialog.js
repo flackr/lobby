@@ -57,6 +57,8 @@ Dialog = (function() {
      },
 
      cancel: function() {
+       if (this.onCancelCallback)
+         this.onCancelCallback();
        Dialog.dismiss(this.name);
      },
 
@@ -214,7 +216,8 @@ InfoDialog.prototype = {
 
   setStyle: function(style) {
     var setStyle = function(buttonType, state) {
-      var button = $('info-dialog').querySelector('.' + buttonType + '-button');
+      var query = '.button-bar > .' + buttonType + '-button';
+      var button = $('info-dialog').querySelector(query);
       button.hidden = !state;
     };
     switch(style) {
@@ -224,7 +227,7 @@ InfoDialog.prototype = {
       break;
     case Dialog.Style.CANCEL:
       setStyle('close', false);
-      setStyle('cancel', false);
+      setStyle('cancel', true);
       break;
     case Dialog.Style.OKCANCEL:
       setStyle('close', true);
@@ -233,10 +236,48 @@ InfoDialog.prototype = {
     default:
       console.log('unknown style');
     }
-  }
+  },
+
+  setCancelCallback: function(callback) {
+    this.onCancelCallback_ = callback;
+  },
 };
 
 
+/**
+ * Game details dialog.
+ */
+GameDetailsDialog = function() {
+  Dialog.apply(this, ['game-details']);
+}
+
+GameDetailsDialog.prototype = {
+  __proto__: Dialog.prototype,
+
+  commit: function() {
+    $('host-new-chess-game').disabled = true;
+    var lobbyUrl = $('chess-lobby-url').value;
+    var lobbyPort = $('chess-lobby-port').value;
+    var listenPort = $('game-detail-port').value;
+    var description = 'Level: ' + $('player-level').value + ', Time Controls: ' +
+        $('time-controls').value;
+    chess.nickname = $('nickname').value;
+    chess.createGame(lobbyUrl, lobbyPort, listenPort, description);
+    Overlay.dismiss('chess-lobby');
+    // Wait for current dialog to finish closing before opening waiting dialog.
+    setTimeout(function() {
+      Dialog.showInfoDialog('Starting Game', 
+                            'Waiting for opponent to join',
+                            Dialog.Style.CANCEL);
+      var onCancel = function() {
+         // TODO: disconnect the server.
+      }
+      Dialog.getInstance('info').setCancelCallback(onCancel);
+    });
+  }
+};
+
+/* ----- Pawn Promotion ----- */
 
 PawnPromotionDialog = function() {
   Dialog.apply(this, ['promotion']);
@@ -293,5 +334,6 @@ PawnPromotionDialog.prototype = {
 
 window.addEventListener('load', function() {
   Dialog.register('info', new InfoDialog());
+  Dialog.register('game-details', new GameDetailsDialog());
   Dialog.register('promotion', new PawnPromotionDialog());
 }, false);

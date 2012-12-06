@@ -79,7 +79,7 @@ ChessLobbyOverlay.prototype = {
     var gameLobby = $('chess-lobby');
     lobby.GameLobby.decorate(gameLobby);
 
-    gameLobby.setFilter({name: 'chess'});
+    //gameLobby.setFilter({name: 'chess'});
 
     var lobbyUrl = gameLobby.getUrl();
     var index = lobbyUrl.indexOf('://');
@@ -102,12 +102,8 @@ ChessLobbyOverlay.prototype = {
   },
 
   onNewGame: function(event) {
-    
-    // TODO: Popup dialog to insert game details.
-    // Create new game in Dialogs onCommit.
-
-    $('host-new-chess-game').disabled = true;
-    chess.createGame($('chess-lobby-url').value, $('chess-lobby-port').value);
+    $('nickname').value = chess.nickname;
+    Dialog.show('game-details');
   },
 
   onRefresh: function(event) {
