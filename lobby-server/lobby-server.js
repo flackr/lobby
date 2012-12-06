@@ -55,12 +55,7 @@ lobby.Server = function() {
       var requestPath = request.url.slice(0, separatorIndex);
       var requestQuery = request.url.slice(separatorIndex);
 
-      // TODO(youngki) /search is deprecated; remove it.
-      if (requestPath == '/search') {
-        response.writeHead(200, {'Content-Type': 'application/json',
-                                 'Access-Control-Allow-Origin': '*'});
-        response.end(JSON.stringify({'games': []}));
-      } else if (requestPath.indexOf('/list/') >= 0) {
+      if (requestPath.indexOf('/list/') >= 0) {
         response.writeHead(200, {'Content-Type': 'application/json',
                                  'Access-Control-Allow-Origin': '*'});
         var gameId = requestPath.split('/list/')[1] || '';

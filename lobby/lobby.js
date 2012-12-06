@@ -84,7 +84,6 @@ lobby.GameLobby = (function() {
      */
     filter_: undefined,
 
-    searchQuery_: '',
     searchbox_: undefined,
 
     gameId_: '',
@@ -115,7 +114,6 @@ lobby.GameLobby = (function() {
 
       var self = this;
       searchButton.addEventListener('click', function(evt) {
-        self.searchQuery_ =searchInput.value;
         self.requestListUpdate(false);
       });
       this.requestListUpdate(true);
@@ -246,9 +244,7 @@ lobby.GameLobby = (function() {
           self.updateGameList(json.games, autoRepeat);
         }
       };
-      var url = self.searchQuery_ ?
-          self.getUrl() + '/search?q=' + self.searchQuery_ :
-          self.getUrl() + '/list/' + self.gameId_;
+      var url = self.getUrl() + '/list/' + self.gameId_;
       xmlHttp.open( "GET", url, true );
       xmlHttp.send( null );
     },
