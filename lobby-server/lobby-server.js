@@ -55,11 +55,21 @@ lobby.Server = function() {
       var requestPath = request.url.slice(0, separatorIndex);
       var requestQuery = request.url.slice(separatorIndex);
 
-      if (requestPath.indexOf('/list/') >= 0) {
+      if (requestPath.indexOf('/list') >= 0) {
         response.writeHead(200, {'Content-Type': 'application/json',
                                  'Access-Control-Allow-Origin': '*'});
         var gameId = requestPath.split('/list/')[1] || '';
         var games = gameIdMap[gameId] || [];
+
+        // If no gameId is specified, return all the games from the lobby 
+        // server.
+        if (!gameId) {
+          games = [];
+          for (gameId in gameIdMap)
+            for (var i = 0, game; game = gameIdMap[gameId][i++];)
+              games.push(game);
+        }
+
         response.end(JSON.stringify({'games': games}));
       } else {
         if (requestPath == '/')
