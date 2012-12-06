@@ -7,7 +7,7 @@ document.addEventListener('DOMContentLoaded', function() {
   $('createGame').style.display = lobby.serverCapable() ? 'block' : 'none';
   $('createGameBtn').addEventListener('click', function() {
     var host;
-    window.server = new ChatServer(host = new lobby.Host($('chat-lobby').getUrl(), parseInt($('port').value)), $('gameName').value);
+    window.server = new ChatServer(host = new lobby.Host($('chat-lobby').getUrl().replace('http://', 'ws://'), parseInt($('port').value)), $('gameName').value);
     host.addEventListener('ready', function(address) {
       window.client = new ChatClient($('connection'), new lobby.Client(address), $('localAlias').value);
     });
