@@ -47,10 +47,11 @@ lobby.GameLobby = (function() {
   /**
    * Morphs an HTML element into a game lobby.
    * @param {!Element} el Element to embelish.
+   * @param {string} gameId the game id.
    */
-  GameLobby.decorate = function(el) {
+  GameLobby.decorate = function(el, gameId) {
     el.__proto__ = GameLobby.prototype;
-    el.decorate();
+    el.decorate(gameId);
   };
 
   /**
@@ -86,11 +87,16 @@ lobby.GameLobby = (function() {
     searchQuery_: '',
     searchbox_: undefined,
 
+    gameId_: '',
+
     /**
      * Connects the list update mechanism.
+     *
+     * @param {string} gameId the game id.
      */
-    decorate: function() {
+    decorate: function(gameId) {
 
+      this.gameId_ = gameId;
       this.games_ = [];
 
       this.searchbox_ = document.createElement('div');
@@ -240,8 +246,9 @@ lobby.GameLobby = (function() {
           self.updateGameList(json.games, autoRepeat);
         }
       };
-      var url = self.searchQuery_?
-          self.getUrl() + '/search?q=' + self.searchQuery_ : self.getUrl() + '/list';
+      var url = self.searchQuery_ ?
+          self.getUrl() + '/search?q=' + self.searchQuery_ :
+          self.getUrl() + '/list/' + self.gameId_;
       xmlHttp.open( "GET", url, true );
       xmlHttp.send( null );
     },

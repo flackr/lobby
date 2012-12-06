@@ -17,7 +17,8 @@ var defaultHtml = 'index.html';
 var lobby = {};
 
 lobby.Server = function() {
-  var games = [];
+  // games keyed by gameId.
+  var gameIdMap = {};
 
   var Server = function() {
     this.server = http.createServer(this.onHttpRequest.bind(this));
@@ -53,22 +54,17 @@ lobby.Server = function() {
         separatorIndex = request.url.length;
       var requestPath = request.url.slice(0, separatorIndex);
       var requestQuery = request.url.slice(separatorIndex);
+
+      // TODO(youngki) /search is deprecated; remove it.
       if (requestPath == '/search') {
         response.writeHead(200, {'Content-Type': 'application/json',
                                  'Access-Control-Allow-Origin': '*'});
-        var results = [];
-        if (separatorIndex != -1) {
-          var query = requestQuery.split('q=')[1];
-          for (var i = 0, game; game = games[i++];) {
-            if (game.description.indexOf(query) != -1) {
-              results.push(game);
-            }
-          }
-        }
-        response.end(JSON.stringify({'games': results}));
-      } else if (requestPath == '/list') {
+        response.end(JSON.stringify({'games': []}));
+      } else if (requestPath.indexOf('/list/') >= 0) {
         response.writeHead(200, {'Content-Type': 'application/json',
                                  'Access-Control-Allow-Origin': '*'});
+        var gameId = requestPath.split('/list/')[1] || '';
+        var games = gameIdMap[gameId] || [];
         response.end(JSON.stringify({'games': games}));
       } else {
         if (requestPath == '/')
@@ -182,6 +178,9 @@ lobby.Server = function() {
         if (pingInterval)
           clearTimeout(pingInterval);
         var index;
+        var games = [];
+        if (game && game.gameId)
+          games = gameIdMap[game.gameId] || [];
         if (game && (index = games.indexOf(game)) != -1) {
           // Remove game from list.
           games.splice(index, 1);
@@ -191,6 +190,9 @@ lobby.Server = function() {
     },
 
     onGameCreated: function(game) {
+      if (!gameIdMap[game.gameId])
+        gameIdMap[game.gameId] = [];
+      var games = gameIdMap[game.gameId];
       games.push(game);
     },
 
