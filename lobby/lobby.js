@@ -35,6 +35,8 @@ lobby.GameLobby = (function() {
 
   var listUrl;
 
+  var gameId = '';
+
   /**
    * Constructor.
    */
@@ -47,11 +49,10 @@ lobby.GameLobby = (function() {
   /**
    * Morphs an HTML element into a game lobby.
    * @param {!Element} el Element to embelish.
-   * @param {string} gameId the game id.
    */
-  GameLobby.decorate = function(el, gameId) {
+  GameLobby.decorate = function(el) {
     el.__proto__ = GameLobby.prototype;
-    el.decorate(gameId);
+    el.decorate();
   };
 
   /**
@@ -68,6 +69,10 @@ lobby.GameLobby = (function() {
 
   GameLobby.setDefaultUrl = function(url) {
     defaultLobbyUrl = url;
+  };
+
+  GameLobby.setGameId = function(id) {
+    gameId = id;
   };
 
   GameLobby.prototype = {
@@ -90,10 +95,8 @@ lobby.GameLobby = (function() {
 
     /**
      * Connects the list update mechanism.
-     *
-     * @param {string} gameId the game id.
      */
-    decorate: function(gameId) {
+    decorate: function() {
 
       this.gameId_ = gameId;
       this.games_ = [];

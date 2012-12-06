@@ -77,7 +77,8 @@ ChessLobbyOverlay.prototype = {
     Overlay.prototype.initialize.call(this, name);
 
     var gameLobby = $('chess-lobby');
-    lobby.GameLobby.decorate(gameLobby, 'chess');
+    lobby.GameLobby.setGameId('chess');
+    lobby.GameLobby.decorate(gameLobby);
 
     //gameLobby.setFilter({name: 'chess'});
 
