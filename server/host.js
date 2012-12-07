@@ -102,6 +102,10 @@ lobby.Host = function() {
 
   Host.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
 
+    createLocalClient: function() {
+      return new lobby.Client(this.gameInfo, 'ws://localhost:' + this.gameInfo.port);
+    },
+
     updateInfo: function(info, skipServer) {
       if (info) {
         for (var i in info) {

@@ -10,19 +10,18 @@
 
 lobby.Client = function() {
 
-  var Client = function(gameInfo) {
+  var Client = function(gameInfo, overrideUrl) {
     lobby.util.EventSource.apply(this);
 
+    this.gameInfo = gameInfo;
     var hostUrl;
-    if (typeof gameInfo == 'string') {
-      hostUrl = gameInfo;
+    if (overrideUrl)
+      hostUrl = overrideUrl;
+    else if ((!gameInfo.publicAddress || !gameInfo.visibility || gameInfo.visibility == 'private') &&
+        gameInfo.ifaces && gameInfo.ifaces.length > 0) {
+      hostUrl = 'ws://' + gameInfo.ifaces[0] + ':' + gameInfo.port;
     } else {
-      if ((!gameInfo.visibility || gameInfo.visibility == 'private') &&
-          gameInfo.ifaces && gameInfo.ifaces.length > 0) {
-        hostUrl = 'ws://' + gameInfo.ifaces[0] + ':' + gameInfo.port;
-      } else {
-        hostUrl = 'ws://' + gameInfo.publicAddress + ':' + gameInfo.port;
-      }
+      hostUrl = 'ws://' + gameInfo.publicAddress + ':' + gameInfo.port;
     }
     this.ws_ = new WebSocket(hostUrl, ['game-protocol']);
     this.ws_.onopen = this.onConnected.bind(this);
@@ -63,7 +62,20 @@ lobby.Client = function() {
 
     disconnect: function() {
       this.ws_.close();
-    }
+    },
+
+    getGameUrl: function() {
+      if (this.gameInfo.url && this.gameInfo.id) {
+        var params = [];
+        if (lobby.GameLobby.getDefaultUrl().replace('http://', 'ws://') !=
+            this.lobbyUrl_) {
+          params.push('lobby=' + this.lobbyUrl_.replace('ws://',''));
+        }
+        params.push('game=' + this.gameInfo.id);
+        return this.gameInfo.url + '?' + params.join('&');
+      }
+      return '';
+    },
   });
 
   return Client;
