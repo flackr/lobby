@@ -184,7 +184,7 @@ lobby.Host = function() {
         }
         if (!readInfo.data.byteLength)
           return;
-        if (self.clients[clientIndex].state == 'connecting') {
+        if (self.clients[clientIndex].readyState == 0) {
           self.clients[clientIndex].data += ArrayBufferToString(readInfo.data).replace(/\r\n/g,'\n');
           var messages = self.clients[clientIndex].data.split('\n\n');
           for (var i = 0; i < messages.length - 1; i++)
@@ -291,7 +291,7 @@ lobby.Host = function() {
           self.closeSocket(self.clients[clientIndex].socketId);
           return;
         }
-        self.clients[clientIndex].state = 'connected';
+        self.clients[clientIndex].readyState = 1;
         self.clients[clientIndex].rawData = [];
         self.clients[clientIndex].data = '';
         self.dispatchEvent('connection', clientIndex);
