@@ -263,6 +263,9 @@ GameDetailsDialog.prototype = {
     var description = 'Level: ' + $('player-level').value + ', Time Controls: ' +
         $('time-controls').value;
     chess.nickname = $('nickname').value;
+    var timing = $('time-controls').value.split('/');
+    chess.timeControl = parseInt(timing[0]);
+    chess.timeIncrement = parseInt(timing[1]);
     chess.createGame(lobbyUrl, listenPort, description);
     Overlay.dismiss('chess-lobby');
     // Wait for current dialog to finish closing before opening waiting dialog.

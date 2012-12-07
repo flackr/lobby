@@ -39,9 +39,13 @@ chess.createGame = function(lobbyUrl, listenPort, description) {
   });
 }
 
-chess.GameServer = function(connection, name) {
+chess.GameServer = function(connection, name, timeControl, timeIncrement) {
   this.clients_ = [];
   this.connection_ = connection;
+  this.timestamp_ = undefined;
+  this.whiteToMove_ = true;
+  this.turnIndex_ = 1;
+  this.elapsedTime_ = {white: 0, black: 0};
   this.connection_.updateInfo({
     gameId: 'chess',
     name: 'chess',
@@ -56,17 +60,72 @@ chess.GameServer = function(connection, name) {
 chess.GameServer.prototype = {
   onMessageReceived: function(clientIndex, message) {
     var echo = !!message.echo;
+    var timing = {};
+    timing.clock = {
+      black: {
+        remaining: 60 * chess.timeControl - this.elapsedTime_.black,
+        increment: chess.timeIncrement
+      }, 
+      white: {
+        remaining: 60 * chess.timeControl - this.elapsedTime_.white,
+        increment: chess.timeIncrement
+      }
+    };
     if (message.alias) {
       console.log('player[' + clientIndex + '] = ' + message.alias + 
          ', role = ' + message.role);
       this.clients_[clientIndex] = message;
       this.updatePlayers();
     } else {
+      if (message.moveFrom) {  
+        // Add timer information.
+        // TODO - ensure that we don't get double move on a pawn promotion or castle.
+        var now = Date.now();
+
+        var increment = this.timeIncrement_;
+        if (this.turnIndex_ > 1) {
+          // Start clocks after each player has made initial move.
+          var delta = (now - this.timestamp_) / 1000;
+          if (delta > chess.timeIncrement) {
+            delta -= chess.timeIncrement;
+            increment = 0;
+          } else {
+            increment = delta;
+            delta = 0;
+          }
+          if (this.whiteToMove_) {
+            this.elapsedTime_.white += delta;
+            timing.clock.white.remaining -= delta;
+            timing.clock.white.increment = increment;
+            timing.clock.black.increment = chess.timeIncrement;
+          } else {
+            this.elapsedTime_.black += delta;
+            timing.clock.black.remaining -= delta;
+            timing.clock.black.increment = increment;
+            timing.clock.white.increment = chess.timeIncrement;
+          }
+          // Start opponents clock.
+          timing.clock.startClock = this.whiteToMove_ ? 'black' : 'white';
+        }
+        this.whiteToMove_ = !this.whiteToMove_;
+        if (this.whiteToMove_) {
+          this.turnIndex_++;
+          // Clock starts on white's second move.
+          if (!timing.clock.startClock)
+            timing.clock.startClock = 'white';
+        }
+        this.timestamp_ = now;
+      }
+
       // Rebroadcast all messages to all clients.
       for (var i in this.connection_.clients) {
         if (echo || i != clientIndex)
           this.connection_.send(i, message);
-      }
+      }  
+    }
+    if (timing) {
+      for (var i in this.connection_.clients)
+        this.connection_.send(i, timing);
     }
   },
 
@@ -155,16 +214,16 @@ chess.GameClient.prototype = {
           message.moveTo, 
           /* trial */ false, 
           /* message response */ true);
+    } else if (message.clock) {
+      chess.scoresheet.updateClocks(message.clock);
     } else if (message.players) {
-       chess.chessboard.reset();
-       chess.scoresheet.reset();
-       var view = message.role == chess.Role.PLAYER_BLACK ?
-         ChessBoard.View.WHITE_AT_TOP : ChessBoard.View.BLACK_AT_TOP;
-       console.log('view = ' + view);
-       chess.chessboard.setView(view);
-       // set player names
-       chess.scoresheet.setPlayerNames([message.players.white,
-                                        message.players.black]);
+      chess.chessboard.reset();
+      chess.scoresheet.reset();
+      var view = message.role == chess.Role.PLAYER_BLACK ?
+        ChessBoard.View.WHITE_AT_TOP : ChessBoard.View.BLACK_AT_TOP;
+      chess.chessboard.setView(view);
+      // set player names
+      chess.scoresheet.setPlayerNames(message.players);
     } else {
       for (key in message) {
          console.log(key + ': ' + message[key]);
@@ -189,9 +248,6 @@ window.addEventListener('DOMContentLoaded', function() {
   $('board-area').appendChild(chess.chessboard);
   chess.chessboard.reset();
   chess.scoresheet = Scoresheet.decorate($('scoresheet'));
-
-//new Scoresheet();
-//  $('move-list').appendChild(chess.scoresheet);
 
 /*
   Teporarily disabling until implemented.

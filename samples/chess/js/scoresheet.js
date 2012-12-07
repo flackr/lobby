@@ -69,14 +69,11 @@ Scoresheet = (function() {
 
     decorate: function() {
       this.classList.add('scoresheet');
-      this.clocks_ = [];
-      this.clocks_.push(new Scoresheet.Clock(Layout.TOP_DOWN));
-      this.appendChild(this.clocks_[0]);
+      this.appendChild(new Scoresheet.Clock(Layout.TOP_DOWN));
       var moveList = document.createElement('div');
       moveList.className = 'move-list';
       this.appendChild(moveList);
-      this.clocks_.push(new Scoresheet.Clock(Layout.BOTTOM_UP));
-      this.appendChild(this.clocks_[1]);
+      this.appendChild(new Scoresheet.Clock(Layout.BOTTOM_UP));
       this.reset();
     },
 
@@ -99,25 +96,64 @@ Scoresheet = (function() {
       }
       for (var i = 0; i < movesPerPage; i++)
         moveList.appendChild(new ScoresheetMove(i + 1));
-      this.setPlayerNames([chess.nickname, 'Anonymous']);  
+      this.setPlayerNames({white: chess.nickname, black: '?'});  
     },
 
     setPlayerNames: function(players) {
-      this.players_ = players;
+      this.view_ = ChessBoard.View.BLACK_AT_TOP;
+      var moveList = this.querySelector('.move-list');
+      moveList.previousSibling.setPlayerName(players.black);
+      moveList.nextSibling.setPlayerName(players.white);
       this.syncView();
     },
 
     syncView: function() {
       var view = chess.chessboard.getView();
-      if (view == ChessBoard.View.WHITE_AT_TOP) {
-         this.clocks_[0].setPlayerName(this.players_[0]);
-         this.clocks_[1].setPlayerName(this.players_[1]);
-         // TODO: update timers.
-      } else {
-         this.clocks_[0].setPlayerName(this.players_[1]);
-         this.clocks_[1].setPlayerName(this.players_[0]);
+      if (view != this.view_) {
+         var moveList = this.querySelector('.move-list');
+         var previous = moveList.previousSibling;
+         var next = moveList.nextSibling;
+         var parent = moveList.parentNode;
+         parent.removeChild(previous);
+         parent.removeChild(next);
+         parent.insertBefore(next, moveList);
+         parent.appendChild(previous);
+         previous.flipLayout();
+         next.flipLayout();
+         this.view_ = view;
       }
     },
+
+    updateClocks: function(data) {
+      var moveList = this.querySelector('.move-list');
+      var first = moveList.previousSibling;
+      var second = moveList.nextSibling;
+      if (this.view_ == ChessBoard.View.BLACK_AT_TOP) {
+        first.updateClock(data.black);
+        second.updateClock(data.white);
+        if(data.startClock) {
+          if (data.startClock == 'white') {
+            first.stopClock();
+            second.startClock();
+          } else {
+            second.stopClock();
+            first.startClock();
+          }
+        }
+      } else {
+        first.updateClock(data.white);
+        second.updateClock(data.black);
+        if(data.startClock) {
+          if (data.startClock == 'white') {
+            second.stopClock();
+            first.startClock();
+          } else {
+            first.stopClock();
+            second.startClock();
+          }
+        }
+      }
+    }
 
   };
 
@@ -162,9 +198,32 @@ Scoresheet = (function() {
     },
 
     startClock: function() {
+      this.startTime_ = Date.now();
+      this.resetIncrementTimer();
+      var self = this;
+      var incrementalCountdown = function() {
+        var now = Date.now();
+        var delta = (now - self.startTime_) / 1000;
+        var remainder = self.timeIncrement_ - delta;
+        self.updateIncrementTimer_(remainder);
+        if (remainder < 0) {
+          clearInterval(self.timer_);
+          self.timer_ = setInterval(timerCountdown, 1000);
+        }
+      };
+      var timerCountdown = function() {
+        var now = Date.now();
+        var elapsed = (now - self.startTime_) / 1000;
+        self.updateMainTimer_(self.remaining_ - elapsed);
+      };
+      this.timer_ = setInterval(incrementalCountdown, 100);
     },
 
     stopClock: function() {
+      if (this.timer_) {
+        clearInterval(this.timer_);
+        this.timer_ = null;
+      }
     },
 
     resetTimeControl: function() {
@@ -181,7 +240,58 @@ Scoresheet = (function() {
     setPlayerName: function(name) {
       var player = this.querySelector('.scoresheet-player-name');
       player.textContent = name;
-    }
+    },
+
+    flipLayout: function() {
+      if (this.layout_ == Layout.TOP_DOWN) {
+        var player = this.querySelector('.scoresheet-player-name');
+        var timers = player.nextSibling;
+        var parent = timers.parentNode;
+        parent.removeChild(timers);
+        parent.insertBefore(timers, player); 
+        this.layout_ = Layout.BOTTOM_UP;
+      } else {
+        var timers =  this.querySelector('.scoresheet-timers');
+        var player = timers.nextSibling;
+        var parent = timers.parentNode;
+        parent.removeChild(player);
+        parent.insertBefore(player, timers); 
+        this.layout_ = Layout.TOP_DOWN
+      }
+    },
+
+    updateClock: function(data) {
+      this.remaining_ = data.remaining;
+      this.updateMainTimer_(data.remaining);
+      this.updateIncrementTimer_(data.increment);
+    },
+
+    updateMainTimer_: function(remaining) {
+      if (remaining < 0) {
+         remaining = 0;
+         // TODO show better message including who won.
+         Dialog.showInfoDialog('Game over', 'Ran out of time');
+         this.stopClock();
+      }
+      var seconds = Math.floor(remaining);
+      var minutes = Math.floor(seconds / 60);
+      seconds = seconds - 60 * minutes;
+      if (seconds < 10)
+        seconds = '0' + seconds;
+      var label = minutes + ':' + seconds;
+      this.querySelector('.scoresheet-main-timer').textContent = label;
+    },
+
+    updateIncrementTimer_: function(remaining) {
+      if (remaining < 0)
+        remaining = 0; // TODO: Apply overrun to main timer.
+      var seconds = Math.floor(remaining);
+      var hundreths = Math.floor(100 * (remaining - seconds));
+      if (hundreths < 10)
+        hundreths = '0' + hundreths;
+      var label = seconds + ':' + hundreths;
+      this.querySelector('.scoresheet-increment-timer').textContent = label;
+   }
 
   };
 

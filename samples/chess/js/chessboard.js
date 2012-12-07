@@ -460,8 +460,6 @@ ChessBoard = (function() {
         chess.scoresheet.addMove(scoresheetMoveIndex, 
                                  scoreColor, 
                                  displayMove);
-
-
         if (window.client && ! messageResponse) {
           var message = {
             moveFrom: fromSquare,
