@@ -34,7 +34,7 @@ chess.createGame = function(lobbyUrl, listenPort, description) {
   var host = new lobby.Host(url, parseInt(listenPort));
   window.server = new chess.GameServer(host, description);
   host.addEventListener('ready', function(address) {
-    window.client = new chess.GameClient(new lobby.Client(address), 
+    window.client = new chess.GameClient(server.createLocalClient(),
                                          chess.Role.PLAYER_UNASSIGNED);
   });
 }

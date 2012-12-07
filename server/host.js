@@ -47,7 +47,7 @@ lobby.Host = function() {
     return buffer;
   };
 
-  var WebsocketFrameString = function(str) {
+  var WebsocketFrameString = function(op, str) {
     var length = str.length;
     if (str.length > 65535)
       length += 10;
@@ -58,7 +58,7 @@ lobby.Host = function() {
     var lengthBytes = 0;
     var buffer = new ArrayBuffer(length);
     var bv = new Uint8Array(buffer);
-    bv[0] = 128 | 1; // Fin and type text.
+    bv[0] = 128 | (op & 15); // Fin and type text.
     bv[1] = str.length > 65535 ? 127 :
             (str.length > 125 ? 126 : str.length);
     if (str.length > 65535)
@@ -93,6 +93,7 @@ lobby.Host = function() {
       'password': false,
       'players': [],
       'ifaces': [],
+      'url': '',
       'port': port,
     };
     if (lobby.serverCapable())
@@ -101,15 +102,19 @@ lobby.Host = function() {
 
   Host.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
 
-    updateInfo: function(info) {
+    createLocalClient: function() {
+      return new lobby.Client(this.gameInfo, 'ws://localhost:' + this.gameInfo.port);
+    },
+
+    updateInfo: function(info, skipServer) {
       if (info) {
         for (var i in info) {
           this.gameInfo[i] = info[i];
         }
       }
       // TODO(flackr): Throttle game info updates to the lobby.
-      if (this.ws_ && this.ws_.readyState == 1)
-        this.ws_.send(JSON.stringify({type: 'update', details: this.gameInfo}));
+      if (this.ws_ && this.ws_.readyState == 1 && !skipServer)
+        this.ws_.send(JSON.stringify({type: 'update', details: info}));
     },
 
     listen: function(port) {
@@ -124,6 +129,8 @@ lobby.Host = function() {
       });
       chrome.socket.create('tcp', {}, function(socketInfo) {
         self.socketId_ = socketInfo.socketId;
+        self.onCloseFn_ = self.disconnect.bind(self);
+        window.addEventListener('close', self.onCloseFn_);
         chrome.socket.listen(self.socketId_, '0.0.0.0', port, function(result) {
           if (result < 0) {
             console.log('Failed to listen on port '+port);
@@ -166,7 +173,7 @@ lobby.Host = function() {
       var self = this;
       chrome.socket.accept(self.socketId_, function(acceptInfo) {
         var clientIndex = self.clients.length;
-        self.clients[clientIndex] = {socketId: acceptInfo.socketId, state: 'connecting', data: ''};
+        self.clients[clientIndex] = {socketId: acceptInfo.socketId, readyState: 0, data: ''};
         self.listenOnSocket(clientIndex);
         self.acceptConnection(port);
       });
@@ -177,16 +184,16 @@ lobby.Host = function() {
       var self = this;
       chrome.socket.read(this.clients[clientIndex].socketId, function(readInfo) {
         if (readInfo.resultCode <= 0) {
-          self.closeClientConnection(clientIndex);
+          self.closeSocket(clientIndex);
           return;
         }
         if (!readInfo.data.byteLength)
           return;
-        if (self.clients[clientIndex].state == 'connecting') {
+        if (self.clients[clientIndex].readyState == 0) {
           self.clients[clientIndex].data += ArrayBufferToString(readInfo.data).replace(/\r\n/g,'\n');
           var messages = self.clients[clientIndex].data.split('\n\n');
           for (var i = 0; i < messages.length - 1; i++)
-            if (!self.handleClientMessage(clientIndex, messages[i]))
+            if (!self.handleWebsocketHandshake(clientIndex, messages[i]))
               return;
           self.clients[clientIndex].data = messages[messages.length - 1];
         } else {
@@ -232,20 +239,24 @@ lobby.Host = function() {
               var decoded = data.slice(data_start, data_start + length_code).map(function(byte, index) {
                 return byte ^ mask[index % 4];
               });
+              data = self.clients[clientIndex].rawData = data.slice(data_start + length_code);
               if (fin && op > 0) {
                 // Unfragmented message.
-                if (length_code > 0)
-                  self.handleClientMessage(clientIndex, ArrayBufferToString(decoded));
+                if (!self.handleClientMessage(clientIndex, ArrayBufferToString(decoded), op))
+                  return;
               } else {
                 // Fragmented message.
+                self.clients[clientIndex].dataOp = self.clients[clientIndex].dataOp || op;
                 self.clients[clientIndex].data += ArrayBufferToString(decoded);
                 if (fin) {
-                  if (length_code > 0)
-                    self.handleClientMessage(clientIndex, self.clients[clientIndex].data);
+                  if (!self.handleClientMessage(
+                      clientIndex, self.clients[clientIndex].data,
+                      self.clients[clientIndex].dataOp))
+                    return;
                   self.clients[clientIndex].data = '';
+                  self.clients[clientIndex].dataOp = 0;
                 }
               }
-              data = self.clients[clientIndex].rawData = data.slice(data_start + length_code);
             } else {
               break; // Insufficient data to complete frame.
             }
@@ -255,78 +266,122 @@ lobby.Host = function() {
       });
     },
 
-    handleClientMessage: function(clientIndex, message) {
-      if (this.clients[clientIndex].state == 'connecting') {
-        message = message.split('\n');
-        var messageDetails = {};
-        for (var i = 0; i < message.length; i++) {
-          var details = message[i].split(':');
-          if (details.length == 2)
-            messageDetails[details[0].trim()] = details[1].trim();
+    handleWebsocketHandshake: function(clientIndex, message) {
+      message = message.split('\n');
+      var messageDetails = {};
+      for (var i = 0; i < message.length; i++) {
+        var details = message[i].split(':');
+        if (details.length == 2)
+          messageDetails[details[0].trim()] = details[1].trim();
+      }
+      if (messageDetails['Upgrade'] != 'websocket' ||
+          !messageDetails['Sec-WebSocket-Key'] ||
+          !messageDetails['Sec-WebSocket-Protocol']) {
+        this.closeSocket(clientIndex);
+        return false;
+      }
+      var responseKey = constructWebsocketResponseKey(
+          messageDetails['Sec-WebSocket-Key']);
+      var response =
+          'HTTP/1.1 101 Switching Protocols\n' +
+          'Upgrade: websocket\n' +
+          'Connection: Upgrade\n' +
+          'Sec-WebSocket-Accept: ' + responseKey + '\n' +
+          'Sec-WebSocket-Protocol: ' + messageDetails['Sec-WebSocket-Protocol'] + '\n' +
+          '\n';
+      response = StringToArrayBuffer(response.replace(/\n/g, '\r\n'));
+      var self = this;
+      chrome.socket.write(this.clients[clientIndex].socketId, response, function(writeInfo) {
+        if (writeInfo.resultCode < 0 || writeInfo.bytesWritten != response.byteLength) {
+          self.closeSocket(self.clients[clientIndex].socketId);
+          return;
         }
-        if (messageDetails['Upgrade'] != 'websocket' ||
-            !messageDetails['Sec-WebSocket-Key'] ||
-            !messageDetails['Sec-WebSocket-Protocol']) {
-          this.closeClientConnection(clientIndex);
-          return false;
-        }
-        var responseKey = constructWebsocketResponseKey(
-            messageDetails['Sec-WebSocket-Key']);
-        var response =
-            'HTTP/1.1 101 Switching Protocols\n' +
-            'Upgrade: websocket\n' +
-            'Connection: Upgrade\n' +
-            'Sec-WebSocket-Accept: ' + responseKey + '\n' +
-            'Sec-WebSocket-Protocol: ' + messageDetails['Sec-WebSocket-Protocol'] + '\n' +
-            '\n';
-        response = StringToArrayBuffer(response.replace(/\n/g, '\r\n'));
-        var self = this;
-        chrome.socket.write(this.clients[clientIndex].socketId, response, function(writeInfo) {
-          if (writeInfo.resultCode < 0 || writeInfo.bytesWritten != response.byteLength) {
-            self.closeClientConnection(self.clients[clientIndex].socketId);
-            return;
-          }
-          self.clients[clientIndex].state = 'connected';
-          self.clients[clientIndex].rawData = [];
-          self.clients[clientIndex].data = '';
-          self.dispatchEvent('connection', clientIndex);
-        });
-      } else {
+        self.clients[clientIndex].readyState = 1;
+        self.clients[clientIndex].rawData = [];
+        self.clients[clientIndex].data = '';
+        self.dispatchEvent('connection', clientIndex);
+      });
+      return true;
+    },
+
+    handleClientMessage: function(clientIndex, message, op) {
+      if (op == 1 && message.length > 0) {
         var json;
         try {
           json = JSON.parse(message);
         } catch (e) {
-          this.closeClientConnection(clientIndex);
-          return false;
+          this.disconnect(clientIndex);
+          return true;
         }
         this.dispatchEvent('message', clientIndex, json);
+      } else if (op == 8) {
+        if (this.clients[clientIndex].readyState == 1) {
+          this.sendFrame(clientIndex, 8);
+        } else {
+          this.closeSocket(clientIndex);
+          return false;
+        }
       }
       return true;
     },
 
-    closeClientConnection: function(clientIndex) {
-      // This may be called more than once. Once intending to close the
-      // connection and a second time as a result of failing to listen for data
-      // on the now closed connection.
-      // TODO(flackr): Safely only call this once.
-      if (this.clients[clientIndex]) {
+    sendFrame: function(clientIndex, op, message) {
+      var self = this;
+      var data = WebsocketFrameString(op, message || '');
+      chrome.socket.write(this.clients[clientIndex].socketId, data, function(writeInfo) {
+        if (writeInfo.resultCode < 0 ||
+            writeInfo.bytesWritten !== data.byteLength) {
+          self.closeSocket(self.clients[clientIndex].socketId);
+        }
+      });
+    },
+
+    closeSocket: function(clientIndex) {
+      if (clientIndex === undefined) {
+        if (this.socketId_) {
+          chrome.socket.disconnect(this.socketId_);
+          chrome.socket.destroy(this.socketId_);
+          delete this.socketId_;
+        }
+        return;
+      }
+
+      if (!this.clients[clientIndex])
+        return;
+      if (this.clients[clientIndex].readyState == 1)
         this.dispatchEvent('disconnection', clientIndex);
-        chrome.socket.disconnect(this.clients[clientIndex].socketId);
-        chrome.socket.destroy(this.clients[clientIndex].socketId);
-        delete this.clients[clientIndex];
+      chrome.socket.disconnect(this.clients[clientIndex].socketId);
+      chrome.socket.destroy(this.clients[clientIndex].socketId);
+      delete this.clients[clientIndex];
+    },
+
+    disconnect: function(clientIndex) {
+      if (clientIndex === undefined) {
+        for (var i in this.clients) {
+          this.disconnect(i);
+        }
+        if (this.ws_) {
+          this.ws_.close();
+          delete this.ws_;
+        }
+        this.closeSocket();
+        if (self.onCloseFn_) {
+          window.removeEventListener('close', self.onCloseFn_);
+          delete self.onCloseFn_;
+        }
+        return;
+      }
+
+      if (this.clients[clientIndex].readyState == 1) {
+        this.dispatchEvent('disconnection', clientIndex);
+        this.clients[clientIndex].readyState = 2;
+        this.sendFrame(clientIndex, 8);
       }
     },
 
     // Send |message| to the client identified by |clientIndex|.
     send: function(clientIndex, message) {
-      var self = this;
-      var data = WebsocketFrameString(JSON.stringify(message));
-      chrome.socket.write(this.clients[clientIndex].socketId, data, function(writeInfo) {
-        if (writeInfo.resultCode < 0 ||
-            writeInfo.bytesWritten !== data.byteLength) {
-          self.closeClientConnection(self.clients[clientIndex].socketId);
-        }
-      });
+      this.sendFrame(clientIndex, 1, JSON.stringify(message));
     },
 
     connectionLost: function(evt) {
@@ -338,12 +393,26 @@ lobby.Host = function() {
         var json = JSON.parse(evt.data);
         if (json.type == 'ping') {
           this.ws_.send(JSON.stringify({type: 'pong'}));
-        } else if (json.type == 'error') {
-          this.dispatchEvent('error', json.details);
+        } else if (json.type == 'update') {
+          this.updateInfo(json.details, true);
+          this.dispatchEvent('update', json.details);
         }
       } catch(e) {
         this.ws_.close();
       }
+    },
+
+    getGameUrl: function() {
+      if (this.gameInfo.url && this.gameInfo.id) {
+        var params = [];
+        if (lobby.GameLobby.getDefaultUrl().replace('http://', 'ws://') !=
+            this.lobbyUrl_) {
+          params.push('lobby=' + this.lobbyUrl_.replace('ws://',''));
+        }
+        params.push('game=' + this.gameInfo.id);
+        return this.gameInfo.url + '?' + params.join('&');
+      }
+      return '';
     },
 
     onError: function(evt) {

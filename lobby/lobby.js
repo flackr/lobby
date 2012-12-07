@@ -71,6 +71,10 @@ lobby.GameLobby = (function() {
     defaultLobbyUrl = url;
   };
 
+  GameLobby.getDefaultUrl = function() {
+    return defaultLobbyUrl;
+  }
+
   GameLobby.setGameId = function(id) {
     gameId = id;
   };
@@ -134,7 +138,41 @@ lobby.GameLobby = (function() {
       this.filter_ = filter;
     },
 
+    parseQueryParams: function() {
+      var query = window.location.search;
+      var lobbyIsDefault = !lobbyUrl;
+
+      if (query && query.length > 0) {
+        var params = query.slice(1).split('&');
+        for (var i = 0; i < params.length; i++) {
+          var pair = params[i].split('=');
+          if (pair[0] == 'lobby' && lobbyIsDefault) {
+            lobbyUrl = 'http://' + pair[1];
+          } else if (pair[0] == 'game') {
+            var xhr = new XMLHttpRequest();
+            var self = this;
+            xhr.onreadystatechange = function() {
+              if (xhr.readyState == 4 && xhr.status == 200) {
+                var game;
+                try {
+                  game = JSON.parse(xhr.responseText);
+                } catch (e) {}
+                if (game && game.game) {
+                  self.onSelectGame(game.game);
+                }
+              }
+            }
+            xhr.open('GET', lobbyUrl + '/details/' + pair[1], true);
+            xhr.send(null);
+          }
+        }
+      }
+    },
+
     getUrl: function() {
+      if (!lobbyUrl)
+        this.parseQueryParams();
+
       return lobbyUrl || defaultLobbyUrl;
     },
 
@@ -257,30 +295,6 @@ lobby.GameLobby = (function() {
       console.log('selected ' + data.name + ' hosted by ' + data.gameId);
     }
   };
-
-  /**
-   * Any element that includes "game-lobby-list" in the class list is converted
-   * to an instance of GameLobby.  The list of games automatically udpates for
-   * each instance.  
-   */
-  function initialize() {
-   
-    if (!lobbyUrl) {
-      var query = window.location.search;
-      if (query && query.length > 0) {
-        var params = query.slice(1).split('&');
-        for (var i = 0; i < params.length; i++) {
-          var pair = params[i].split('=');
-          if (pair[0] == 'lobby')
-             lobbyUrl = 'http://' + pair[1];
-        }
-      }
-      if (!lobbyUrl)
-        lobbyUrl = defaultLobbyUrl;
-    }
-  }
-
-  window.addEventListener('load', initialize, false);
 
   return GameLobby;
 
