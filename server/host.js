@@ -168,7 +168,7 @@ lobby.Host = function() {
       var self = this;
       chrome.socket.accept(self.socketId_, function(acceptInfo) {
         var clientIndex = self.clients.length;
-        self.clients[clientIndex] = {socketId: acceptInfo.socketId, state: 'connecting', data: ''};
+        self.clients[clientIndex] = {socketId: acceptInfo.socketId, readyState: 0, data: ''};
         self.listenOnSocket(clientIndex);
         self.acceptConnection(port);
       });
