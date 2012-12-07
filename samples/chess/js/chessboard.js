@@ -1,20 +1,20 @@
 ChessBoard = (function() {
 
   /**
+   * Views of the board.
+   */
+  ChessBoard.View = {
+    BLACK_AT_TOP: 0, 
+    WHITE_AT_TOP: 1
+  };
+
+  /**
    * Piece colors.
    * @enum
    */
   var Color = {
     BLACK: 'B',
     WHITE: 'W'
-  };
-
-  /**
-   * Views of the board.
-   */
-  var View = {
-    BLACK_AT_TOP: 0, 
-    WHITE_AT_TOP: 1
   };
 
   /**
@@ -99,7 +99,7 @@ ChessBoard = (function() {
      * @type {enum}
      * @private
      */
-    view_: View.BLACK_AT_TOP,
+    view_: ChessBoard.View.BLACK_AT_TOP,
 
     decorate: function() {
       this.classList.add('chess-board');
@@ -118,7 +118,7 @@ ChessBoard = (function() {
       var fromFile = 0;
       var toFile = 8;
       var deltaFile = 1;
-      if (this.view_ == View.WHITE_AT_TOP) {
+      if (this.view_ == ChessBoard.View.WHITE_AT_TOP) {
         var fromRank = 0;
         var toRank= 8;
         var deltaRank = 1;
@@ -513,11 +513,15 @@ ChessBoard = (function() {
     },
 
     onFlipView: function() {
+      this.setView(this.view_ == ChessBoard.View.BLACK_AT_TOP ? 
+          ChessBoard.View.WHITE_AT_TOP : ChessBoard.View.BLACK_AT_TOP);
+    },
+
+    setView: function(view) {
       var savePosition = this.toString();
       while (this.firstChild)
         this.removeChild(this.firstChild);
-      this.view_ = this.view_ == View.BLACK_AT_TOP ? 
-          View.WHITE_AT_TOP : View.BLACK_AT_TOP;
+      this.view_ = view;
       this.layoutBoard_();
       this.setPosition(savePosition);
     },

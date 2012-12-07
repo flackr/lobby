@@ -16,6 +16,7 @@
 
 
 #chess-game-icon {
+  /* http://findicons.com/icon/3063/black_chess?width=48 */
   background-image: url('../images/black_chess.png');
   background-size: 48px;
   display: block;

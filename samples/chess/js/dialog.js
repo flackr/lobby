@@ -291,10 +291,16 @@ JoinGameDialog.prototype = {
   initialize: function(name) {
     Dialog.prototype.initialize.call(this, name);
     var self = this;
-    $('play-button').addEventListener('click', function() {
-      window.client = new chess.GameClient(new lobby.Client(self.game));
+    var joinGame = function(role) {
+      window.client = new chess.GameClient(new lobby.Client(self.game), role);
       self.close();
       Overlay.dismiss('chess-lobby');
+    }
+    $('play-button').addEventListener('click', function() {
+      joinGame(chess.Role.PLAYER_UNASSIGNED);
+    });
+    $('watch-button').addEventListener('click', function() {
+      joinGame(chess.Role.OBSERVER);
     });
   },
 
