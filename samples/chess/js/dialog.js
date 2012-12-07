@@ -292,6 +292,7 @@ JoinGameDialog.prototype = {
     Dialog.prototype.initialize.call(this, name);
     var self = this;
     var joinGame = function(role) {
+      chess.nickname = $('join-game-nickname').value;
       window.client = new chess.GameClient(new lobby.Client(self.game), role);
       self.close();
       Overlay.dismiss('chess-lobby');

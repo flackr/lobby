@@ -1,6 +1,19 @@
 
-#move-list {
+.move-list {
+  -webkit-box-flex: 1;
   -webkit-box-orient: vertical;
+  border-bottom: 1px solid black;
+  border-top: 1px solid black;
+  display: -webkit-box;
+  overflow-x: hidden;
+  overflow-y: auto;
+  position: relative;
+}
+
+.scoresheet {
+  -webkit-box-align: stretch;
+  -webkit-box-orient: vertical;
+  -webkit-box-pack: justify;
   background: rgb(255, 255, 245);
   border: 1px solid black;
   display: -webkit-box;
@@ -8,12 +21,6 @@
   margin: 20px 0 5px 0;
   position: relative;
   width: 200px;
-}
-
-.scoresheet {
-  height: 100%;
-  overflow-y: auto;
-  width: 100%;
 }
 
 .scoresheet-move {
@@ -46,3 +53,49 @@
 .white-move {
   border-right: 1px solid #ddd;
 }
+
+.scoresheet-clock {
+  -webkit-box-align: center;
+  -webkit-box-orient: vertical;
+  background: rgb(242, 242, 237);
+  display: -webkit-box;
+}
+
+
+.scoresheet-player-name {
+  font-family: "Arial";
+  font-size: 18px;
+  font-weight: bold;
+  padding: 5px 0;
+}
+
+.scoresheet-timers {
+  -webkit-box-align: baseline;
+  -webkit-box-orient: horizontal;
+  display: -webkit-box;
+}
+
+.scoresheet-main-timer,
+.scoresheet-increment-timer {
+  font-family: "Arial";
+  padding: 5px;
+}
+
+.scoresheet-main-timer {
+  font-size: 22px;
+}
+
+.scoresheet-increment-timer {
+  font-size: 12px;
+}
+
+.scoresheet-increment-timer:before {
+  content: '(';
+}
+
+.scoresheet-increment-timer:after {
+  content: ')';
+}
+
+
+

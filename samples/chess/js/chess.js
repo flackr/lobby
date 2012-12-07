@@ -162,6 +162,9 @@ chess.GameClient.prototype = {
          ChessBoard.View.WHITE_AT_TOP : ChessBoard.View.BLACK_AT_TOP;
        console.log('view = ' + view);
        chess.chessboard.setView(view);
+       // set player names
+       chess.scoresheet.setPlayerNames([message.players.white,
+                                        message.players.black]);
     } else {
       for (key in message) {
          console.log(key + ': ' + message[key]);
@@ -185,8 +188,10 @@ window.addEventListener('DOMContentLoaded', function() {
   chess.chessboard = new ChessBoard();
   $('board-area').appendChild(chess.chessboard);
   chess.chessboard.reset();
-  chess.scoresheet = new Scoresheet();
-  $('move-list').appendChild(chess.scoresheet);
+  chess.scoresheet = Scoresheet.decorate($('scoresheet'));
+
+//new Scoresheet();
+//  $('move-list').appendChild(chess.scoresheet);
 
 /*
   Teporarily disabling until implemented.

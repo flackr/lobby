@@ -524,6 +524,11 @@ ChessBoard = (function() {
       this.view_ = view;
       this.layoutBoard_();
       this.setPosition(savePosition);
+      chess.scoresheet.syncView();
+    },
+
+    getView: function() {
+      return this.view_;
     },
 
     /**

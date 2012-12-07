@@ -16,7 +16,7 @@
 #board-area {
   -webkit-box-sizing: content-box;
   background: rgb(242, 242, 237);
-  border: 1px solid black; 
+  border: 1px solid black;
   display: inline-block;
   height: 500px;
   margin: 20px 0 5px 20px;
