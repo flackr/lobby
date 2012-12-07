@@ -19,6 +19,8 @@ var lobby = {};
 lobby.Server = function() {
   // games keyed by gameId.
   var gameIdMap = {};
+  var idMap = [];
+  var nextId = 1;
 
   var Server = function() {
     this.server = http.createServer(this.onHttpRequest.bind(this));
@@ -55,7 +57,18 @@ lobby.Server = function() {
       var requestPath = request.url.slice(0, separatorIndex);
       var requestQuery = request.url.slice(separatorIndex);
 
-      if (requestPath.indexOf('/list') >= 0) {
+      if (requestPath.indexOf('/details/') >= 0) {
+        var id = parseInt(requestPath.split('/details/')[1] || 0);
+        var game = idMap[id];
+        if (!game) {
+          response.WriteHead(404);
+          response.end();
+          return;
+        }
+        response.writeHead(200, {'Content-Type': 'application/json',
+                                 'Access-Control-Allow-Origin': '*'});
+        response.end(JSON.stringify({'game': game}));
+      } else if (requestPath.indexOf('/list') >= 0) {
         response.writeHead(200, {'Content-Type': 'application/json',
                                  'Access-Control-Allow-Origin': '*'});
         var gameId = requestPath.split('/list/')[1] || '';
@@ -118,6 +131,16 @@ lobby.Server = function() {
         }
       };
 
+      var updateInfo = function(info, skipClient) {
+        if (!game)
+          return;
+        for (var i in info) {
+          game[i] = info[i];
+        }
+        if (!skipClient)
+          connection.sendUTF(JSON.stringify({type:'update', details:info}));
+      }
+
       // TODO(flackr): We should close a connection after a timeout if it
       // fails to register a game.
       connection.on('message', function(message) {
@@ -139,8 +162,12 @@ lobby.Server = function() {
           if (!game) {
             if (json.type == 'register') {
               game = json.details;
-              game.publicAddress = game.publicAddress || connection.remoteAddress;
               game.ping = undefined;
+              updateInfo({
+                id: nextId++,
+                publicAddress: game.publicAddress || connection.remoteAddress,
+              });
+
               pingInterval = setInterval(ping, 10000);
               self.onGameCreated(game);
               var connectivitySocket = net.connect(
@@ -148,29 +175,20 @@ lobby.Server = function() {
                     port: game.port
                   });
               connectivitySocket.on('connect', function(connect) {
+                updateInfo({visibility: 'public'});
                 game.visibility = 'public';
                 connectivitySocket.end();
               });
               connectivitySocket.on('error', function(error) {
-                console.log(game.publicAddress,
-                            game.port, 'is not connectible.');
-                game.visibility = 'private';
+                updateInfo({visibility: 'private'});
                 connectivitySocket.end();
-                connection.sendUTF(JSON.stringify({
-                    type: 'error',
-                    code: 'not_reachable',
-                    details: 'Game server address ' + game.publicAddress +
-                             ':' + game.port + ' is not connectable'}));
               });
               connectivitySocket.on('end', function() {
-                console.log('connectivitySocket ends.');
               });
             }
           } else {
             if (json.type == 'update') {
-              for (var field in json.details) {
-                game[field] = json.details[field];
-              }
+              updateInfo(json.details, true);
             } else if (json.type == 'pong') {
               game.ping = Date.now() - pingStart;
               pingStart = 0;
@@ -182,14 +200,8 @@ lobby.Server = function() {
       connection.on('close', function(reasonCode, description) {
         if (pingInterval)
           clearTimeout(pingInterval);
-        var index;
-        var games = [];
-        if (game && game.gameId)
-          games = gameIdMap[game.gameId] || [];
-        if (game && (index = games.indexOf(game)) != -1) {
-          // Remove game from list.
-          games.splice(index, 1);
-        }
+        if (game)
+          self.onGameDestroyed(game);
       });
 
     },
@@ -197,9 +209,20 @@ lobby.Server = function() {
     onGameCreated: function(game) {
       if (!gameIdMap[game.gameId])
         gameIdMap[game.gameId] = [];
-      var games = gameIdMap[game.gameId];
-      games.push(game);
+      gameIdMap[game.gameId].push(game);
+      idMap[game.id] = game;
     },
+
+    onGameDestroyed: function(game) {
+      var index, games;
+      if (game.gameId)
+        games = gameIdMap[game.gameId] || [];
+      if ((index = games.indexOf(game)) != -1) {
+        // Remove game from list.
+        games.splice(index, 1);
+      }
+      delete idMap[game.id];
+    }
 
   };
 

@@ -93,6 +93,7 @@ lobby.Host = function() {
       'password': false,
       'players': [],
       'ifaces': [],
+      'url': '',
       'port': port,
     };
     if (lobby.serverCapable())
@@ -101,15 +102,15 @@ lobby.Host = function() {
 
   Host.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
 
-    updateInfo: function(info) {
+    updateInfo: function(info, skipServer) {
       if (info) {
         for (var i in info) {
           this.gameInfo[i] = info[i];
         }
       }
       // TODO(flackr): Throttle game info updates to the lobby.
-      if (this.ws_ && this.ws_.readyState == 1)
-        this.ws_.send(JSON.stringify({type: 'update', details: this.gameInfo}));
+      if (this.ws_ && this.ws_.readyState == 1 && !skipServer)
+        this.ws_.send(JSON.stringify({type: 'update', details: info}));
     },
 
     listen: function(port) {
@@ -388,12 +389,26 @@ lobby.Host = function() {
         var json = JSON.parse(evt.data);
         if (json.type == 'ping') {
           this.ws_.send(JSON.stringify({type: 'pong'}));
-        } else if (json.type == 'error') {
-          this.dispatchEvent('error', json.details);
+        } else if (json.type == 'update') {
+          this.updateInfo(json.details, true);
+          this.dispatchEvent('update', json.details);
         }
       } catch(e) {
         this.ws_.close();
       }
+    },
+
+    getGameUrl: function() {
+      if (this.gameInfo.url && this.gameInfo.id) {
+        var params = [];
+        if (lobby.GameLobby.getDefaultUrl().replace('http://', 'ws://') !=
+            this.lobbyUrl_) {
+          params.push('lobby=' + this.lobbyUrl_.replace('ws://',''));
+        }
+        params.push('game=' + this.gameInfo.id);
+        return this.gameInfo.url + '?' + params.join('&');
+      }
+      return '';
     },
 
     onError: function(evt) {
