@@ -59,6 +59,10 @@ lobby.Client = function() {
 
     send: function(obj) {
       this.ws_.send(JSON.stringify(obj));
+    },
+
+    disconnect: function() {
+      this.ws_.close();
     }
   });
 
