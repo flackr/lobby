@@ -355,6 +355,10 @@ lobby.Host = function() {
         for (var i in this.clients) {
           this.disconnect(i);
         }
+        if (this.ws_) {
+          this.ws_.close();
+          delete this.ws_;
+        }
         this.closeSocket();
         if (self.onCloseFn_) {
           window.removeEventListener('close', self.onCloseFn_);
