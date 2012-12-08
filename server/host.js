@@ -3,7 +3,7 @@
  */
 
 lobby.serverCapable = function() {
-  return chrome.socket && chrome.socket.listen;
+  return window.chrome && chrome.socket && chrome.socket.listen;
 };
 
 lobby.Host = function() {
