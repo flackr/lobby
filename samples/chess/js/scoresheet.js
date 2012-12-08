@@ -81,7 +81,7 @@ Scoresheet = (function() {
       var entry = ScoresheetMove.find(index);
       if (!entry) {
         entry = new ScoresheetMove(index);
-        var moveList = this.querySelector('move-list');
+        var moveList = this.querySelector('.move-list');
         moveList.appendChild(entry);
       }
       entry.setMove(color, move);

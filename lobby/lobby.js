@@ -46,6 +46,36 @@ lobby.GameLobby = (function() {
     return element;
   }
 
+
+  /**
+   * Color scheme for the lobby UI elements.
+   * @const
+   */
+  GameLobby.ColorScheme = {
+    DEFAULT: {
+      'lobby-background': '#f5f5f5',
+      'lobby-border': 'black',
+      'lobby-separator': 'rgba(80, 80, 40, 0.3)',
+      'lobby-text': 'black',
+      'header-background': 'rgb(80, 80, 40)',
+      'header-text': 'white',
+      'highlight-background': 'rgba(80, 80, 40, 0.3)',
+      'highlight-text': 'black',
+      'icon-filter': 'none',
+    },
+    LIGHT_ON_DARK: {
+      'lobby-background': 'black',
+      'lobby-border': 'white',
+      'lobby-separator': '#555',
+      'lobby-text': 'white',
+      'header-background': '#aaa',
+      'header-text': 'black',
+      'highlight-background': '#999',
+      'highlight-text': 'black',
+      'icon-filter': 'invert(0.8)',
+    },
+  };
+
   /**
    * Morphs an HTML element into a game lobby.
    * @param {!Element} el Element to embelish.
@@ -174,6 +204,77 @@ lobby.GameLobby = (function() {
         this.parseQueryParams();
 
       return lobbyUrl || defaultLobbyUrl;
+    },
+
+    /**
+     * Sets the color scheme for the lobby.
+     * @param {!GameLobby.ColorScheme} colors The new color palette, which may
+     *    be one of the predefined palettes or customized.
+     */
+    setColorScheme: function(colors) {
+      var palette = {};
+      var proto = GameLobby.ColorScheme.DEFAULT;
+      for (var key in proto)
+        palette[key] = proto[key];
+      for(var key in colors)
+        palette[key] = colors[key];
+      var changeCss = function(rule, property, value) {
+        for (var i = 0; i < document.styleSheets.length; i++) {
+          var sheet = document.styleSheets[i];
+          var cssRules = !!sheet['rules'] ? 'rules' : 'cssRules';
+          var rules = sheet[cssRules];
+          if (!rules)
+            continue;
+          for (var j = 0; j < rules.length; j++) {
+            var candidate = rules[j];
+            if (candidate.selectorText == rule) {
+              if (candidate.style[property]) {
+                candidate.style[property] = value;
+                break;
+              }
+            }
+          }
+        }
+      };
+      changeCss('.game-list-container',
+                'background-color',
+                palette['lobby-background']);
+      changeCss('.game-list-container',
+                'border-color',
+                palette['lobby-border']);
+      changeCss('.game-entry',
+                'color',
+                palette['lobby-text']);
+      changeCss('.game-entry > *',
+                'border-right-color',
+                palette['lobby-separator']);
+      changeCss('.game-entry > *',
+                'border-bottom-color',
+                palette['lobby-separator']);
+      changeCss('.game-entry-header',
+                'background-color',
+                palette['header-background']);
+      changeCss('.game-entry-header',
+                'color',
+                palette['header-text']);
+      changeCss('.game-entry-header:hover',
+                'background-color',
+                palette['header-background']);
+      changeCss('.game-entry-header:hover',
+                'color',
+                palette['header-text']);
+      changeCss('.game-entry:hover',
+                'background-color',
+                palette['highlight-background']);
+      changeCss('.game-entry:hover',
+                'color',
+                palette['highlight-text']);
+      changeCss('.game-entry:hover',
+                'color',
+                palette['highlight-text']);
+      changeCss('.game-status-icon',
+                '-webkit-filter',
+                palette['icon-filter']);
     },
 
     /**
