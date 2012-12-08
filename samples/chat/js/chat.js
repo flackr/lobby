@@ -32,6 +32,11 @@ function ChatServer(connection, name) {
 }
 
 ChatServer.prototype = {
+
+  createLocalClient: function() {
+    return this.connection_.createLocalClient();
+  },
+
   onMessageReceived: function(clientIndex, message) {
     if (message.alias) {
       this.clients_[clientIndex] = message.alias;

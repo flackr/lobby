@@ -58,6 +58,11 @@ chess.GameServer = function(connection, name, timeControl, timeIncrement) {
 };
 
 chess.GameServer.prototype = {
+
+  createLocalClient: function() {
+    return this.connection_.createLocalClient();
+  },
+
   onMessageReceived: function(clientIndex, message) {
     var echo = !!message.echo;
     var timing = {};
