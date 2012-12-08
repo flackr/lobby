@@ -8,15 +8,23 @@
 <body>
 <div class="full-screen vertical-layout">
 <h1>Game Lobby <input id="refresh-button" type="button" value="Refresh"
-    onclick="lobby.GameLobby.refresh();"></h1>
+    onclick="refresh();"></h1>
 <div class="game-list-container vertical-layout">
-  <div class="game-lobby-list">
+  <div id="game-lobby">
   </div>
 </div>
 </div>
 <script>
+  function $(name) {
+    return document.getElementById(name);
+  }
+  function refresh() {
+    $('game-lobby').refresh();
+  }
   lobby.GameLobby.setUrl(window.location.protocol + '//' +
       window.location.host);
+  lobby.GameLobby.decorate($('game-lobby'));
+  refresh();
 </script>
 </body>
 </html>
