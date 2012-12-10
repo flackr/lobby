@@ -4,6 +4,12 @@ function $(id) {
   return document.getElementById(id);
 }
 
+chess.GameState = {
+  STARTING: 0,
+  IN_PROGRESS: 1,
+  FINISHED: 2
+};
+
 chess.Role = {
   PLAYER_WHITE: 0,
   PLAYER_BLACK: 1,
@@ -50,9 +56,11 @@ chess.GameServer = function(connection, name, timeControl, timeIncrement) {
     gameId: 'chess',
     name: 'chess',
     description: name,
-    observable: false, // TODO: Fix to allow spectators.
+    acception: true,
+    observable: false, // Add game create option once observers properly supported.
     status: 'awaiting_players',
   });
+  this.gameState_ = chess.GameState.STARTING;
   this.connection_.addEventListener('message', this.onMessageReceived.bind(this));
   this.connection_.addEventListener('disconnection', this.onDisconnection.bind(this));
 };
@@ -139,6 +147,12 @@ chess.GameServer.prototype = {
     this.updatePlayers();
   },
 
+  /**
+   * Adds players to the game.  If the game has not already started, colors are
+   * randomly assigned when the first player joins the game as a player
+   * (assumes host is always a player).  Additonal players may join as
+   * observers if permitted.
+   */
   updatePlayers: function() {
     var aliases = [];
     for (var i in this.clients_)
@@ -146,6 +160,21 @@ chess.GameServer.prototype = {
     this.connection_.updateInfo({
       players: aliases
     });
+
+    if (this.gameState_ != chess.GameState.STARTING) {
+      for (var i in this.clients_) {
+        var role = this.clients_[i].role;
+        if (role == chess.Role.PLAYER_UNASSIGNED) {
+          // TODO: If observer is not allowed, kick the player.
+
+          // Another player won the connection race. Reassign to observer role.
+          this.clients_[i].role = chess.Role.OBSERVER;
+          // TODO: Inform player that game has already started.
+          // TODO: Observers joining late should get the move list.
+        }
+      }
+      return;
+    }
 
     var playerCount = 0;
     var assignedPlayers = 0;
@@ -193,7 +222,6 @@ chess.GameServer.prototype = {
         }
       }
     }
-    // TODO: Observers joining late should get the move list.
   }
 };
 

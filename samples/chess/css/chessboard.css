@@ -29,6 +29,32 @@
   margin: 5px 0 5px 20px;
 }
 
+.last-move-marker {
+  bottom: 0;
+  display: block;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+  z-index: 5;
+}
+
+.last-move-marker.hide-last-move {
+  display:none;
+  z-index: -1;
+}
+
+.last-move-marker svg {
+  height: 100%;
+  width: 100%;
+}
+
+.last-move-marker path {
+  fill: rgb(255, 255, 0);
+  stroke: black;
+  stroke-width: 2;
+}
+
 .chess-board {
   -webkit-box-sizing: border-box;
   display: table;

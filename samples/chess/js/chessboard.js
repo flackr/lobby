@@ -101,8 +101,13 @@ ChessBoard = (function() {
      */
     view_: ChessBoard.View.BLACK_AT_TOP,
 
+    /**
+     * List of noves played in the game.
+     */
+    moveList_: [],
+
     decorate: function() {
-      this.classList.add('chess-board');
+      this.classList.add('chess-board-container');
       this.addEventListener('click', this.onClick.bind(this));
       this.layoutBoard_();
     },
@@ -112,6 +117,10 @@ ChessBoard = (function() {
      * black perspective.
      */
     layoutBoard_: function() {
+      var board = document.createElement('div');
+      board.classList.add('chess-board');
+      this.appendChild(board);
+
       var fromRank = 7;
       var toRank= -1;
       var deltaRank = -1;
@@ -128,7 +137,7 @@ ChessBoard = (function() {
       }
       for (var rank = fromRank; rank != toRank; rank += deltaRank) {
         var row = document.createElement('div');
-        this.appendChild(row);
+        board.appendChild(row);
         var rankLabel = document.createElement('div');
         rankLabel.textContent = String(1 + rank);
         row.appendChild(rankLabel);
@@ -142,7 +151,7 @@ ChessBoard = (function() {
         }
       }
       var row = document.createElement('div');
-      this.appendChild(row);
+      board.appendChild(row);
       var flipper = document.createElement('div');
       row.appendChild(flipper);
       var left = document.createElement('div');
@@ -200,6 +209,8 @@ ChessBoard = (function() {
      * @param {string} fen Board setup described in Forsyth–Edwards notation.
      */
     setPosition: function(fen) {
+      this.moveList_ = [];
+      this.hideLastMove();
       // Clear board.
       for (var file = 0; file < 8; file++) {
         for (var rank = 0; rank < 8; rank++) {
@@ -460,6 +471,8 @@ ChessBoard = (function() {
         chess.scoresheet.addMove(scoresheetMoveIndex, 
                                  scoreColor, 
                                  displayMove);
+        this.moveList_.push({from: fromSquare, to: toSquare});
+        this.showLastMove();
         if (window.client && ! messageResponse) {
           var message = {
             moveFrom: fromSquare,
@@ -472,6 +485,66 @@ ChessBoard = (function() {
         }
       }
       return true;
+    },
+
+    showLastMove: function() {
+      if(this.moveList_.length > 0) {
+        var marker = this.querySelector('.last-move-marker');
+        if (!marker) {
+          var svgns = 'http://www.w3.org/2000/svg';
+          var version = '1.1';
+          marker = document.createElement('div');
+          marker.className = 'last-move-marker';
+          this.appendChild(marker);
+          var svg = document.createElementNS(svgns, 'svg');
+          svg.setAttribute('version', version);
+          marker.appendChild(svg);
+          var graphics = document.createElementNS(svgns, 'g');
+          svg.appendChild(graphics);
+          var path = document.createElementNS(svgns, 'path');
+          path.className = 'move-arrow';
+          graphics.appendChild(path);
+        }
+        var last = this.moveList_[this.moveList_.length-1];
+
+        var fromBounds = this.getBounds(last.from);
+        var toBounds = this.getBounds(last.to);
+
+        var x1 = fromBounds.left + 0.5 * fromBounds.width;
+        var y1 = fromBounds.top + 0.5 * fromBounds.height;
+        var x2 = toBounds.left + 0.5 * toBounds.width;
+        var y2 = toBounds.top + 0.5 * toBounds.height;
+        var dx = x2 - x1;
+        var dy = y2 - y1;
+        var len = Math.floor(Math.sqrt(dx * dx + dy * dy) - 0.3 * fromBounds.width);
+        var width = Math.floor(0.1 * fromBounds.width);
+        var base = Math.floor(len - 2 * width);
+        var pathStr = 'M0,0 L0,%1 L%2,%1 L%2,%3 L%4,0 L%2,-%3 L%2,-%1 L0,-%1 L0,0';
+        pathStr = pathStr.replace(/%1/g, width);
+        pathStr = pathStr.replace(/%2/g, base);
+        pathStr = pathStr.replace(/%3/g, 2*width);
+        pathStr = pathStr.replace(/%4/g, len);
+        marker.querySelector('path').setAttribute('d', pathStr);
+        var rotation = 0;
+        if (dx != 0) {
+          var angle = Math.atan(dy/dx);
+          angle *= 180/Math.PI;
+          if (dx < 0)
+            angle = 180 + angle;
+        } else {
+          angle = (dy < 0) ? -90 : 90;
+        }
+        marker.querySelector('g').setAttribute(
+            'transform',
+            'translate(' + x1 + ',' + y1 + ') rotate(' + angle + ')');
+        marker.classList.remove('hide-last-move');
+      }
+    },
+
+    hideLastMove: function() {
+      var marker = this.querySelector('.last-move-marker');
+      if (marker)
+        marker.classList.add('hide-last-move');
     },
 
     /**
@@ -492,7 +565,27 @@ ChessBoard = (function() {
      * @param {Event} e Mouse click event.
      */
     onClick: function(e) {
-      var id = this.getSquare(e.target);
+      var bounds = this.getBoardBounds();
+      var x = e.clientX - bounds.left;
+      var y = e.clientY - bounds.top;
+      if (x < 0 || y < 0 || x > bounds.width || y > bounds.height) {
+        // Cancel selection if clicking outside board area.
+        if(this.selectedSquare_)
+          this.selectSquare(this.selectedSquare_, false);
+        return;
+      }
+      // Determine, which square was clicked on.
+      var file = Math.floor(x / bounds.width * 8);
+      var rank = Math.floor(y / bounds.height * 8);
+      if (this.view_ == ChessBoard.View.BLACK_AT_TOP)
+        rank = 7 - rank;
+      else
+        file = 7 - file;
+      var id = this.squareId(file, rank);
+
+      // If piece currently selected, then move if legal and reset otherwise.
+      // Allow piece with no legal move to be selected as reset provides
+      // feedback that move is invalid.
       if (id) {
         if(this.selectedSquare_) {
           if (id != this.selectedSquare_) {
@@ -508,6 +601,57 @@ ChessBoard = (function() {
           this.selectSquare(id, true);
         }
       }
+    },
+
+    /**
+     * Retrieve bounds of board in screen coordinates.
+     */
+    getBoardBounds: function() {
+      var a1 = $('A1');
+      var h8 = $('H8');
+      var left = Math.min(a1.offsetLeft, h8.offsetLeft);
+      var top = Math.min(a1.offsetTop, h8.offsetTop);
+      var el = a1.offsetParent;
+      while(el) {
+        left += el.offsetLeft;
+        top += el.offsetTop;
+        el = el.offsetParent;
+      }
+      return {
+        left: left,
+        top: top,
+        width: 8 * a1.offsetWidth,
+        height: 8 * a1.offsetHeight
+      };
+    },
+
+    /**
+     * Retrieves bounds of a square in board coordinates.
+     * @param {string} square Name of the square in algebraic notation.
+     */
+    getBounds: function(square) {
+      var getElementBounds = function(el) {
+        var left = 0;
+        var top =  0;
+        var width = el.offsetWidth;
+        var height = el.offsetHeight;
+        while(el) {
+          left += el.offsetLeft;
+          top += el.offsetTop;
+          el = el.offsetParent;
+        }
+        return {
+          left: left,
+          top: top,
+          width: width,
+          height:height
+        };
+      }
+      var bounds = getElementBounds($(square));
+      var reference = getElementBounds(this.querySelector('.chess-board'));
+      bounds.left -= reference.left;
+      bounds.top -= reference.top;
+      return bounds;      
     },
 
     onFlipView: function() {
