@@ -95,6 +95,12 @@ ChessBoard = (function() {
     moveIndex_: 1,
 
     /**
+     * Number of moves since last pawn move or capture.
+     * Used to detect 50 move rule. 
+     */
+    movesSincePawnMoveOrCapture_: 0,
+
+    /**
      * View of the board.
      * @type {enum}
      * @private
@@ -105,6 +111,13 @@ ChessBoard = (function() {
      * List of noves played in the game.
      */
     moveList_: [],
+
+    /**
+     * Positions used to detect threefold repetition.
+     * @type{Object.<string,Number>} Number of times each position has
+     *     appeared.
+     */
+    positions_: {},
 
     decorate: function() {
       this.classList.add('chess-board-container');
@@ -199,6 +212,7 @@ ChessBoard = (function() {
      */
     reset: function() {
       this.moveList_ = [];
+      this.positions_ = {};
       this.setPosition(
           'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
     },
@@ -254,9 +268,7 @@ ChessBoard = (function() {
       this.enpassant_ = parts[3] == '-' ? null : parts[3].toUpperCase();
 
       // Ply counts.
-
-      // TODO - make use of parts[4]. Required for 50 move rule.
-
+      this.movesSincePawnMoveOrCapture_ = parts[4];
       this.moveIndex_ = parts[5];
 
       this.updateLegalMoves();
@@ -364,10 +376,6 @@ ChessBoard = (function() {
       var capturedPiece = this.removePiece(toSquare);
       var piece = this.removePiece(fromSquare);
       $(toSquare).appendChild(piece);
-
-      // TODO: Implement 3 move repetition.
-      //       Implement 50 move no pawn push + no capture.
-      //       Implement insufficient mating material.
 
       if (!trialMove) {
         var displayMove = null;
@@ -522,12 +530,36 @@ ChessBoard = (function() {
                                  scoreColor, 
                                  displayMove);
         this.moveList_.push({from: fromSquare, to: toSquare});
+
+        // Test for draw conditions.
+        var position = this.toString();
+        var key = position.split(' ')[0];
+        if (!this.positions_[key])
+          this.positions_[key] = 1;
+        else
+          this.positions_[key]++;
+        if (this.positions_[key] > 2) {
+          Dialog.showInfoDialog('Game Over::\u00A0\u00A01/2 - 1/2', 
+                                'Draw by threefold repetition.');
+          // TODO: set the game state.
+        }
+        if (piece.isPawn() || capturedPiece) {
+          this.movesSincePawnMoveOrCapture_ = 0;
+        } else {
+           if (++this.movesSincePawnMoveOrCapture_ > 99) {
+             Dialog.showInfoDialog('Game Over::\u00A0\u00A01/2 - 1/2', 
+                                  '50 moves with no capture or pawn move.');
+             // TODO: set the game state.
+           }
+        }
+        // TODO: Test for insufficient mating material.
+
         this.showLastMove();
         if (window.client && ! messageResponse) {
           var message = {
             moveFrom: fromSquare,
             moveTo: toSquare,
-            position: this.toString(),
+            position: position,
             text: displayMove,
             echo: false,
           };
