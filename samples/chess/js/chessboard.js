@@ -166,8 +166,6 @@ ChessBoard = (function() {
         fileLabel.textContent = String.fromCharCode(65 + i);
         row.appendChild(fileLabel);
       }
-
-      flipper.addEventListener('click', this.onFlipView.bind(this));
     },
 
     /**
@@ -200,6 +198,7 @@ ChessBoard = (function() {
      * Reset board to starting position.
      */
     reset: function() {
+      this.moveList_ = [];
       this.setPosition(
           'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
     },
@@ -209,7 +208,6 @@ ChessBoard = (function() {
      * @param {string} fen Board setup described in Forsyth–Edwards notation.
      */
     setPosition: function(fen) {
-      this.moveList_ = [];
       this.hideLastMove();
       // Clear board.
       for (var file = 0; file < 8; file++) {
@@ -323,10 +321,24 @@ ChessBoard = (function() {
      */
     move: function(fromSquare, toSquare, trialMove, messageResponse) {
 
+      // Store list of possible captures for disambiguation.
+      var pieceType = $(fromSquare).firstChild.pieceType_;
+      var movesTargettingSquare = trialMove ? [] :
+          this.findAllMovesTargettingSquare(toSquare, pieceType);
+
       var opposingPlayer = this.playerToMove_ == Color.WHITE ? 
           Color.BLACK : Color.WHITE;
 
-      if (!trialMove) {
+      // On promoting a pawn, the toSquare may be of the form E8=Q to denote
+      // the promotion piece.
+      var promotionPiece = null;
+      if (toSquare.indexOf('=') > 0) {
+        var parts = toSquare.split('=');
+        toSquare = parts[0];
+        promotionPiece = parts[1];
+      }
+
+      if (!trialMove && !promotionPiece && !messageResponse) {
         // Make sure correct player is moving.
         var movingPiece = $(fromSquare).firstChild;
         if (movingPiece.pieceColor_ != this.playerToMove_)
@@ -352,7 +364,7 @@ ChessBoard = (function() {
       var capturedPiece = this.removePiece(toSquare);
       var piece = this.removePiece(fromSquare);
       $(toSquare).appendChild(piece);
-      // TODO: Show last move.
+
       // TODO: Implement 3 move repetition.
       //       Implement 50 move no pawn push + no capture.
       //       Implement insufficient mating material.
@@ -425,27 +437,36 @@ ChessBoard = (function() {
              this.enpassant_ = this.squareId(piece.getFile(fromSquare),
                                              (fromRank + toRank) / 2);
            }
-           if (toRank == 0 || toRank == 7)
-             this.promotePawn_(toSquare);
+           if (toRank == 0 || toRank == 7) {
+             if (!promotionPiece) {
+               this.promotePawn_(fromSquare, toSquare, capturedPiece);
+               // Early return.  Once piece selected from promotion dialog
+               // a second call is made to move to do that actual move.
+               return false;
+             } else {
+               this.placePiece(toSquare, promotionPiece);
+             }
+           }
         }
 
         // Save values before advancing to next move.
         var scoresheetMoveIndex = this.moveIndex_;
         var scoreColor = this.playerToMove_; 
-
         this.playerToMove_ = opposingPlayer;
 
-        if (opposingPlayer == Color.WHITE)
+        if (opposingPlayer == Color.WHITE) {
           this.moveIndex_++;
+          opposingPlayer = Color.BLACK;
+        } else {
+          opposingPlayer = Color.WHITE;
+        }
 
+        var saveMoves = this.legalMoveList_;
         this.updateLegalMoves();
+        var opposingMoves = this.getCandidateMoves_(opposingPlayer);
 
         // Update scoresheet after advancing to next player turn in order
-        // to determine if player is in check or checkmate.  TODO: Add
-        // + or # as required.  Still a bit of plumbing. TOD: Promotions are
-        // displaying correctly.  Currently blank, but should be of form
-        // move=piece.
-
+        // to determine if player is in check or checkmate.
         if (displayMove) {
           // Nothing left to do.
         } else if (piece.isPawn() && capturedPiece) {
@@ -454,20 +475,49 @@ ChessBoard = (function() {
               fromSquare.charAt(0) + 'x' + toSquare;
           displayMove = displayMove.toLowerCase();
         } else {
-          var movesTargettingSquare = 
-              this.findAllMovesTargettingSquare(toSquare, piece.pieceType_);
           displayMove = toSquare;
           if (capturedPiece)
             displayMove = 'x' + displayMove;
-          if (movesTargettingSquare.length > 1) {
-            // TODO: simplify since normally only rank or file is need from the
-            // source square.
-            displayName = fromSquare + displayName;
+          if (movesTargettingSquare.length > 1) {           
+            var file = fromSquare.charAt(0);
+            var rank = fromSquare.charAt(1);
+            var tally = {};
+            tally[file] = 0;
+            tally[rank] = 0;
+            var bump = function(key) {
+              if (key in tally)
+                 tally[key]++;
+            }
+            for (var i = 0; i < movesTargettingSquare.length; i++) {
+               var move = movesTargettingSquare[i];
+               if (move == fromSquare)
+                 continue;
+               bump(move.charAt(0));
+               bump(move.charAt(1));
+            }
+            var prefix = (tally[file] == 0) ? file : 
+                (tally[rank] == 0 ? rank : fromSquare);
+            displayMove = prefix + displayMove;
           }
           displayMove = displayMove.toLowerCase();
           if (!piece.isPawn())
             displayMove = piece.pieceType_.toUpperCase() + displayMove;
         }
+        if (promotionPiece)
+            displayMove = displayMove + '=' + promotionPiece.toUpperCase();
+
+        // Check if player is in check or checkmate
+        if (this.isInCheck(this.playerToMove_, opposingMoves)) {
+          var suffix = '#';
+          for (key in this.legalMoveList_) {
+            if (this.legalMoveList_[key].length > 0) {
+              suffix = '+';
+              break;
+            }
+          }
+          displayMove = displayMove + suffix;
+        }
+ 
         chess.scoresheet.addMove(scoresheetMoveIndex, 
                                  scoreColor, 
                                  displayMove);
@@ -569,6 +619,9 @@ ChessBoard = (function() {
       var x = e.clientX - bounds.left;
       var y = e.clientY - bounds.top;
       if (x < 0 || y < 0 || x > bounds.width || y > bounds.height) {
+        if (x < 0 && y > bounds.height) {
+           this.flipView(); 
+        }
         // Cancel selection if clicking outside board area.
         if(this.selectedSquare_)
           this.selectSquare(this.selectedSquare_, false);
@@ -651,10 +704,10 @@ ChessBoard = (function() {
       var reference = getElementBounds(this.querySelector('.chess-board'));
       bounds.left -= reference.left;
       bounds.top -= reference.top;
-      return bounds;      
+      return bounds;
     },
 
-    onFlipView: function() {
+    flipView: function() {
       this.setView(this.view_ == ChessBoard.View.BLACK_AT_TOP ? 
           ChessBoard.View.WHITE_AT_TOP : ChessBoard.View.BLACK_AT_TOP);
     },
@@ -666,6 +719,7 @@ ChessBoard = (function() {
       this.view_ = view;
       this.layoutBoard_();
       this.setPosition(savePosition);
+      this.showLastMove();
       chess.scoresheet.syncView();
     },
 
@@ -700,6 +754,7 @@ ChessBoard = (function() {
      *     candidate starting square.
      */
     updateLegalMoves: function() {
+
       var opposingPlayer = this.playerToMove_ == Color.WHITE ?
           Color.BLACK : Color.WHITE;
       var moveList = this.getCandidateMoves_(this.playerToMove_);
@@ -761,14 +816,6 @@ ChessBoard = (function() {
         title = title.replace('$1', score);
         Dialog.showInfoDialog(title, message);
       }
-
-/*
-      // test
-      console.log('----------------');
-      for (var key in moveList) {
-        console.log(key + ': ' + moveList[key].join(', '));
-      }
-*/
     },
 
     getCandidateMoves_: function(color) {
@@ -830,11 +877,16 @@ ChessBoard = (function() {
       return this.isAttacked(kingPos, opposingPlayer, moveList);
     },
 
+    /**
+     * @param {string} target Name of the target square in algebraic notation.
+     * @param {string} pieceType The piece type in FEN notation.
+     * @param {Object.<string, Array.<string>} moveList List of legal moves.
+     */
     findAllMovesTargettingSquare: function(target, pieceType) {
       var moves = [];
       for (var key in this.legalMoveList_) {
-        var piece = $(key);
-        if (piece.pieceType_ == pieceType) {
+        var piece = $(key).firstChild;
+        if (piece && piece.pieceType_ == pieceType) {
           var list = this.legalMoveList_[key];
           for (var i = 0; i < list.length; i++) {
             if (list[i] == target)
@@ -847,16 +899,22 @@ ChessBoard = (function() {
 
     /**
      * Query player to select a piece for promotion.
-     * @param {string} square  The promotion square.
+     * @param {string} fromSquare Square that the pawn moved from.
+     * @param {string} toSquare The promotion square.
+     * @param {?Element} capturedPiece Piece captured on promotion.
      */
-    promotePawn_: function(square) {
+    promotePawn_: function(fromSquare, toSquare, capturedPiece) {
       var self = this;
       var callback = function(promotionSquare, pieceType) {
-        self.placePiece(promotionSquare, pieceType);
-        self.updateLegalMoves();
+        // Temporarily undo move.
+        var piece = self.removePiece(toSquare);
+        $(fromSquare).appendChild(piece);
+        if (capturedPiece)
+          $(toSquare).appendChild(capturedPiece);
+        self.move(fromSquare, toSquare + '=' + pieceType);
       }
       this.resetSelection();
-      Dialog.showPromotionDialog(square, callback);
+      Dialog.showPromotionDialog(toSquare, callback);
     }
   };
 

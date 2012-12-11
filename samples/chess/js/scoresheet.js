@@ -79,12 +79,21 @@ Scoresheet = (function() {
 
     addMove: function(index, color, move) {
       var entry = ScoresheetMove.find(index);
-      if (!entry) {
-        entry = new ScoresheetMove(index);
-        var moveList = this.querySelector('.move-list');
-        moveList.appendChild(entry);
-      }
       entry.setMove(color, move);
+      if (color == 'B') {
+        entry = ScoresheetMove.find(index + 1);
+        if (!entry) {
+          entry = new ScoresheetMove(index + 1);
+          var moveList = this.querySelector('.move-list');
+          moveList.appendChild(entry);
+        }        
+      }
+      var moveList = this.querySelector('.move-list');
+      var height = moveList.clientHeight;
+      var scrollHeight = moveList.scrollHeight;
+      if (scrollHeight > height) {
+        moveList.scrollTop = scrollHeight - height;
+      }
     },
 
     reset: function() {
