@@ -16,10 +16,11 @@
   -webkit-box-pack: justify;
   background: rgb(255, 255, 245);
   border: 1px solid black;
+  bottom: 0;
   display: -webkit-box;
-  height: 500px;
-  margin: 20px 0 5px 0;
-  position: relative;
+  position: absolute;
+  right: 10px;
+  top: 0;
   width: 200px;
 }
 

@@ -123,6 +123,9 @@ ChessBoard = (function() {
       this.classList.add('chess-board-container');
       this.addEventListener('click', this.onClick.bind(this));
       this.layoutBoard_();
+      this.thunk_ = new Audio();
+      this.thunk_.setAttribute('src', '../audio/thunk.mp3');
+      this.thunk_.load();
     },
 
     /**
@@ -554,6 +557,7 @@ ChessBoard = (function() {
         }
         // TODO: Test for insufficient mating material.
 
+        this.thunk_.play();
         this.showLastMove();
         if (window.client && ! messageResponse) {
           var message = {
@@ -627,6 +631,14 @@ ChessBoard = (function() {
       var marker = this.querySelector('.last-move-marker');
       if (marker)
         marker.classList.add('hide-last-move');
+    },
+
+    resize: function(size) {
+      this.style.setProperty('height', size + 'px');
+      this.style.setProperty('width', size + 'px');
+      var marker = this.querySelector('.last-move-marker');
+      if (marker && !marker.classList.contains('hide-last-move'))
+        this.showLastMove();
     },
 
     /**

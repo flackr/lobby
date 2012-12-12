@@ -276,11 +276,21 @@ chess.GameClient.prototype = {
   }
 };
 
+chess.resizeBoard = function() {
+  var area = $('board-area');
+  var height = area.clientHeight;
+  var width = area.clientWidth;
+  chess.chessboard.resize(Math.min(height, width));
+};
+
 window.addEventListener('DOMContentLoaded', function() {
   chess.chessboard = new ChessBoard();
   $('board-area').appendChild(chess.chessboard);
   chess.chessboard.reset();
   chess.scoresheet = Scoresheet.decorate($('scoresheet'));
+  window.onresize = chess.resizeBoard;
+
+  chess.resizeBoard();
 
 /*
   Teporarily disabling until implemented.
