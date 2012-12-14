@@ -393,7 +393,18 @@ lobby.GameLobby = (function() {
 
     onSelectGame: function(data) {
       // TODO: Launch game.
-      console.log('selected ' + data.name + ' hosted by ' + data.gameId);
+      if (data.url) {
+/* 
+ * TODO - fix regexp substitution.
+        if (data.params) {
+          var re = /({%[a-zA-Z]+})/g;
+          // TODO: If password in params, handle it separately since not part of game info.
+          var params = data.params.replace(re, data[RegExp.$1]);
+          data.url += '#' + params;
+        }
+*/
+        window.open(data.url, '_self', '', false);
+      }
     }
   };
 

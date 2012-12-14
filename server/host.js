@@ -80,8 +80,7 @@ lobby.Host = function() {
   // port {@number} port number to host a game.
   var Host = function(lobbyUrl, port) {
     lobby.util.EventSource.apply(this);
-
-    this.lobbyUrl_ = lobbyUrl;
+    this.lobbyUrl_ = lobbyUrl.replace(/^https?:\/\//, 'ws://');
     this.clients = [];
     this.gameInfo = {
       'gameId': 'default',

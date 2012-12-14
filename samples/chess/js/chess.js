@@ -36,8 +36,7 @@ chess.newGame = function() {
 }
 
 chess.createGame = function(lobbyUrl, listenPort, description) {
-  var url = 'ws://' + lobbyUrl + '/';
-  var host = new lobby.Host(url, parseInt(listenPort));
+  var host = new lobby.Host(lobbyUrl, parseInt(listenPort));
   window.server = new chess.GameServer(host, description);
   host.addEventListener('ready', function(address) {
     window.client = new chess.GameClient(server.createLocalClient(),
@@ -59,6 +58,7 @@ chess.GameServer = function(connection, name, timeControl, timeIncrement) {
     acception: true,
     observable: false, // Add game create option once observers properly supported.
     status: 'awaiting_players',
+    params: 'game={%id}'
   });
   this.gameState_ = chess.GameState.STARTING;
   this.connection_.addEventListener('message', this.onMessageReceived.bind(this));

@@ -103,10 +103,6 @@ ChessLobbyOverlay.prototype = {
     gameLobby.setFilter({name: 'chess'});
 
     var lobbyUrl = gameLobby.getUrl();
-    var index = lobbyUrl.indexOf('://');
-    if (index > 0) {
-      lobbyUrl = lobbyUrl.substring(index + 3);
-    }
     $('chess-lobby-url').value = lobbyUrl;
     $('host-new-chess-game').addEventListener('click', this.onNewGame.bind(this));
     $('refresh-game-list').addEventListener('click', this.onRefresh.bind(this));
@@ -125,6 +121,7 @@ ChessLobbyOverlay.prototype = {
   },
 
   onRefresh: function(event) {
+    lobby.GameLobby.setUrl($('chess-lobby-url').value);
     $('chess-lobby').refresh();
   },
 
