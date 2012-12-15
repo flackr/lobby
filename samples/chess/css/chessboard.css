@@ -1,32 +1,44 @@
-#screen {
-  -webkit-box-orient: vertical;
+#board-area {
+  background: rgb(242, 242, 237);
+  border: 1px solid black;
   bottom: 0;
-  display: -webkit-box;
+  display: block;
+  bottom: 0;
+  left: 10px;
+  right: 220px;
+  top: 0;
+  position: absolute;
+}
+
+.chess-board-container {
+  margin: auto;
+  position: relative;
+}
+
+.last-move-marker {
+  bottom: 0;
+  display: block;
   left: 0;
   position: absolute;
   right: 0;
   top: 0;
+  z-index: 5;
 }
 
-#game-content {
-  -webkit-box-orient: horizontal;
-  display: -webkit-box;
+.last-move-marker.hide-last-move {
+  display:none;
+  z-index: -1;
 }
 
-#board-area {
-  -webkit-box-sizing: content-box;
-  background: rgb(242, 242, 237);
-  border: 1px solid black;
-  display: inline-block;
-  height: 500px;
-  margin: 20px 0 5px 20px;
-  padding: 0;
-  width: 500px;
-  position: relative;
+.last-move-marker svg {
+  height: 100%;
+  width: 100%;
 }
 
-#controls {
-  margin: 5px 0 5px 20px;
+.last-move-marker path {
+  fill: rgb(255, 255, 0);
+  stroke: black;
+  stroke-width: 2;
 }
 
 .chess-board {

@@ -46,6 +46,36 @@ lobby.GameLobby = (function() {
     return element;
   }
 
+
+  /**
+   * Color scheme for the lobby UI elements.
+   * @const
+   */
+  GameLobby.ColorScheme = {
+    DEFAULT: {
+      'lobby-background': '#f5f5f5',
+      'lobby-border': 'black',
+      'lobby-separator': 'rgba(80, 80, 40, 0.3)',
+      'lobby-text': 'black',
+      'header-background': 'rgb(80, 80, 40)',
+      'header-text': 'white',
+      'highlight-background': 'rgba(80, 80, 40, 0.3)',
+      'highlight-text': 'black',
+      'icon-filter': 'none',
+    },
+    LIGHT_ON_DARK: {
+      'lobby-background': 'black',
+      'lobby-border': 'white',
+      'lobby-separator': '#555',
+      'lobby-text': 'white',
+      'header-background': '#aaa',
+      'header-text': 'black',
+      'highlight-background': '#999',
+      'highlight-text': 'black',
+      'icon-filter': 'invert(0.8)',
+    },
+  };
+
   /**
    * Morphs an HTML element into a game lobby.
    * @param {!Element} el Element to embelish.
@@ -177,6 +207,77 @@ lobby.GameLobby = (function() {
     },
 
     /**
+     * Sets the color scheme for the lobby.
+     * @param {!GameLobby.ColorScheme} colors The new color palette, which may
+     *    be one of the predefined palettes or customized.
+     */
+    setColorScheme: function(colors) {
+      var palette = {};
+      var proto = GameLobby.ColorScheme.DEFAULT;
+      for (var key in proto)
+        palette[key] = proto[key];
+      for(var key in colors)
+        palette[key] = colors[key];
+      var changeCss = function(rule, property, value) {
+        for (var i = 0; i < document.styleSheets.length; i++) {
+          var sheet = document.styleSheets[i];
+          var cssRules = !!sheet['rules'] ? 'rules' : 'cssRules';
+          var rules = sheet[cssRules];
+          if (!rules)
+            continue;
+          for (var j = 0; j < rules.length; j++) {
+            var candidate = rules[j];
+            if (candidate.selectorText == rule) {
+              if (candidate.style[property]) {
+                candidate.style[property] = value;
+                break;
+              }
+            }
+          }
+        }
+      };
+      changeCss('.game-list-container',
+                'background-color',
+                palette['lobby-background']);
+      changeCss('.game-list-container',
+                'border-color',
+                palette['lobby-border']);
+      changeCss('.game-entry',
+                'color',
+                palette['lobby-text']);
+      changeCss('.game-entry > *',
+                'border-right-color',
+                palette['lobby-separator']);
+      changeCss('.game-entry > *',
+                'border-bottom-color',
+                palette['lobby-separator']);
+      changeCss('.game-entry-header',
+                'background-color',
+                palette['header-background']);
+      changeCss('.game-entry-header',
+                'color',
+                palette['header-text']);
+      changeCss('.game-entry-header:hover',
+                'background-color',
+                palette['header-background']);
+      changeCss('.game-entry-header:hover',
+                'color',
+                palette['header-text']);
+      changeCss('.game-entry:hover',
+                'background-color',
+                palette['highlight-background']);
+      changeCss('.game-entry:hover',
+                'color',
+                palette['highlight-text']);
+      changeCss('.game-entry:hover',
+                'color',
+                palette['highlight-text']);
+      changeCss('.game-status-icon',
+                '-webkit-filter',
+                palette['icon-filter']);
+    },
+
+    /**
      * Updates the display.
      * @param {Array.<Ojbect>} list List of game info.
      * @param {boolean} autoRepeat Indicates if another request should be
@@ -198,9 +299,17 @@ lobby.GameLobby = (function() {
       var header = document.createElement('div');
       header.className = 'game-entry game-entry-header';
       this.appendChild(header);
-      var addField = function(row, name, className) {
+      var addField = function(row, value, className) {
         var label = document.createElement('div');
-        label.textContent = name;
+        if (value instanceof Array) {
+          for (var i = 0; i < value.length; i++) {
+            var entry = document.createElement('div');
+            entry.textContent = value[i];
+            label.appendChild(entry);
+          }
+        } else {
+          label.textContent = value;
+        }
         label.className = className;
         row.appendChild(label);
       }
@@ -214,7 +323,7 @@ lobby.GameLobby = (function() {
  
       addField(header, 'Status', 'game-list-status-column');
       addField(header, 'Game', 'game-list-name-column');
-      addField(header, 'Hosted By', 'game-list-hosted-column');
+      addField(header, 'Players', 'game-list-players-column');
       addField(header, 'Description', 'game-list-description-column');
 
       for (var i = 0; i < list.length; i++) {
@@ -254,7 +363,7 @@ lobby.GameLobby = (function() {
         entry.appendChild(flags);
 
         addField(entry, data.name, 'game-list-name-column');
-        addField(entry, data.gameId, 'game-list-hosted-column');
+        addField(entry, data.players, 'game-list-players-column');
         addField(entry, data.description, 'game-list-description-column');
 
         this.appendChild(entry);
@@ -292,7 +401,23 @@ lobby.GameLobby = (function() {
 
     onSelectGame: function(data) {
       // TODO: Launch game.
-      console.log('selected ' + data.name + ' hosted by ' + data.gameId);
+      if (data.url) {
+        var url = data.url;
+        if (data.params) {
+          var re = /(\{[%a-zA-Z]+\})/;
+          var params = data.params;
+          var result = re.exec(params);
+          while (result) {
+            var key = result[0].substring(2, result[0].length - 1);
+            // TODO: need special treatment for password since not stored in game info.
+            var replacement = data[key];
+            params = params.replace(result[0], replacement);
+            result = re.exec(params);
+          }
+          url = url + '#' + params;
+        }
+        window.open(url, '_self', '', false);
+      }
     }
   };
 

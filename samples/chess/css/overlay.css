@@ -1,5 +1,4 @@
 #overlays {
-  background-color: #fff;
   bottom: 0;
   left: 0;
   position: absolute;
@@ -12,6 +11,10 @@
   height: 100%;
   position: relative;
   width: 100%;
+}
+
+.fade-transition {
+  -webkit-transition: ease-in opacity 250ms, background-color 250ms;
 }
 
 /* ------------ game lobby -------------------*/

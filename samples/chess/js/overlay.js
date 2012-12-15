@@ -38,16 +38,36 @@ Overlay = (function() {
   Overlay.show = function(name) {
     activeOverlay_ = registry_[name];
     var element = getElement(name);
-    // TODO: fade transition.
+    element.style.setProperty('opacity', 0);
+    element.style.setProperty('background-color', 'transparent');
     element.hidden = false;
     element.parentNode.hidden = false;
+    setTimeout(function() {
+      element.classList.add('fade-transition');
+      element.style.setProperty('opacity', 1);
+      element.style.setProperty('background-color', '#fff');
+      var onTransitionEnd = function() {
+        element.classList.remove('fade-transition');
+        element.removeEventListener('webkitTransitionEnd', onTransitionEnd);
+      }
+      element.addEventListener('webkitTransitionEnd', onTransitionEnd);
+    }, 0);
   }
 
   Overlay.dismiss = function(name) {
     var element = getElement(name);
-    // TODO: fade transition.
-    element.hidden = true;
-    element.parentNode.hidden = true;
+    setTimeout(function() {
+      element.classList.add('fade-transition');
+      element.style.setProperty('opacity', 0);
+      element.style.setProperty('background-color', 'transparent');
+      var onTransitionEnd = function() {
+        element.classList.remove('fade-transition');
+        element.hidden = true;
+        element.parentNode.hidden = true;
+        element.removeEventListener('webkitTransitionEnd', onTransitionEnd);
+      }
+      element.addEventListener('webkitTransitionEnd', onTransitionEnd);
+    }, 0);
   }
 
   Overlay.register = function(name, dialog) {
@@ -83,10 +103,6 @@ ChessLobbyOverlay.prototype = {
     gameLobby.setFilter({name: 'chess'});
 
     var lobbyUrl = gameLobby.getUrl();
-    var index = lobbyUrl.indexOf('://');
-    if (index > 0) {
-      lobbyUrl = lobbyUrl.substring(index + 3);
-    }
     $('chess-lobby-url').value = lobbyUrl;
     $('host-new-chess-game').addEventListener('click', this.onNewGame.bind(this));
     $('refresh-game-list').addEventListener('click', this.onRefresh.bind(this));
@@ -105,6 +121,7 @@ ChessLobbyOverlay.prototype = {
   },
 
   onRefresh: function(event) {
+    lobby.GameLobby.setUrl($('chess-lobby-url').value);
     $('chess-lobby').refresh();
   },
 

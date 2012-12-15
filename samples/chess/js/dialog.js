@@ -310,6 +310,8 @@ JoinGameDialog.prototype = {
 
   setGame: function(game) {
      this.game = game;
+     $('play-button').disabled = !game.accepting;
+     $('watch-button').disabled = !game.observable;
   }
 
 };

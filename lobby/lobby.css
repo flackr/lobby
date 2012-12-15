@@ -50,12 +50,14 @@ h1 {
 }
 
 .game-entry {
+  color: black;
   display: table-row;
   line-height: 28px;
 }
 
 .game-entry:hover {
   background: rgba(80, 80, 40, 0.3);
+  color: black;
   font-weight: bold;
 }
 
@@ -80,9 +82,11 @@ h1 {
 
 .game-entry-header:hover {
   background: rgb(80, 80, 40);
+  color: #fff;
 }
 
 .game-status-icon {
+  -webkit-filter: none;
   background-size: 24px;
   display: inline-block;
   height: 24px;

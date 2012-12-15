@@ -4,6 +4,12 @@ function $(id) {
   return document.getElementById(id);
 }
 
+chess.GameState = {
+  STARTING: 0,
+  IN_PROGRESS: 1,
+  FINISHED: 2
+};
+
 chess.Role = {
   PLAYER_WHITE: 0,
   PLAYER_BLACK: 1,
@@ -30,8 +36,7 @@ chess.newGame = function() {
 }
 
 chess.createGame = function(lobbyUrl, listenPort, description) {
-  var url = 'ws://' + lobbyUrl + '/';
-  var host = new lobby.Host(url, parseInt(listenPort));
+  var host = new lobby.Host(lobbyUrl, parseInt(listenPort));
   window.server = new chess.GameServer(host, description);
   host.addEventListener('ready', function(address) {
     window.client = new chess.GameClient(server.createLocalClient(),
@@ -50,14 +55,23 @@ chess.GameServer = function(connection, name, timeControl, timeIncrement) {
     gameId: 'chess',
     name: 'chess',
     description: name,
-    observable: false, // TODO: Fix to allow spectators.
+    accepting: true,
+    observable: false, // Add game create option once observers properly supported.
     status: 'awaiting_players',
+    url: 'insert valid address here',
+    params: 'game={%id}'
   });
+  this.gameState_ = chess.GameState.STARTING;
   this.connection_.addEventListener('message', this.onMessageReceived.bind(this));
   this.connection_.addEventListener('disconnection', this.onDisconnection.bind(this));
 };
 
 chess.GameServer.prototype = {
+
+  createLocalClient: function() {
+    return this.connection_.createLocalClient();
+  },
+
   onMessageReceived: function(clientIndex, message) {
     var echo = !!message.echo;
     var timing = {};
@@ -134,6 +148,12 @@ chess.GameServer.prototype = {
     this.updatePlayers();
   },
 
+  /**
+   * Adds players to the game.  If the game has not already started, colors are
+   * randomly assigned when the first player joins the game as a player
+   * (assumes host is always a player).  Additonal players may join as
+   * observers if permitted.
+   */
   updatePlayers: function() {
     var aliases = [];
     for (var i in this.clients_)
@@ -141,6 +161,21 @@ chess.GameServer.prototype = {
     this.connection_.updateInfo({
       players: aliases
     });
+
+    if (this.gameState_ != chess.GameState.STARTING) {
+      for (var i in this.clients_) {
+        var role = this.clients_[i].role;
+        if (role == chess.Role.PLAYER_UNASSIGNED) {
+          // TODO: If observer is not allowed, kick the player.
+
+          // Another player won the connection race. Reassign to observer role.
+          this.clients_[i].role = chess.Role.OBSERVER;
+          // TODO: Inform player that game has already started.
+          // TODO: Observers joining late should get the move list.
+        }
+      }
+      return;
+    }
 
     var playerCount = 0;
     var assignedPlayers = 0;
@@ -186,9 +221,12 @@ chess.GameServer.prototype = {
           message.role = this.clients_[i].role;
           this.connection_.send(i, message);
         }
+        this.connection_.updateInfo({
+          accepting: false,
+          status: 'started',
+        });
       }
     }
-    // TODO: Observers joining late should get the move list.
   }
 };
 
@@ -243,11 +281,21 @@ chess.GameClient.prototype = {
   }
 };
 
+chess.resizeBoard = function() {
+  var area = $('board-area');
+  var height = area.clientHeight;
+  var width = area.clientWidth;
+  chess.chessboard.resize(Math.min(height, width));
+};
+
 window.addEventListener('DOMContentLoaded', function() {
   chess.chessboard = new ChessBoard();
   $('board-area').appendChild(chess.chessboard);
   chess.chessboard.reset();
   chess.scoresheet = Scoresheet.decorate($('scoresheet'));
+  window.onresize = chess.resizeBoard;
+
+  chess.resizeBoard();
 
 /*
   Teporarily disabling until implemented.

@@ -95,16 +95,37 @@ ChessBoard = (function() {
     moveIndex_: 1,
 
     /**
+     * Number of moves since last pawn move or capture.
+     * Used to detect 50 move rule. 
+     */
+    movesSincePawnMoveOrCapture_: 0,
+
+    /**
      * View of the board.
      * @type {enum}
      * @private
      */
     view_: ChessBoard.View.BLACK_AT_TOP,
 
+    /**
+     * List of noves played in the game.
+     */
+    moveList_: [],
+
+    /**
+     * Positions used to detect threefold repetition.
+     * @type{Object.<string,Number>} Number of times each position has
+     *     appeared.
+     */
+    positions_: {},
+
     decorate: function() {
-      this.classList.add('chess-board');
+      this.classList.add('chess-board-container');
       this.addEventListener('click', this.onClick.bind(this));
       this.layoutBoard_();
+      this.thunk_ = new Audio();
+      this.thunk_.setAttribute('src', '../audio/thunk.mp3');
+      this.thunk_.load();
     },
 
     /**
@@ -112,6 +133,10 @@ ChessBoard = (function() {
      * black perspective.
      */
     layoutBoard_: function() {
+      var board = document.createElement('div');
+      board.classList.add('chess-board');
+      this.appendChild(board);
+
       var fromRank = 7;
       var toRank= -1;
       var deltaRank = -1;
@@ -128,7 +153,7 @@ ChessBoard = (function() {
       }
       for (var rank = fromRank; rank != toRank; rank += deltaRank) {
         var row = document.createElement('div');
-        this.appendChild(row);
+        board.appendChild(row);
         var rankLabel = document.createElement('div');
         rankLabel.textContent = String(1 + rank);
         row.appendChild(rankLabel);
@@ -142,7 +167,7 @@ ChessBoard = (function() {
         }
       }
       var row = document.createElement('div');
-      this.appendChild(row);
+      board.appendChild(row);
       var flipper = document.createElement('div');
       row.appendChild(flipper);
       var left = document.createElement('div');
@@ -157,8 +182,6 @@ ChessBoard = (function() {
         fileLabel.textContent = String.fromCharCode(65 + i);
         row.appendChild(fileLabel);
       }
-
-      flipper.addEventListener('click', this.onFlipView.bind(this));
     },
 
     /**
@@ -191,6 +214,8 @@ ChessBoard = (function() {
      * Reset board to starting position.
      */
     reset: function() {
+      this.moveList_ = [];
+      this.positions_ = {};
       this.setPosition(
           'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
     },
@@ -200,6 +225,7 @@ ChessBoard = (function() {
      * @param {string} fen Board setup described in Forsyth–Edwards notation.
      */
     setPosition: function(fen) {
+      this.hideLastMove();
       // Clear board.
       for (var file = 0; file < 8; file++) {
         for (var rank = 0; rank < 8; rank++) {
@@ -245,9 +271,7 @@ ChessBoard = (function() {
       this.enpassant_ = parts[3] == '-' ? null : parts[3].toUpperCase();
 
       // Ply counts.
-
-      // TODO - make use of parts[4]. Required for 50 move rule.
-
+      this.movesSincePawnMoveOrCapture_ = parts[4];
       this.moveIndex_ = parts[5];
 
       this.updateLegalMoves();
@@ -312,10 +336,24 @@ ChessBoard = (function() {
      */
     move: function(fromSquare, toSquare, trialMove, messageResponse) {
 
+      // Store list of possible captures for disambiguation.
+      var pieceType = $(fromSquare).firstChild.pieceType_;
+      var movesTargettingSquare = trialMove ? [] :
+          this.findAllMovesTargettingSquare(toSquare, pieceType);
+
       var opposingPlayer = this.playerToMove_ == Color.WHITE ? 
           Color.BLACK : Color.WHITE;
 
-      if (!trialMove) {
+      // On promoting a pawn, the toSquare may be of the form E8=Q to denote
+      // the promotion piece.
+      var promotionPiece = null;
+      if (toSquare.indexOf('=') > 0) {
+        var parts = toSquare.split('=');
+        toSquare = parts[0];
+        promotionPiece = parts[1];
+      }
+
+      if (!trialMove && !promotionPiece && !messageResponse) {
         // Make sure correct player is moving.
         var movingPiece = $(fromSquare).firstChild;
         if (movingPiece.pieceColor_ != this.playerToMove_)
@@ -341,10 +379,6 @@ ChessBoard = (function() {
       var capturedPiece = this.removePiece(toSquare);
       var piece = this.removePiece(fromSquare);
       $(toSquare).appendChild(piece);
-      // TODO: Show last move.
-      // TODO: Implement 3 move repetition.
-      //       Implement 50 move no pawn push + no capture.
-      //       Implement insufficient mating material.
 
       if (!trialMove) {
         var displayMove = null;
@@ -414,27 +448,36 @@ ChessBoard = (function() {
              this.enpassant_ = this.squareId(piece.getFile(fromSquare),
                                              (fromRank + toRank) / 2);
            }
-           if (toRank == 0 || toRank == 7)
-             this.promotePawn_(toSquare);
+           if (toRank == 0 || toRank == 7) {
+             if (!promotionPiece) {
+               this.promotePawn_(fromSquare, toSquare, capturedPiece);
+               // Early return.  Once piece selected from promotion dialog
+               // a second call is made to move to do that actual move.
+               return false;
+             } else {
+               this.placePiece(toSquare, promotionPiece);
+             }
+           }
         }
 
         // Save values before advancing to next move.
         var scoresheetMoveIndex = this.moveIndex_;
         var scoreColor = this.playerToMove_; 
-
         this.playerToMove_ = opposingPlayer;
 
-        if (opposingPlayer == Color.WHITE)
+        if (opposingPlayer == Color.WHITE) {
           this.moveIndex_++;
+          opposingPlayer = Color.BLACK;
+        } else {
+          opposingPlayer = Color.WHITE;
+        }
 
+        var saveMoves = this.legalMoveList_;
         this.updateLegalMoves();
+        var opposingMoves = this.getCandidateMoves_(opposingPlayer);
 
         // Update scoresheet after advancing to next player turn in order
-        // to determine if player is in check or checkmate.  TODO: Add
-        // + or # as required.  Still a bit of plumbing. TOD: Promotions are
-        // displaying correctly.  Currently blank, but should be of form
-        // move=piece.
-
+        // to determine if player is in check or checkmate.
         if (displayMove) {
           // Nothing left to do.
         } else if (piece.isPawn() && capturedPiece) {
@@ -443,28 +486,84 @@ ChessBoard = (function() {
               fromSquare.charAt(0) + 'x' + toSquare;
           displayMove = displayMove.toLowerCase();
         } else {
-          var movesTargettingSquare = 
-              this.findAllMovesTargettingSquare(toSquare, piece.pieceType_);
           displayMove = toSquare;
           if (capturedPiece)
             displayMove = 'x' + displayMove;
-          if (movesTargettingSquare.length > 1) {
-            // TODO: simplify since normally only rank or file is need from the
-            // source square.
-            displayName = fromSquare + displayName;
+          if (movesTargettingSquare.length > 1) {           
+            var file = fromSquare.charAt(0);
+            var rank = fromSquare.charAt(1);
+            var tally = {};
+            tally[file] = 0;
+            tally[rank] = 0;
+            var bump = function(key) {
+              if (key in tally)
+                 tally[key]++;
+            }
+            for (var i = 0; i < movesTargettingSquare.length; i++) {
+               var move = movesTargettingSquare[i];
+               if (move == fromSquare)
+                 continue;
+               bump(move.charAt(0));
+               bump(move.charAt(1));
+            }
+            var prefix = (tally[file] == 0) ? file : 
+                (tally[rank] == 0 ? rank : fromSquare);
+            displayMove = prefix + displayMove;
           }
           displayMove = displayMove.toLowerCase();
           if (!piece.isPawn())
             displayMove = piece.pieceType_.toUpperCase() + displayMove;
         }
+        if (promotionPiece)
+            displayMove = displayMove + '=' + promotionPiece.toUpperCase();
+
+        // Check if player is in check or checkmate
+        if (this.isInCheck(this.playerToMove_, opposingMoves)) {
+          var suffix = '#';
+          for (key in this.legalMoveList_) {
+            if (this.legalMoveList_[key].length > 0) {
+              suffix = '+';
+              break;
+            }
+          }
+          displayMove = displayMove + suffix;
+        }
+ 
         chess.scoresheet.addMove(scoresheetMoveIndex, 
                                  scoreColor, 
                                  displayMove);
+        this.moveList_.push({from: fromSquare, to: toSquare});
+
+        // Test for draw conditions.
+        var position = this.toString();
+        var key = position.split(' ')[0];
+        if (!this.positions_[key])
+          this.positions_[key] = 1;
+        else
+          this.positions_[key]++;
+        if (this.positions_[key] > 2) {
+          Dialog.showInfoDialog('Game Over::\u00A0\u00A01/2 - 1/2', 
+                                'Draw by threefold repetition.');
+          // TODO: set the game state.
+        }
+        if (piece.isPawn() || capturedPiece) {
+          this.movesSincePawnMoveOrCapture_ = 0;
+        } else {
+           if (++this.movesSincePawnMoveOrCapture_ > 99) {
+             Dialog.showInfoDialog('Game Over::\u00A0\u00A01/2 - 1/2', 
+                                  '50 moves with no capture or pawn move.');
+             // TODO: set the game state.
+           }
+        }
+        // TODO: Test for insufficient mating material.
+
+        this.thunk_.play();
+        this.showLastMove();
         if (window.client && ! messageResponse) {
           var message = {
             moveFrom: fromSquare,
             moveTo: toSquare,
-            position: this.toString(),
+            position: position,
             text: displayMove,
             echo: false,
           };
@@ -472,6 +571,74 @@ ChessBoard = (function() {
         }
       }
       return true;
+    },
+
+    showLastMove: function() {
+      if(this.moveList_.length > 0) {
+        var marker = this.querySelector('.last-move-marker');
+        if (!marker) {
+          var svgns = 'http://www.w3.org/2000/svg';
+          var version = '1.1';
+          marker = document.createElement('div');
+          marker.className = 'last-move-marker';
+          this.appendChild(marker);
+          var svg = document.createElementNS(svgns, 'svg');
+          svg.setAttribute('version', version);
+          marker.appendChild(svg);
+          var graphics = document.createElementNS(svgns, 'g');
+          svg.appendChild(graphics);
+          var path = document.createElementNS(svgns, 'path');
+          path.className = 'move-arrow';
+          graphics.appendChild(path);
+        }
+        var last = this.moveList_[this.moveList_.length-1];
+
+        var fromBounds = this.getBounds(last.from);
+        var toBounds = this.getBounds(last.to);
+
+        var x1 = fromBounds.left + 0.5 * fromBounds.width;
+        var y1 = fromBounds.top + 0.5 * fromBounds.height;
+        var x2 = toBounds.left + 0.5 * toBounds.width;
+        var y2 = toBounds.top + 0.5 * toBounds.height;
+        var dx = x2 - x1;
+        var dy = y2 - y1;
+        var len = Math.floor(Math.sqrt(dx * dx + dy * dy) - 0.3 * fromBounds.width);
+        var width = Math.floor(0.1 * fromBounds.width);
+        var base = Math.floor(len - 2 * width);
+        var pathStr = 'M0,0 L0,%1 L%2,%1 L%2,%3 L%4,0 L%2,-%3 L%2,-%1 L0,-%1 L0,0';
+        pathStr = pathStr.replace(/%1/g, width);
+        pathStr = pathStr.replace(/%2/g, base);
+        pathStr = pathStr.replace(/%3/g, 2*width);
+        pathStr = pathStr.replace(/%4/g, len);
+        marker.querySelector('path').setAttribute('d', pathStr);
+        var rotation = 0;
+        if (dx != 0) {
+          var angle = Math.atan(dy/dx);
+          angle *= 180/Math.PI;
+          if (dx < 0)
+            angle = 180 + angle;
+        } else {
+          angle = (dy < 0) ? -90 : 90;
+        }
+        marker.querySelector('g').setAttribute(
+            'transform',
+            'translate(' + x1 + ',' + y1 + ') rotate(' + angle + ')');
+        marker.classList.remove('hide-last-move');
+      }
+    },
+
+    hideLastMove: function() {
+      var marker = this.querySelector('.last-move-marker');
+      if (marker)
+        marker.classList.add('hide-last-move');
+    },
+
+    resize: function(size) {
+      this.style.setProperty('height', size + 'px');
+      this.style.setProperty('width', size + 'px');
+      var marker = this.querySelector('.last-move-marker');
+      if (marker && !marker.classList.contains('hide-last-move'))
+        this.showLastMove();
     },
 
     /**
@@ -492,7 +659,30 @@ ChessBoard = (function() {
      * @param {Event} e Mouse click event.
      */
     onClick: function(e) {
-      var id = this.getSquare(e.target);
+      var bounds = this.getBoardBounds();
+      var x = e.clientX - bounds.left;
+      var y = e.clientY - bounds.top;
+      if (x < 0 || y < 0 || x > bounds.width || y > bounds.height) {
+        if (x < 0 && y > bounds.height) {
+           this.flipView(); 
+        }
+        // Cancel selection if clicking outside board area.
+        if(this.selectedSquare_)
+          this.selectSquare(this.selectedSquare_, false);
+        return;
+      }
+      // Determine, which square was clicked on.
+      var file = Math.floor(x / bounds.width * 8);
+      var rank = Math.floor(y / bounds.height * 8);
+      if (this.view_ == ChessBoard.View.BLACK_AT_TOP)
+        rank = 7 - rank;
+      else
+        file = 7 - file;
+      var id = this.squareId(file, rank);
+
+      // If piece currently selected, then move if legal and reset otherwise.
+      // Allow piece with no legal move to be selected as reset provides
+      // feedback that move is invalid.
       if (id) {
         if(this.selectedSquare_) {
           if (id != this.selectedSquare_) {
@@ -510,7 +700,58 @@ ChessBoard = (function() {
       }
     },
 
-    onFlipView: function() {
+    /**
+     * Retrieve bounds of board in screen coordinates.
+     */
+    getBoardBounds: function() {
+      var a1 = $('A1');
+      var h8 = $('H8');
+      var left = Math.min(a1.offsetLeft, h8.offsetLeft);
+      var top = Math.min(a1.offsetTop, h8.offsetTop);
+      var el = a1.offsetParent;
+      while(el) {
+        left += el.offsetLeft;
+        top += el.offsetTop;
+        el = el.offsetParent;
+      }
+      return {
+        left: left,
+        top: top,
+        width: 8 * a1.offsetWidth,
+        height: 8 * a1.offsetHeight
+      };
+    },
+
+    /**
+     * Retrieves bounds of a square in board coordinates.
+     * @param {string} square Name of the square in algebraic notation.
+     */
+    getBounds: function(square) {
+      var getElementBounds = function(el) {
+        var left = 0;
+        var top =  0;
+        var width = el.offsetWidth;
+        var height = el.offsetHeight;
+        while(el) {
+          left += el.offsetLeft;
+          top += el.offsetTop;
+          el = el.offsetParent;
+        }
+        return {
+          left: left,
+          top: top,
+          width: width,
+          height:height
+        };
+      }
+      var bounds = getElementBounds($(square));
+      var reference = getElementBounds(this.querySelector('.chess-board'));
+      bounds.left -= reference.left;
+      bounds.top -= reference.top;
+      return bounds;
+    },
+
+    flipView: function() {
       this.setView(this.view_ == ChessBoard.View.BLACK_AT_TOP ? 
           ChessBoard.View.WHITE_AT_TOP : ChessBoard.View.BLACK_AT_TOP);
     },
@@ -522,6 +763,7 @@ ChessBoard = (function() {
       this.view_ = view;
       this.layoutBoard_();
       this.setPosition(savePosition);
+      this.showLastMove();
       chess.scoresheet.syncView();
     },
 
@@ -556,6 +798,7 @@ ChessBoard = (function() {
      *     candidate starting square.
      */
     updateLegalMoves: function() {
+
       var opposingPlayer = this.playerToMove_ == Color.WHITE ?
           Color.BLACK : Color.WHITE;
       var moveList = this.getCandidateMoves_(this.playerToMove_);
@@ -617,14 +860,6 @@ ChessBoard = (function() {
         title = title.replace('$1', score);
         Dialog.showInfoDialog(title, message);
       }
-
-/*
-      // test
-      console.log('----------------');
-      for (var key in moveList) {
-        console.log(key + ': ' + moveList[key].join(', '));
-      }
-*/
     },
 
     getCandidateMoves_: function(color) {
@@ -686,11 +921,16 @@ ChessBoard = (function() {
       return this.isAttacked(kingPos, opposingPlayer, moveList);
     },
 
+    /**
+     * @param {string} target Name of the target square in algebraic notation.
+     * @param {string} pieceType The piece type in FEN notation.
+     * @param {Object.<string, Array.<string>} moveList List of legal moves.
+     */
     findAllMovesTargettingSquare: function(target, pieceType) {
       var moves = [];
       for (var key in this.legalMoveList_) {
-        var piece = $(key);
-        if (piece.pieceType_ == pieceType) {
+        var piece = $(key).firstChild;
+        if (piece && piece.pieceType_ == pieceType) {
           var list = this.legalMoveList_[key];
           for (var i = 0; i < list.length; i++) {
             if (list[i] == target)
@@ -703,16 +943,22 @@ ChessBoard = (function() {
 
     /**
      * Query player to select a piece for promotion.
-     * @param {string} square  The promotion square.
+     * @param {string} fromSquare Square that the pawn moved from.
+     * @param {string} toSquare The promotion square.
+     * @param {?Element} capturedPiece Piece captured on promotion.
      */
-    promotePawn_: function(square) {
+    promotePawn_: function(fromSquare, toSquare, capturedPiece) {
       var self = this;
       var callback = function(promotionSquare, pieceType) {
-        self.placePiece(promotionSquare, pieceType);
-        self.updateLegalMoves();
+        // Temporarily undo move.
+        var piece = self.removePiece(toSquare);
+        $(fromSquare).appendChild(piece);
+        if (capturedPiece)
+          $(toSquare).appendChild(capturedPiece);
+        self.move(fromSquare, toSquare + '=' + pieceType);
       }
       this.resetSelection();
-      Dialog.showPromotionDialog(square, callback);
+      Dialog.showPromotionDialog(toSquare, callback);
     }
   };
 

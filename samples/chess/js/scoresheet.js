@@ -79,12 +79,21 @@ Scoresheet = (function() {
 
     addMove: function(index, color, move) {
       var entry = ScoresheetMove.find(index);
-      if (!entry) {
-        entry = new ScoresheetMove(index);
-        var moveList = this.querySelector('move-list');
-        moveList.appendChild(entry);
-      }
       entry.setMove(color, move);
+      if (color == 'B') {
+        entry = ScoresheetMove.find(index + 1);
+        if (!entry) {
+          entry = new ScoresheetMove(index + 1);
+          var moveList = this.querySelector('.move-list');
+          moveList.appendChild(entry);
+        }        
+      }
+      var moveList = this.querySelector('.move-list');
+      var height = moveList.clientHeight;
+      var scrollHeight = moveList.scrollHeight;
+      if (scrollHeight > height) {
+        moveList.scrollTop = scrollHeight - height;
+      }
     },
 
     reset: function() {
@@ -162,7 +171,7 @@ Scoresheet = (function() {
    */
   Scoresheet.Clock = function(layout) {
     var element = document.createElement('div');
-    element.timeControl_ = 5; // TODO: Populate based on move recent game.
+    element.timeControl_ = 5; // TODO: Populate based on most recent game.
     element.timeIncrement_ = 3;
     element.layout_ = layout;
     element.__proto__ = Scoresheet.Clock.prototype;
@@ -178,7 +187,7 @@ Scoresheet = (function() {
       this.className = 'scoresheet-clock';
       var player = document.createElement('div');
       player.className = 'scoresheet-player-name';
-      player.textContent = 'Anonymous';
+      player.textContent = '?';
       var timers = document.createElement('div');
       timers.className = 'scoresheet-timers';
       var mainTimer = document.createElement('div');
@@ -214,7 +223,7 @@ Scoresheet = (function() {
       var timerCountdown = function() {
         var now = Date.now();
         var elapsed = (now - self.startTime_) / 1000;
-        self.updateMainTimer_(self.remaining_ - elapsed);
+        self.updateMainTimer_(self.remaining_ + self.timeIncrement_ - elapsed);
       };
       this.timer_ = setInterval(incrementalCountdown, 100);
     },

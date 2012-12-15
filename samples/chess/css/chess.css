@@ -1,3 +1,10 @@
+#screen {
+  bottom: 0;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 0;
+}
 
 #game-header{
   -webkit-box-align: center;
@@ -14,7 +21,6 @@
   font: 24px 'Arial';
 }
 
-
 #chess-game-icon {
   /* http://findicons.com/icon/3063/black_chess?width=48 */
   background-image: url('../images/black_chess.png');
@@ -26,6 +32,15 @@
   width: 48px;
 }
 
+#game-content {
+  bottom: 100px;
+  display: block;
+  left: 0;
+  position: absolute;
+  right: 0;
+  top: 70px;
+}
+
 #chess-button-new-game {
   background: rgb(80, 80, 40);
   border: none;
@@ -33,5 +48,40 @@
   color: white;
   display; block;
   font: 18px 'Arial';
+  height: 2em;
+}
+
+#game-chat {
+  -webkit-box-align: stretch;
+  -webkit-box-orient: vertical;
+  -webkit-box-pack: justify;
+  bottom: 0;
+  display: -webkit-box;
+  left: 0;
+  margin: 10px;
+  position: absolute;
+  right: 0;
+  height: 90;
+}
+
+#chat-dialog {
+  -webkit-box-flex: 1;
+  border: 1px solid black;
+  margin-top: 5px;
+}
+
+#controls {
+  -webkit-box-orient: horizontal;
+  -webkit-box-pack: justify;
+  display: -webkit-box;
+  margin-top: 5px;
+}
+
+#controls > input[type=text] {
+  -webkit-box-flex: 1;
+  display: block;
+}
+
+#controls > input {
   height: 2em;
 }

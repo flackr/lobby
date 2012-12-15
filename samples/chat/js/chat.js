@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
   $('createGame').style.display = lobby.serverCapable() ? 'block' : 'none';
   $('createGameBtn').addEventListener('click', function() {
     var host;
-    window.server = new ChatServer(host = new lobby.Host($('chat-lobby').getUrl().replace('http://', 'ws://'), parseInt($('port').value)), $('gameName').value);
+    window.server = new ChatServer(host = new lobby.Host($('chat-lobby').getUrl(), parseInt($('port').value)), $('gameName').value);
     host.addEventListener('ready', function(address) {
       window.client = new ChatClient($('connection'), server.createLocalClient(), $('localAlias').value);
     });
@@ -32,6 +32,11 @@ function ChatServer(connection, name) {
 }
 
 ChatServer.prototype = {
+
+  createLocalClient: function() {
+    return this.connection_.createLocalClient();
+  },
+
   onMessageReceived: function(clientIndex, message) {
     if (message.alias) {
       this.clients_[clientIndex] = message.alias;
