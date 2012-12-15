@@ -55,7 +55,7 @@ chess.GameServer = function(connection, name, timeControl, timeIncrement) {
     gameId: 'chess',
     name: 'chess',
     description: name,
-    acception: true,
+    accepting: true,
     observable: false, // Add game create option once observers properly supported.
     status: 'awaiting_players',
     url: 'insert valid address here',
@@ -221,6 +221,10 @@ chess.GameServer.prototype = {
           message.role = this.clients_[i].role;
           this.connection_.send(i, message);
         }
+        this.connection_.updateInfo({
+          accepting: false,
+          status: 'started',
+        });
       }
     }
   }
