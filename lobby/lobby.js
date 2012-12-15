@@ -394,16 +394,21 @@ lobby.GameLobby = (function() {
     onSelectGame: function(data) {
       // TODO: Launch game.
       if (data.url) {
-/* 
- * TODO - fix regexp substitution.
+        var url = data.url;
         if (data.params) {
-          var re = /({%[a-zA-Z]+})/g;
-          // TODO: If password in params, handle it separately since not part of game info.
-          var params = data.params.replace(re, data[RegExp.$1]);
-          data.url += '#' + params;
+          var re = /(\{[%a-zA-Z]+\})/;
+          var params = data.params;
+          var result = re.exec(params);
+          while (result) {
+            var key = result[0].substring(2, result[0].length - 1);
+            // TODO: need special treatment for password since not stored in game info.
+            var replacement = data[key];
+            params = params.replace(result[0], replacement);
+            result = re.exec(params);
+          }
+          url = url + '#' + params;
         }
-*/
-        window.open(data.url, '_self', '', false);
+        window.open(url, '_self', '', false);
       }
     }
   };

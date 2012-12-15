@@ -58,6 +58,7 @@ chess.GameServer = function(connection, name, timeControl, timeIncrement) {
     acception: true,
     observable: false, // Add game create option once observers properly supported.
     status: 'awaiting_players',
+    url: 'insert valid address here',
     params: 'game={%id}'
   });
   this.gameState_ = chess.GameState.STARTING;
