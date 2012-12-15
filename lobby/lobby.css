@@ -82,7 +82,7 @@ h1 {
 
 .game-entry-header:hover {
   background: rgb(80, 80, 40);
-  color: black;
+  color: #fff;
 }
 
 .game-status-icon {

@@ -299,9 +299,17 @@ lobby.GameLobby = (function() {
       var header = document.createElement('div');
       header.className = 'game-entry game-entry-header';
       this.appendChild(header);
-      var addField = function(row, name, className) {
+      var addField = function(row, value, className) {
         var label = document.createElement('div');
-        label.textContent = name;
+        if (value instanceof Array) {
+          for (var i = 0; i < value.length; i++) {
+            var entry = document.createElement('div');
+            entry.textContent = value[i];
+            label.appendChild(entry);
+          }
+        } else {
+          label.textContent = value;
+        }
         label.className = className;
         row.appendChild(label);
       }
@@ -315,7 +323,7 @@ lobby.GameLobby = (function() {
  
       addField(header, 'Status', 'game-list-status-column');
       addField(header, 'Game', 'game-list-name-column');
-      addField(header, 'Hosted By', 'game-list-hosted-column');
+      addField(header, 'Players', 'game-list-players-column');
       addField(header, 'Description', 'game-list-description-column');
 
       for (var i = 0; i < list.length; i++) {
@@ -355,7 +363,7 @@ lobby.GameLobby = (function() {
         entry.appendChild(flags);
 
         addField(entry, data.name, 'game-list-name-column');
-        addField(entry, data.gameId, 'game-list-hosted-column');
+        addField(entry, data.players, 'game-list-players-column');
         addField(entry, data.description, 'game-list-description-column');
 
         this.appendChild(entry);
