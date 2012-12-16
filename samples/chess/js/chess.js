@@ -35,6 +35,15 @@ chess.newGame = function() {
   Overlay.show('chess-lobby');
 }
 
+chess.sendMessage = function() {
+  if (chess.gameClient) {
+    var message = $('chat-message');
+    chess.gameClient.sendMessage({chat: message.value});
+    message.value = '';
+    message.focus();
+  }
+}
+
 chess.createGame = function(lobbyUrl, listenPort, description) {
   var host = new lobby.Host(lobbyUrl, parseInt(listenPort));
   window.server = new chess.GameServer(host, description);
@@ -90,6 +99,17 @@ chess.GameServer.prototype = {
          ', role = ' + message.role);
       this.clients_[clientIndex] = message;
       this.updatePlayers();
+    } else if (message.chat) {
+      message.from = this.clients_[clientIndex].alias;
+      // Player messages are seen by all.
+      // Observer messages are only seen by other observers (kibitzers).
+      var role = this.clients_[clientIndex].role;
+      for (var i in this.connection_.clients) {
+        message.toSelf = (i == clientIndex);
+        if (role != chess.Role.OBSERVER ||
+            this.clients_[i].role == chess.Role.OBSERVER)
+          this.connection_.send(i, message);
+      }
     } else {
       if (message.moveFrom) {  
         // Add timer information.
@@ -240,6 +260,7 @@ chess.GameClient = function(connection, role) {
   this.connection_.addEventListener('connected', this.onConnected.bind(this));
   this.connection_.addEventListener('disconnected', this.onDisconnected.bind(this));
   this.connection_.addEventListener('message', this.onMessageReceived.bind(this));
+  chess.gameClient = this;
 };
 
 chess.GameClient.prototype = {
@@ -249,7 +270,24 @@ chess.GameClient.prototype = {
   },
 
   onMessageReceived: function(message) {
-    if (message.moveFrom) {
+    if (message.chat) {
+      var chat = $('chat-messages');
+      var entry = document.createElement('div');
+      entry.className = 'chat-message';
+      chat.appendChild(entry);
+      var from = document.createElement('div');
+      from.textContent = message.toSelf ? 'me' : message.from;
+      entry.appendChild(from);
+      var content = document.createElement('div');
+      content.textContent = message.chat;
+      entry.appendChild(content);
+      var height = chat.clientHeight;
+      var scrollHeight = chat.scrollHeight;
+      if (scrollHeight > height)
+        chat.scrollTop = scrollHeight - height;
+      if (!message.toSelf)
+        $('chat-sound').play();
+    } else if (message.moveFrom) {
       chess.chessboard.move(
           message.moveFrom, 
           message.moveTo, 
@@ -307,6 +345,10 @@ window.addEventListener('DOMContentLoaded', function() {
   $('chess-button-undo').addEventListener('click', chess.undo);
 */
   $('chess-button-new-game').addEventListener('click', chess.newGame);
+  $('chat-message').addEventListener('keypress', function(evt) {
+    if (evt.keyCode == 13)
+      chess.sendMessage();
+  });
 
 }, false);
 
