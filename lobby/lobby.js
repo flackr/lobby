@@ -25,6 +25,12 @@ lobby.GameLobby = (function() {
   var defaultLobbyUrl = 'http://lobby-flack.dotcloud.com';
 
   /**
+   * Filter private games that are not connectable becaue of being on a
+   * different network.
+   */
+  var publicAddress = undefined;
+
+  /**
    * Resolved URL for the lobby.
    * @type {string}
    */
@@ -153,6 +159,7 @@ lobby.GameLobby = (function() {
       searchButton.addEventListener('click', function(evt) {
         self.requestListUpdate(false);
       });
+      this.fetchPublicAddress();
       this.requestListUpdate(true);
     },
 
@@ -214,6 +221,19 @@ lobby.GameLobby = (function() {
         this.parseQueryParams();
 
       return lobbyUrl || defaultLobbyUrl;
+    },
+
+    fetchPublicAddress: function() {
+      var xhr = new XMLHttpRequest();
+      var self = this;
+      xhr.onreadystatechange = function() {
+        if (xhr.readyState == 4 && xhr.status == 200) {
+          publicAddress = xhr.responseText;
+          self.refresh();
+        }
+      }
+      xhr.open('GET', 'http://www.dynprojects.com/ipcheck.php', true);
+      xhr.send(null);
     },
 
     /**
@@ -350,6 +370,13 @@ lobby.GameLobby = (function() {
           if (!match)
             continue;
         }
+
+        if (!data.accepting && !data.observable)
+          continue;
+
+        if (data.visibility == 'private' &&
+            data.publicAddress != publicAddress)
+          continue;
 
         var entry = document.createElement('div');
         entry.className = 'game-entry';
