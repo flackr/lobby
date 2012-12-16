@@ -31,6 +31,10 @@ chess.undo = function(){
   // TODO: Implement me. Requires agreement of other player.
 }
 
+chess.getRole = function() {
+  return window.client ? window.client.role_ : chess.Role.PLAYER_UNASSIGNED;
+}
+
 chess.newGame = function() {
   Overlay.show('chess-lobby');
 }
@@ -301,6 +305,7 @@ chess.GameClient.prototype = {
       var view = message.role == chess.Role.PLAYER_BLACK ?
         ChessBoard.View.WHITE_AT_TOP : ChessBoard.View.BLACK_AT_TOP;
       chess.chessboard.setView(view);
+      this.role_ = message.role;
       // set player names
       chess.scoresheet.setPlayerNames(message.players);
     } else {

@@ -355,6 +355,15 @@ ChessBoard = (function() {
         var movingPiece = $(fromSquare).firstChild;
         if (movingPiece.pieceColor_ != this.playerToMove_)
           return false;
+        var role = chess.getRole();
+        if (role == chess.Role.OBSERVER)
+          return false;
+        if (role == chess.Role.PLAYER_BLACK &&
+            this.playerToMove_ != Color.BLACK)
+          return false;
+        if (role == chess.Role.PLAYER_WHITE &&
+            this.playerToMove_ != Color.WHITE)
+          return false;
 
         // Make sure move is in list of legal moves for the selected piece.
         var allowed = this.legalMoveList_[fromSquare];
