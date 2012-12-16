@@ -156,8 +156,11 @@ chess.GameServer.prototype = {
    */
   updatePlayers: function() {
     var aliases = [];
-    for (var i in this.clients_)
-      aliases.push(this.clients_[i].alias);
+    for (var i in this.clients_) {
+      // Only show actual players and not observers.
+      if (this.clients_[i].role != chess.Role.OBSERVER)
+        aliases.push(this.clients_[i].alias);
+    }
     this.connection_.updateInfo({
       players: aliases
     });

@@ -302,10 +302,10 @@ lobby.GameLobby = (function() {
       var addField = function(row, value, className) {
         var label = document.createElement('div');
         if (value instanceof Array) {
-          for (var i = 0; i < value.length; i++) {
-            var entry = document.createElement('div');
-            entry.textContent = value[i];
-            label.appendChild(entry);
+          if (value.length > 2) {
+            label.textContent = value[0] + ' + ' + (value.length - 1);
+          } else {
+            label.textContent = value.join(', ');
           }
         } else {
           label.textContent = value;
