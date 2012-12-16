@@ -142,10 +142,11 @@ lobby.GameLobby = (function() {
       this.games_ = [];
 
       this.searchbox_ = document.createElement('div');
+      this.searchbox_.className = 'lobby-search-bar';
       var searchInput = document.createElement('input');
       searchInput.className = 'lobby-search';
       var searchButton = document.createElement('button');
-      searchButton.classname = 'lobby-search-button';
+      searchButton.className = 'lobby-search-button';
       searchButton.textContent = 'Search';
       this.searchbox_.appendChild(searchInput);
       this.searchbox_.appendChild(searchButton);

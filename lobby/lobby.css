@@ -115,3 +115,8 @@ h1 {
 .status-password-protected {
   background-image: url('locked.svg');
 }
+
+/* Hide search bar until feature is implemented. */
+.lobby-search-bar {
+  display: none;
+}
