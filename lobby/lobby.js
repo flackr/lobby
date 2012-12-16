@@ -173,29 +173,39 @@ lobby.GameLobby = (function() {
       var lobbyIsDefault = !lobbyUrl;
 
       if (query && query.length > 0) {
+        var data = {};
         var params = query.slice(1).split('&');
         for (var i = 0; i < params.length; i++) {
           var pair = params[i].split('=');
-          if (pair[0] == 'lobby' && lobbyIsDefault) {
-            lobbyUrl = 'http://' + pair[1];
-          } else if (pair[0] == 'game') {
-            var xhr = new XMLHttpRequest();
-            var self = this;
-            xhr.onreadystatechange = function() {
-              if (xhr.readyState == 4 && xhr.status == 200) {
-                var game;
-                try {
-                  game = JSON.parse(xhr.responseText);
-                } catch (e) {}
-                if (game && game.game) {
-                  self.onSelectGame(game.game);
-                }
+          data[pair[0]] = pair[1];
+        }
+        if (data.lobby && lobbyIsDefault)
+          lobbyUrl = 'http://' + data.lobby;
+        else
+          lobbyUrl = defaultLobbyUrl;
+        if (data.game) {
+          var xhr = new XMLHttpRequest();
+          var self = this;
+          xhr.onreadystatechange = function() {
+            if (xhr.readyState == 4 && xhr.status == 200) {
+              var game;
+              try {
+                game = JSON.parse(xhr.responseText);
+              } catch (e) {}
+              if (game) {
+                self.joinGame(game, data);
               }
             }
-            xhr.open('GET', lobbyUrl + '/details/' + pair[1], true);
-            xhr.send(null);
           }
+          xhr.open('GET', lobbyUrl + '/details/' + data.game, true);
+          xhr.send(null);
         }
+      }
+    },
+
+    joinGame: function(game, data) {
+      if(game.game) {
+        this.onSelectGame(game.game);
       }
     },
 
@@ -403,19 +413,22 @@ lobby.GameLobby = (function() {
       // TODO: Launch game.
       if (data.url) {
         var url = data.url;
-        if (data.params) {
-          var re = /(\{[%a-zA-Z]+\})/;
-          var params = data.params;
-          var result = re.exec(params);
-          while (result) {
-            var key = result[0].substring(2, result[0].length - 1);
-            // TODO: need special treatment for password since not stored in game info.
-            var replacement = data[key];
-            params = params.replace(result[0], replacement);
-            result = re.exec(params);
-          }
-          url = url + '#' + params;
+        var params = data.params || 'game={%id}';
+        var re = /(\{[%a-zA-Z]+\})/;
+        var params = data.params;
+        var result = re.exec(params);
+        while (result) {
+          var key = result[0].substring(2, result[0].length - 1);
+          // TODO: need special treatment for password since not stored in game info.
+          var replacement = data[key];
+          params = params.replace(result[0], replacement);
+          result = re.exec(params);
         }
+        if (lobbyUrl) {
+          var path = lobbyUrl.replace(/https?:\/\//,'');
+          params = 'lobby=' + path + '&' + params;
+        }
+        url = url + '?' + params;
         window.open(url, '_self', '', false);
       }
     }

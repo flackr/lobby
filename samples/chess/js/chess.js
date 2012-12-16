@@ -58,7 +58,7 @@ chess.GameServer = function(connection, name, timeControl, timeIncrement) {
     accepting: true,
     observable: false, // Add game create option once observers properly supported.
     status: 'awaiting_players',
-    url: 'insert valid address here',
+    url: 'http://www.dynprojects.com/games/chess/',
     params: 'game={%id}'
   });
   this.gameState_ = chess.GameState.STARTING;
