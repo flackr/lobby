@@ -358,6 +358,7 @@ lobby.Host = function() {
 
     disconnect: function(clientIndex) {
       if (clientIndex === undefined) {
+        this.disconnecting = true;
         for (var i in this.clients) {
           this.disconnect(i);
         }
@@ -386,6 +387,8 @@ lobby.Host = function() {
     },
 
     connectionLost: function(evt) {
+      if (this.disconnecting)
+        return;
       if (this.retries >= 3) {
         this.disconnect();
         return;

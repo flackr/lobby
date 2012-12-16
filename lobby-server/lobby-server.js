@@ -163,8 +163,10 @@ lobby.Server = function() {
             if (json.type == 'register') {
               game = json.details;
               game.ping = undefined;
+              if (!game.id || game.id > nextId || idMap[game.id])
+                game.id = nextId++;
               updateInfo({
-                id: nextId++,
+                id: game.id,
                 publicAddress: game.publicAddress || connection.remoteAddress,
               });
 
