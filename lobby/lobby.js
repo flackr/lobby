@@ -443,7 +443,6 @@ lobby.GameLobby = (function() {
         var url = data.url;
         var params = data.params || 'game={%id}';
         var re = /(\{[%a-zA-Z]+\})/;
-        var params = data.params;
         var result = re.exec(params);
         while (result) {
           var key = result[0].substring(2, result[0].length - 1);
