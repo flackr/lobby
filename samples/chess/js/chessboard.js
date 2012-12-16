@@ -123,9 +123,6 @@ ChessBoard = (function() {
       this.classList.add('chess-board-container');
       this.addEventListener('click', this.onClick.bind(this));
       this.layoutBoard_();
-      this.thunk_ = new Audio();
-      this.thunk_.setAttribute('src', '../audio/thunk.mp3');
-      this.thunk_.load();
     },
 
     /**
@@ -557,7 +554,7 @@ ChessBoard = (function() {
         }
         // TODO: Test for insufficient mating material.
 
-        this.thunk_.play();
+        $('move-sound').play();
         this.showLastMove();
         if (window.client && ! messageResponse) {
           var message = {
