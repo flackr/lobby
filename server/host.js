@@ -152,6 +152,7 @@ lobby.Host = function() {
           if (xhr.status == 200) {
             self.gameInfo.publicAddress = xhr.responseText;
           }
+          self.retries = 0;
           self.registerServer();
         }
       }
@@ -161,6 +162,7 @@ lobby.Host = function() {
       var self = this;
       this.ws_ = new WebSocket(this.lobbyUrl_, ['game-protocol']);
       this.ws_.onopen = function(evt) {
+        self.retries = 0;
         self.ws_.send(JSON.stringify({type: 'register', details: self.gameInfo}));
       };
       this.ws_.onclose = this.connectionLost.bind(this);
@@ -384,7 +386,13 @@ lobby.Host = function() {
     },
 
     connectionLost: function(evt) {
-      console.log('Connection to lobby lost');
+      if (this.retries >= 3) {
+        this.disconnect();
+        return;
+      }
+      this.retries++;
+      console.log('Retrying lobby connection #'+this.retries);
+      this.registerServer();
     },
 
     lobbyMessageReceived: function(evt) {
