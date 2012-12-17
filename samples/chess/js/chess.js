@@ -20,15 +20,56 @@ chess.Role = {
 chess.nickname = 'Anonymous';
 
 chess.offerDraw = function () {
-  // TODO: Implement me.  Requires agreement of other player.
+  if (window.client) {
+    var pendingOffer = window.client.getPendingRequest() == 'draw';
+    if (pendingOffer) {
+      chess.stopGame(null, 'Players agreed to a draw.');
+    } else {
+      window.client.sendMessage({
+        request: 'draw', 
+        chat: 'Will you accept a draw?'
+      });
+    }
+  }
 }
 
 chess.resign = function() {
-    // TODO: Implement me.
+  if (window.client) {
+    var role = chess.getRole();
+    var reason, winner;
+    if (role == chess.Role.PLAYER_WHITE) {
+      reason = 'White resigns';
+      winner = 'Black';
+    } else if (role == chess.Role.PLAYER_BLACK) {
+      reason = 'Black resigns';
+      winner = 'White';
+    }
+    chess.stopGame(winner, reason);
   }
+}
 
 chess.undo = function(){
-  // TODO: Implement me. Requires agreement of other player.
+  if (window.client) {
+    var pendingOffer = window.client.getPendingRequest() == 'undo';
+    if (pendingOffer) {
+      var moves = chess.chessboard.getMoves();
+      if (moves.length > 0) {
+        var whiteToMove = moves.length % 2 == 0;
+        if ((chess.getRole() == chess.Role.PLAYER_BLACK && whiteToMove) ||
+            (chess.getRole() == chess.Role.PLAYER_WHITE && !whiteToMove)) {
+          moves.pop(); // Take back an additional move ply.
+        }
+        moves.pop();
+        window.client.sendMessage({moveList: moves, echo: true});
+      }
+      window.client.cancelPendingRequest();
+    } else {
+      window.client.sendMessage({
+        request: 'undo',
+        chat: 'Can I take that last move back?'
+      });
+    }
+  }
 }
 
 chess.getRole = function() {
@@ -37,6 +78,34 @@ chess.getRole = function() {
 
 chess.newGame = function() {
   Overlay.show('chess-lobby');
+}
+
+/**
+ * Terminate the game
+ * @param {?string} winner The winner of the game, which may be null if the
+ *     result is a drawn game.
+ * @param {string} reason The reason for the outcome, e.g. 'checkmate!' 
+ */
+chess.stopGame = function(winner, reason) {
+  var title = 'Game over:\u00A0\u00A0$1';
+  var message = reason + '\u00A0\u00A0$1';
+  if (winner) {
+    title = title.replace('$1', (winner == 'White') ? '1 - 0' : '0 - 1');
+    message = message.replace('$1', winner + ' wins.');
+  } else {
+    title = title.replace('$1', '1/2 - 1/2');
+    var suffix = (reason.indexOf('draw') < 0) ? 'Game is drawn.' : '';
+    message = message.replace('$1', suffix);
+  }
+  if (window.client) {
+    window.client.sendMessage({
+      infoDialog: {title: title, message: message},
+      abort: true,
+      echo: true,
+    });
+  } else {
+    Dialog.showInfoDialog(title, message);
+  }
 }
 
 chess.sendMessage = function() {
@@ -86,6 +155,11 @@ chess.GameServer.prototype = {
   },
 
   onMessageReceived: function(clientIndex, message) {
+
+    // Only show first termination message.
+    if (this.gameState_ == chess.GameState.FINISHED && message.abort)
+      return;
+
     var echo = !!message.echo;
     var timing = {};
     timing.clock = {
@@ -115,9 +189,11 @@ chess.GameServer.prototype = {
           this.connection_.send(i, message);
       }
     } else {
-      if (message.moveFrom) {  
+      if (message.moveList) {
+        this.whiteToMove_ = message.moveList.length % 2 == 0;
+        timing.clock.startClock = this.whiteToMove_ ? 'white' : 'black';
+      } else if (message.moveFrom) {  
         // Add timer information.
-        // TODO - ensure that we don't get double move on a pawn promotion or castle.
         var now = Date.now();
 
         var increment = this.timeIncrement_;
@@ -161,7 +237,19 @@ chess.GameServer.prototype = {
           this.connection_.send(i, message);
       }  
     }
-    if (timing) {
+    
+    if (message.abort) {
+      this.gameState_ = chess.GameState.FINISHED;
+      this.connection_.updateInfo({
+        status: 'finished',
+      });
+      // All players now become observers to allow chat to continue but not
+      // piece movement.
+      for (var i in this.connection_.clients)
+        this.connection_.send(i, {role: chess.Role.OBSERVER});
+      // TODO: stop clocks.
+    }
+    if (timing && this.gameState_ != chess.GameState.FINISHED) {
       for (var i in this.connection_.clients)
         this.connection_.send(i, timing);
     }
@@ -318,7 +406,10 @@ chess.GameClient.prototype = {
         chat.scrollTop = scrollHeight - height;
       if (!message.toSelf)
         $('chat-sound').play();
+      if (this.role_ != chess.Role.OBSERVER && !message.toSelf)
+        this.setPendingRequest(message.request); 
     } else if (message.moveFrom) {
+      this.cancelPendingRequest();
       chess.chessboard.move(
           message.moveFrom, 
           message.moveTo, 
@@ -333,10 +424,18 @@ chess.GameClient.prototype = {
         ChessBoard.View.WHITE_AT_TOP : ChessBoard.View.BLACK_AT_TOP;
       chess.chessboard.setView(view);
       this.role_ = message.role;
+      if (this.role_ == chess.Role.PLAYER_WHITE ||
+          this.role_ == chess.Role.PLAYER_BLACK) {
+        $('chess-button-offer-draw').disabled = false;
+        $('chess-button-resign').disabled = false;
+        $('chess-button-undo').disabled = false;
+      }
       // set player names
       chess.scoresheet.setPlayerNames(message.players);
     } else if (message.moveList) {
       // Replay moves when joining game already in progress.
+      chess.chessboard.reset();
+      chess.scoresheet.reset();
       var moves = message.moveList;
       for (var i = 0; i < moves.length; i++) {
         var move = moves[i];
@@ -345,11 +444,40 @@ chess.GameClient.prototype = {
     } else if (message.infoDialog) {
       Dialog.showInfoDialog(message.infoDialog.title, 
                             message.infoDialog.message);
+    } else if (message.role) {
+      this.role_ = message.role;
+      if (message.role == chess.Role.OBSERVER) {
+        $('chess-button-offer-draw').disabled = true;
+        $('chess-button-resign').disabled = true;
+        $('chess-button-undo').disabled = true;
+      }
     } else {
       for (key in message) {
          console.log(key + ': ' + message[key]);
       }
     }
+  },
+
+  setPendingRequest: function(request) {
+    this.pendingRequest_ = request;
+    if (request == 'draw') {
+      $('chess-button-offer-draw').value = 'Accept Draw';
+    } else if (request == 'undo') {
+      $('chess-button-undo').value = 'Accept Take Back';
+    }
+  },
+
+  getPendingRequest: function() {
+    return this.pendingRequest_;
+  },
+
+  cancelPendingRequest: function() {
+    if (this.pendingRequest_ == 'draw') {
+      $('chess-button-offer-draw').value = 'Offer Draw';
+    } else if (this.pendingRequest_ == 'undo') {
+      $('chess-button-undo').value = 'Request Take Back';
+    }
+    this.pendingRequest_ = null;
   },
 
   /**
@@ -380,12 +508,9 @@ window.addEventListener('DOMContentLoaded', function() {
 
   chess.resizeBoard();
 
-/*
-  Teporarily disabling until implemented.
   $('chess-button-offer-draw').addEventListener('click', chess.offerDraw);
   $('chess-button-resign').addEventListener('click', chess.resign);
   $('chess-button-undo').addEventListener('click', chess.undo);
-*/
   $('chess-button-new-game').addEventListener('click', chess.newGame);
   $('chat-message').addEventListener('keypress', function(evt) {
     if (evt.keyCode == 13)

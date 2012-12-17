@@ -547,19 +547,13 @@ ChessBoard = (function() {
           this.positions_[key] = 1;
         else
           this.positions_[key]++;
-        if (this.positions_[key] > 2) {
-          Dialog.showInfoDialog('Game Over::\u00A0\u00A01/2 - 1/2', 
-                                'Draw by threefold repetition.');
-          // TODO: set the game state.
-        }
+        if (this.positions_[key] > 2)
+          chess.stopGame(null, 'Threefold repetition.');
         if (piece.isPawn() || capturedPiece) {
           this.movesSincePawnMoveOrCapture_ = 0;
         } else {
-           if (++this.movesSincePawnMoveOrCapture_ > 99) {
-             Dialog.showInfoDialog('Game Over::\u00A0\u00A01/2 - 1/2', 
-                                  '50 moves with no capture or pawn move.');
-             // TODO: set the game state.
-           }
+           if (++this.movesSincePawnMoveOrCapture_ > 99)
+             chess.stopGame(null, '50 moves with no capture or pawn move.');
         }
         // TODO: Test for insufficient mating material.
 
@@ -853,22 +847,11 @@ ChessBoard = (function() {
         var title = 'Game over:\u00A0\u00A0$1';
         var score, message;
         if (this.isInCheck(this.playerToMove_, opposingMoves)) {
-          var winner;
-          message = 'Checkmate!\u00A0\u00A0$1 wins.' 
-          if (opposingPlayer == Color.WHITE) {
-            winner = 'White';
-            score = '1 - 0';
-          } else {
-            winner = 'Black';
-            score = '0 - 1';
-          }
-          message = message.replace('$1', winner);
+          chess.stopGame(opposingPlayer == Color.WHITE ?
+                         'White' : 'Black', 'Checkmate!');
         } else {
-          message = 'Stalemate! Drawn game.';
-          score = '1/2 - 1/2';
+          chess.stopGame(null, 'Stalemate.');
         }
-        title = title.replace('$1', score);
-        Dialog.showInfoDialog(title, message);
       }
     },
 
