@@ -256,6 +256,27 @@ GameDetailsDialog = function() {
 GameDetailsDialog.prototype = {
   __proto__: Dialog.prototype,
 
+  initialize: function(name) {
+    Dialog.prototype.initialize.call(this, name);
+    var checks = $('game-details-dialog').querySelectorAll('.checkbox');
+    for (var i = 0; i < checks.length; i++) {
+      checks[i].addEventListener('click', this.onClick.bind(this));
+    }
+  },
+
+  onClick: function(event) {
+    var target = event.target;
+    while (target && !target.classList.contains('checkbox')) {
+      target = target.parentNode;
+    }
+    var input = target.querySelector('input[type=checkbox]');
+    if (input) {
+      input.checked = ! input.checked;
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  },
+
   commit: function() {
     $('host-new-chess-game').disabled = true;
     var lobbyUrl = $('chess-lobby-url').value;
@@ -266,6 +287,7 @@ GameDetailsDialog.prototype = {
     var timing = $('time-controls').value.split('/');
     chess.timeControl = parseInt(timing[0]);
     chess.timeIncrement = parseInt(timing[1]);
+    chess.observable = $('game-detail-observable').checked;
     chess.createGame(lobbyUrl, listenPort, description);
     Overlay.dismiss('chess-lobby');
     // Wait for current dialog to finish closing before opening waiting dialog.

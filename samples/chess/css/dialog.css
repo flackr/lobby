@@ -106,6 +106,25 @@
   width: 100%;
 }
 
+.checkbox {
+  -webkit-box-align: center;
+  -webkit-box-orient: horizontal;
+  -webkit-box-pack: start;
+  display: -webkit-box;
+  margin: 5px 0;
+}
+
+.checkbox > * {
+  display: block;
+}
+
+.checkbox > label {
+  color: #333;
+}
+
+.checkbox > label:hover {
+  color: #000;
+}
 
 /* ------------ promotion dialog -------------- */
 

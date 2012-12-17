@@ -40,9 +40,9 @@ chess.newGame = function() {
 }
 
 chess.sendMessage = function() {
-  if (chess.gameClient) {
+  if (window.client) {
     var message = $('chat-message');
-    chess.gameClient.sendMessage({chat: message.value});
+    window.client.sendMessage({chat: message.value});
     message.value = '';
     message.focus();
   }
@@ -57,7 +57,7 @@ chess.createGame = function(lobbyUrl, listenPort, description) {
   });
 }
 
-chess.GameServer = function(connection, name, timeControl, timeIncrement) {
+chess.GameServer = function(connection, name) {
   this.clients_ = [];
   this.connection_ = connection;
   this.timestamp_ = undefined;
@@ -69,7 +69,7 @@ chess.GameServer = function(connection, name, timeControl, timeIncrement) {
     name: 'chess',
     description: name,
     accepting: true,
-    observable: false, // Add game create option once observers properly supported.
+    observable: chess.observable,
     status: 'awaiting_players',
     url: 'http://www.dynprojects.com/games/chess/',
     params: 'game={%id}'
@@ -190,15 +190,42 @@ chess.GameServer.prototype = {
     });
 
     if (this.gameState_ != chess.GameState.STARTING) {
+      var players = {};
       for (var i in this.clients_) {
         var role = this.clients_[i].role;
+        if (role == chess.Role.PLAYER_WHITE)
+          players.white = this.clients_[i].alias;
+        else if (role == chess.Role.PLAYER_BLACK)
+          players.black = this.clients_[i].alias;
+      }
+      for (var i in this.clients_) {
+        var role = this.clients_[i].role;
+        if (!chess.observable &&
+            (role == chess.Role.PLAYER_UNASSIGNED ||
+            role == chess.Role.OBSERVER)) {
+          // Kick the player if game is full and observer not allowed.
+          this.connection_.send(i, {infoDialog: {
+            title: 'Failed to Join Game',
+            message: 'Cannot join a closed game already in progress.'
+          }});
+          this.connection_.onDisconnection(i);
+        }
         if (role == chess.Role.PLAYER_UNASSIGNED) {
-          // TODO: If observer is not allowed, kick the player.
-
           // Another player won the connection race. Reassign to observer role.
           this.clients_[i].role = chess.Role.OBSERVER;
-          // TODO: Inform player that game has already started.
-          // TODO: Observers joining late should get the move list.
+          this.connection_.send(i, {infoDialog: {
+            title: 'Join Game',
+            message: 'Game already started. You are now an observer.'
+          }});
+          role = chess.Role.OBSERVER;
+        }
+        if (role == chess.Role.OBSERVER) {
+          this.connection_.send(i, {
+            players: players, 
+            role: chess.Role.OBSERVER
+          });
+          var moves = chess.chessboard.getMoves();
+          this.connection_.send(i, {moveList: moves});
         }
       }
       return;
@@ -252,6 +279,7 @@ chess.GameServer.prototype = {
           accepting: false,
           status: 'started',
         });
+        this.gameState_ = chess.GameState.IN_PROGRESS;
       }
     }
   }
@@ -264,7 +292,6 @@ chess.GameClient = function(connection, role) {
   this.connection_.addEventListener('connected', this.onConnected.bind(this));
   this.connection_.addEventListener('disconnected', this.onDisconnected.bind(this));
   this.connection_.addEventListener('message', this.onMessageReceived.bind(this));
-  chess.gameClient = this;
 };
 
 chess.GameClient.prototype = {
@@ -308,6 +335,16 @@ chess.GameClient.prototype = {
       this.role_ = message.role;
       // set player names
       chess.scoresheet.setPlayerNames(message.players);
+    } else if (message.moveList) {
+      // Replay moves when joining game already in progress.
+      var moves = message.moveList;
+      for (var i = 0; i < moves.length; i++) {
+        var move = moves[i];
+        chess.chessboard.move(move.from, move.to, false, true);
+      }
+    } else if (message.infoDialog) {
+      Dialog.showInfoDialog(message.infoDialog.title, 
+                            message.infoDialog.message);
     } else {
       for (key in message) {
          console.log(key + ': ' + message[key]);

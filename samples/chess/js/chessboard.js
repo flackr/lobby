@@ -639,6 +639,10 @@ ChessBoard = (function() {
         marker.classList.add('hide-last-move');
     },
 
+    getMoves: function() {
+      return this.moveList_;
+    },
+
     resize: function(size) {
       this.style.setProperty('height', size + 'px');
       this.style.setProperty('width', size + 'px');
