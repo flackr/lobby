@@ -117,6 +117,8 @@ ChessLobbyOverlay.prototype = {
 
   onNewGame: function(event) {
     $('nickname').value = chess.nickname;
+    $('time-controls').selectedIndex = parseInt(chess.timeControlIndex);
+    $('player-level').selectedIndex = parseInt(chess.ratingIndex);
     Dialog.show('game-details');
   },
 

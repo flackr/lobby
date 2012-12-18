@@ -285,9 +285,23 @@ GameDetailsDialog.prototype = {
         $('time-controls').value;
     chess.nickname = $('nickname').value;
     var timing = $('time-controls').value.split('/');
+    chess.timeControlIndex = ('time-controls').selectedIndex;
     chess.timeControl = parseInt(timing[0]);
     chess.timeIncrement = parseInt(timing[1]);
+    chess.ratingIndex = $('player-level').selectedIndex;
     chess.observable = $('game-detail-observable').checked;
+
+    var storePreference = function(name) {
+      if (chrome && chrome.storage) {
+        chrome.storage.local.set({name: chess[name]});
+      } else {
+        // TODO: use localStorage (not available to packaged apps).
+      }
+    };
+    storePreference('nickname');
+    storePreference('timeControlIndex');
+    storePreference('ratingIndex');
+ 
     chess.createGame(lobbyUrl, listenPort, description);
     Overlay.dismiss('chess-lobby');
     // Wait for current dialog to finish closing before opening waiting dialog.

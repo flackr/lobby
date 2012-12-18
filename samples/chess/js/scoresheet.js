@@ -137,6 +137,10 @@ Scoresheet = (function() {
       var moveList = this.querySelector('.move-list');
       var first = moveList.previousSibling;
       var second = moveList.nextSibling;
+      if (data.controls) {
+        first.setTimeControls(data.controls);
+        second.setTimeControls(data.controls);
+      }
       if (this.view_ == ChessBoard.View.BLACK_AT_TOP) {
         first.updateClock(data.black);
         second.updateClock(data.white);
@@ -273,6 +277,11 @@ Scoresheet = (function() {
       this.remaining_ = data.remaining;
       this.updateMainTimer_(data.remaining);
       this.updateIncrementTimer_(data.increment);
+    },
+
+    setTimeControls: function(data) {
+      this.timeControl_ = parseInt(data.limit);
+      this.timeIncrement_ = parseInt(data.increment);
     },
 
     updateMainTimer_: function(remaining) {

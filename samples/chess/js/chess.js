@@ -17,8 +17,6 @@ chess.Role = {
   OBSERVER: 3
 };
 
-chess.nickname = 'Anonymous';
-
 chess.offerDraw = function () {
   if (window.client) {
     var pendingOffer = window.client.getPendingRequest() == 'draw';
@@ -184,6 +182,10 @@ chess.GameServer.prototype = {
       }, 
       white: {
         remaining: 60 * chess.timeControl - this.elapsedTime_.white,
+        increment: chess.timeIncrement
+      },
+      controls: {
+        limit: chess.timeControl,
         increment: chess.timeIncrement
       }
     };
@@ -535,6 +537,21 @@ window.addEventListener('DOMContentLoaded', function() {
     if (evt.keyCode == 13)
       chess.sendMessage();
   });
+
+  // fetch preferred settings
+  var fetchPreference = function(name, defaultValue) {
+    if (chrome && chrome.storage) {
+      chrome.storage.local.get(name, function(data) {
+        chess[name] = data[name] != undefined ? data[name] : defaultValue;
+      });
+    } else {
+       // TODO: use localStorage.getItem (not available to packaged apps).
+       chess[name] = defaultValue;
+    }
+  };
+  fetchPreference('nickname', 'Anonymous');
+  fetchPreference('timeControlIndex', 1);
+  fetchPreference('ratingIndex', 0);
 
 }, false);
 
