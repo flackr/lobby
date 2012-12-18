@@ -31,7 +31,7 @@ chess.offerDraw = function () {
       });
     }
   }
-}
+};
 
 chess.resign = function() {
   if (window.client) {
@@ -46,7 +46,7 @@ chess.resign = function() {
     }
     chess.stopGame(winner, reason);
   }
-}
+};
 
 chess.undo = function(){
   if (window.client) {
@@ -70,15 +70,15 @@ chess.undo = function(){
       });
     }
   }
-}
+};
 
 chess.getRole = function() {
   return window.client ? window.client.role_ : chess.Role.PLAYER_UNASSIGNED;
-}
+};
 
 chess.newGame = function() {
   Overlay.show('chess-lobby');
-}
+};
 
 /**
  * Terminate the game
@@ -106,7 +106,7 @@ chess.stopGame = function(winner, reason) {
   } else {
     Dialog.showInfoDialog(title, message);
   }
-}
+};
 
 chess.sendMessage = function() {
   if (window.client) {
@@ -115,7 +115,7 @@ chess.sendMessage = function() {
     message.value = '';
     message.focus();
   }
-}
+};
 
 chess.createGame = function(lobbyUrl, listenPort, description) {
   var host = new lobby.Host(lobbyUrl, parseInt(listenPort));
@@ -124,7 +124,19 @@ chess.createGame = function(lobbyUrl, listenPort, description) {
     window.client = new chess.GameClient(server.createLocalClient(),
                                          chess.Role.PLAYER_UNASSIGNED);
   });
-}
+  host.addEventListener('socket-connection', function(state, socketId, errorMsg) {
+    if (state == 'failed') {
+      Dialog.showInfoDialog('Error', errorMsg);
+    } else if (chess.backgroundPage) {
+      var id = window.wrapperId;
+      if (state == 'connect') {
+        chess.backgroundPage.addSocketConnection(id, socketId);
+      } else if (state == 'disconnect') {
+        chess.backgroundPage.removeSocketConnection(id, socketId);
+      }
+    }
+  });
+};
 
 chess.GameServer = function(connection, name) {
   this.clients_ = [];
@@ -370,6 +382,10 @@ chess.GameServer.prototype = {
         this.gameState_ = chess.GameState.IN_PROGRESS;
       }
     }
+  },
+
+  disconnect: function() {
+    this.connection_.disconnect();
   }
 };
 
@@ -517,6 +533,11 @@ window.addEventListener('DOMContentLoaded', function() {
       chess.sendMessage();
   });
 
+  if (chrome && chrome.runtime) {
+    chrome.runtime.getBackgroundPage(function(page) {
+      chess.backgroundPage = page;
+    });
+  }
 }, false);
 
 

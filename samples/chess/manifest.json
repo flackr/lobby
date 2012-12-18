@@ -4,6 +4,11 @@
   "version": "0.1",
   "manifest_version": 2,
 
+  "icons": {
+    "16": "images/chess-16.png",
+    "128": "images/chess-128.png"
+  },
+
   "permissions": [
     "experimental",
     {"socket": [
@@ -17,4 +22,5 @@
       "scripts": ["bin/background.js"]
     }
   }
+  
 }

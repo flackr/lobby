@@ -241,7 +241,7 @@ InfoDialog.prototype = {
   },
 
   setCancelCallback: function(callback) {
-    this.onCancelCallback_ = callback;
+    this.onCancelCallback = callback;
   },
 };
 
@@ -296,7 +296,7 @@ GameDetailsDialog.prototype = {
                             'Waiting for opponent to join',
                             Dialog.Style.CANCEL);
       var onCancel = function() {
-         // TODO: disconnect the server.
+         window.server.disconnect();
       }
       Dialog.getInstance('info').setCancelCallback(onCancel);
     });

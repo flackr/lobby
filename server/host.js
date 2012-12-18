@@ -132,12 +132,18 @@ lobby.Host = function() {
         window.addEventListener('close', self.onCloseFn_);
         chrome.socket.listen(self.socketId_, '0.0.0.0', port, function(result) {
           if (result < 0) {
-            console.log('Failed to listen on port '+port);
+            var errorMsg = 'Failed to listen on port ' + port;
+            console.log(errorMsg);
+            self.dispatchEvent('socket-connection', 
+                               'failed', 
+                               self.socketId_, 
+                               errorMsg);
             return;
           }
           self.acceptConnection(port);
           self.discoverIp();
-          self.dispatchEvent('ready', 'ws://localhost:'+port+'/');
+          self.dispatchEvent('ready', 'ws://localhost:' + port + '/');
+          self.dispatchEvent('socket-connection', 'connect', self.socketId_);
         });
       });
     },
@@ -358,6 +364,7 @@ lobby.Host = function() {
 
     disconnect: function(clientIndex) {
       if (clientIndex === undefined) {
+        this.dispatchEvent('socket-connection', 'disconnect', this.socketId_);
         this.disconnecting = true;
         for (var i in this.clients) {
           this.disconnect(i);
