@@ -127,12 +127,15 @@ chess.createGame = function(lobbyUrl, listenPort, description) {
   host.addEventListener('socket-connection', function(state, socketId, errorMsg) {
     if (state == 'failed') {
       Dialog.showInfoDialog('Error', errorMsg);
-    } else if (chess.backgroundPage) {
-      var id = window.wrapperId;
-      if (state == 'connect') {
-        chess.backgroundPage.addSocketConnection(id, socketId);
-      } else if (state == 'disconnect') {
-        chess.backgroundPage.removeSocketConnection(id, socketId);
+    } else {
+      if (chrome && chrome.runtime) {
+        chrome.runtime.getBackgroundPage(function(page) {
+          var id = window.wrapperId;
+          if (state == 'connect')
+            page.addSocketConnection(id, socketId);
+          else if (state == 'disconnect')
+            page.removeSocketConnection(id, socketId);
+        });
       }
     }
   });
@@ -533,11 +536,6 @@ window.addEventListener('DOMContentLoaded', function() {
       chess.sendMessage();
   });
 
-  if (chrome && chrome.runtime) {
-    chrome.runtime.getBackgroundPage(function(page) {
-      chess.backgroundPage = page;
-    });
-  }
 }, false);
 
 

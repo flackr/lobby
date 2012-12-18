@@ -19,7 +19,8 @@
 
   "app": {
     "background": {
-      "scripts": ["bin/background.js"]
+      "scripts": ["bin/background.js"],
+      "persistent": true
     }
   }
   

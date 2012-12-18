@@ -278,8 +278,9 @@ Scoresheet = (function() {
     updateMainTimer_: function(remaining) {
       if (remaining < 0) {
          remaining = 0;
-         // TODO show better message including who won.
-         Dialog.showInfoDialog('Game over', 'Ran out of time');
+         var moves = chess.chessboard.getMoves();
+         var winner = (moves.length % 2 == 0) ? 'Black' : 'White';
+         chess.stopGame(winner,'Exceeded time control.');
          this.stopClock();
       }
       var seconds = Math.floor(remaining);
