@@ -122,19 +122,9 @@ chess.createGame = function(lobbyUrl, listenPort, description) {
     window.client = new chess.GameClient(server.createLocalClient(),
                                          chess.Role.PLAYER_UNASSIGNED);
   });
-  host.addEventListener('socket-connection', function(state, socketId, errorMsg) {
-    if (state == 'failed') {
+  host.addEventListener('error', function(errorCode, errorMsg) {
+    if (errorCode == 'listen') {
       Dialog.showInfoDialog('Error', errorMsg);
-    } else {
-      if (chrome && chrome.runtime) {
-        chrome.runtime.getBackgroundPage(function(page) {
-          var id = window.wrapperId;
-          if (state == 'connect')
-            page.addSocketConnection(id, socketId);
-          else if (state == 'disconnect')
-            page.removeSocketConnection(id, socketId);
-        });
-      }
     }
   });
 };
