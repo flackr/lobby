@@ -370,7 +370,7 @@ lobby.Host = function() {
         return;
       if (this.clients[clientIndex].readyState == 1)
         this.dispatchEvent('disconnection', clientIndex);
-      this.registerSocketConnection(this.clients[cliendIndex].socketId, true);
+      this.registerSocketConnection(this.clients[clientIndex].socketId, true);
       chrome.socket.disconnect(this.clients[clientIndex].socketId);
       chrome.socket.destroy(this.clients[clientIndex].socketId);
       delete this.clients[clientIndex];
