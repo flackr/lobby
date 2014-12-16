@@ -12,15 +12,13 @@ exports.Server = function() {
     this.webSocketServer_ = new WebSocketServer({ 'port': port });
     this.webSocketServer_.on('connection', this.onConnection_.bind(this));
     console.log('Listening on ' + port);
-    console.log('process.env.IP '+process.env.IP)
-    console.log('process.env.PORT '+process.env.PORT)
   };
 
   Server.prototype = {
-    
+
     /**
      * Returns the next game id.
-     * 
+     *
      * @return {String} The next game identifier to be used.
      */
     getNextId_: function() {
@@ -30,7 +28,7 @@ exports.Server = function() {
 
     /**
      * Dispatched when a client connects to a websocket.
-     * 
+     *
      * @param {WebSocket} websocket A connected websocket client connection.
      */
     onConnection_: function(websocket) {
@@ -80,7 +78,7 @@ exports.Server = function() {
         session.clients[clientId] = undefined;
       })
     },
-    
+
     createHost_: function(websocket) {
       var self = this;
       var sessionId = this.getNextId_();
@@ -111,15 +109,15 @@ exports.Server = function() {
       websocket.on('close', function() {
         for (var clientId in session) {
           // Server went away while client was connecting.
-          session.clients[clientId].send(JSON.stringify({'error': 404}));
-          session.clients[clientId].close();
+          session.clients[clientId].socket.send(JSON.stringify({'error': 404}));
+          session.clients[clientId].socket.close();
         }
         delete self.sessions[sessionId];
         self.sessions[sessionId] = undefined;
       });
       websocket.send(JSON.stringify({'host': sessionId}));
     },
-    
+
     shutdown: function() {
       this.webSocketServer_.close();
     },
