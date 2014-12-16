@@ -6,6 +6,7 @@ lobby.signaling.connect = nodeConnect;
 //TODO(jonross) update to actual port
 var testPort = 1337;
 var websocket;
+var clientSockect;
 
 function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback) {
   websocket = new WebSocket('ws://localhost:' + testPort.toString() + '/new');
@@ -23,16 +24,16 @@ function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback)
 }
 
 function nodeConnect(sessionId, descriptionId, onConnectionCallback, onErrorCallback) {
-  websocket = new WebSocket('ws://localhost:' + testPort.toString() + '/' + sessionId.toString());
-  websocket.addEventListener('open', function() {
+  clientSockect = new WebSocket('ws://localhost:' + testPort.toString() + '/' + sessionId.toString());
+  clientSockect.addEventListener('open', function() {
     onConnectionCallback();
     console.log("Client connection openned");
   });
-  websocket.addEventListener('close', function(error) {
+  clientSockect.addEventListener('close', function(error) {
     //TODO(jonross) parse for errors vs close, call error callback
     console.log("Client connection close "+error)
   });
-  websocket.addEventListener('message', function(msg) {
+  clientSockect.addEventListener('message', function(msg) {
     console.log("Client message "+msg.data)
   });
 }

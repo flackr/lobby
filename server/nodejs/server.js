@@ -1,7 +1,7 @@
 /**
  * Lobby server providing game listings for aribtrary games.
  */
-
+var WebSocket = require('ws');
 var WebSocketServer = require('ws').Server;
 
 exports.Server = function() {
@@ -38,6 +38,14 @@ exports.Server = function() {
         this.createHost_(websocket);
         return;
       }
+      this.connectClient_(websocket);
+    },
+
+    /**
+     * Connect client to host.
+     */
+    connectClient_: function(websocket) {
+      var self = this;
       var sessionId = websocket.upgradeReq.url.substr(1);
       var session = this.sessions[sessionId];
       if (!session) {
@@ -48,13 +56,7 @@ exports.Server = function() {
         websocket.close();
         return;
       }
-      this.connectClient_(websocket, session);
-    },
 
-    /**
-     * Connect client to host.
-     */
-    connectClient_: function(websocket, session) {
       var clientId = session.nextClientId++;
       session.clients[clientId] = {
         'socket': websocket
@@ -71,11 +73,11 @@ exports.Server = function() {
       websocket.on('close', function() {
         // TODO(flackr): Test if this is called sychronously when host socket
         // closes, if so remove.
+        if (!self.sessions[self.sessionId])
+          return;
         session.socket.send(JSON.stringify({
           'client': clientId,
           'type': 'close'}));
-        if (!self.sessions[sessionId])
-          return;
         delete session.clients[clientId];
         session.clients[clientId] = undefined;
       })
@@ -113,6 +115,8 @@ exports.Server = function() {
         for (var clientId in session.clients) {
           console.log("JR client id "+clientId);
           // Server went away while client was connecting.
+          if (session.clients[clientId].socket.readyState != WebSocket.OPEN)
+            continue;
           session.clients[clientId].socket.send(JSON.stringify({'error': 404}));
           session.clients[clientId].socket.close();
         }
