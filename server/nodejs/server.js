@@ -41,6 +41,7 @@ exports.Server = function() {
       var sessionId = websocket.upgradeReq.url.substr(1);
       var session = this.sessions[sessionId];
       if (!session) {
+        console.log("Client connection 404 no session, sessionId "+sessionId);
         // TODO(flackr): Investigate generating this error before upgrading to
         // a websocket. (http://nodejs.org/api/http.html#http_http_createserver_requestlistener)
         websocket.send(JSON.stringify({'error': 404}));
@@ -49,7 +50,7 @@ exports.Server = function() {
       }
       this.connectClient_(websocket, session);
     },
-    
+
     /**
      * Connect client to host.
      */
@@ -60,6 +61,7 @@ exports.Server = function() {
       };
       websocket.on('message', function(message) {
         if (!session) {
+          console.log("JR client message, no session though so 404");
           websocket.send(JSON.stringify({'error': 404}));
           websocket.close();
           return;
@@ -85,7 +87,7 @@ exports.Server = function() {
       console.log('Created session ' + sessionId);
       var session = this.sessions[sessionId] = {
         'socket': websocket,
-        'clients': [],
+        'clients': {},
         'nextClientId': 1
       };
       websocket.on('message', function(message) {
@@ -107,7 +109,9 @@ exports.Server = function() {
         client.socket.send(data.data);
       });
       websocket.on('close', function() {
-        for (var clientId in session) {
+        console.log("JR Host closed");
+        for (var clientId in session.clients) {
+          console.log("JR client id "+clientId);
           // Server went away while client was connecting.
           session.clients[clientId].socket.send(JSON.stringify({'error': 404}));
           session.clients[clientId].socket.close();
