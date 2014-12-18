@@ -7,7 +7,7 @@ lobby.signaling.connect = nodeConnect;
 //TODO(jonross) update to actual port
 var testPort = 1337;
 var websocket;
-var clientSockect;
+var clientSocket;
 var hostId;
 
 function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback) {
@@ -31,22 +31,42 @@ function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback)
       console.log("JR set host id "+hostId);
       onConnectionCallback();
     }
-//    websocket.send(JSON.stringify({'client' : 1, 'data': 'shhh'}));
+    if (data.client) {
+      if (data.data.type == 'offer') {
+        console.log("Host offer received "+data.data.desc);
+        createHostConnection();
+        var description = new RTCSessionDescription(data.data.desc);
+        hostPeerConnection.setRemoteDescription(description);
+        hostPeerConnection.createAnswer(function(desc) {
+          gotHostDescription(desc, data.client);
+        });
+      }
+    }
   });
 }
 
 function nodeConnect(sessionId, descriptionId, onConnectionCallback, onErrorCallback) {
-  clientSockect = new WebSocket('ws://localhost:' + testPort.toString() + '/' + sessionId);
-  clientSockect.addEventListener('open', function() {
+  clientSocket = new WebSocket('ws://localhost:' + testPort.toString() + '/' + sessionId);
+  clientSocket.addEventListener('open', function() {
     onConnectionCallback();
     console.log("Client connection openned");
   });
-  clientSockect.addEventListener('close', function(error) {
+  clientSocket.addEventListener('close', function(error) {
     //TODO(jonross) parse for errors vs close, call error callback
     console.log("Client connection close "+error)
   });
-  clientSockect.addEventListener('message', function(msg) {
+  clientSocket.addEventListener('message', function(msg) {
     console.log("Client message "+msg.data)
+    var data;
+    try {
+      data = JSON.parse(msg.data);
+    } catch (err) {
+    }
+    if(data.type == 'answer') {
+      var description = new RTCSessionDescription(data);
+      hostPeerConnection.setRemoteDescription(description);
+      console.log("Client received answer");
+    }
   });
 }
 
@@ -59,16 +79,17 @@ NodeConnection.prototype = lobby.signaling.Connection.prototype;
 NodeConnection.prototype.constructor = NodeConnection;
 
 // Test calling server
-function testOnConnectionCallback(){
+function clientConnectionCallback(){
+  createClientConnection();
+  // Send intent
 }
 
 nodeCreateSession(1337, onHostConnected, 42)
 
 function onHostConnected() {
   console.log("JR host connected callback");
-    nodeConnect(hostId, 1337, testOnConnectionCallback, 42)
   createHostConnection();
-  createClientConnection();
+  nodeConnect(hostId, 1337, clientConnectionCallback, 42)
 }
 
 // Setup RTC
@@ -88,7 +109,6 @@ function createHostConnection() {
   hostPeerConnection.onicecandidate = gotHostCandidate;
   hostChannel.onopen = handleHostChannelStateChange;
   hostChannel.onclose = handleHostChannelStateChange;
-  hostPeerConnection.createOffer(gotHostDescription);
 }
 
 function gotHostCandidate(event) {
@@ -97,6 +117,7 @@ function gotHostCandidate(event) {
     console.log("Host candidate "+event.candidate.candidate);
     // Send candidate via websocket so client can add it
     //clientPeerConnection.addIceCandidate(event.candidate);
+   // websocket.send(JSON.stringify({'client':clientId, 'data':event.candidate.candidate}));
   }
 }
 
@@ -105,9 +126,10 @@ function handleHostChannelStateChange() {
   console.log("JR host channel ready state "+readyState);
 }
 
-function gotHostDescription(desc) {
+function gotHostDescription(desc, client) {
   hostPeerConnection.setLocalDescription(desc);
   console.log('Host has description set');// + desc.sdp);
+  websocket.send(JSON.stringify({'client':client, 'type': 'answer', 'data':desc}));
   //Send via websocket to client
   //clientPeerConnection.setRemoteDescription(desc);
  //         clientPeerConnection.createAnswer(gotRemoteDescription);
@@ -118,6 +140,7 @@ function createClientConnection() {
   clientPeerConnection = new RTCPeerConnection(servers, {optional: [{RtpDataChannels: true}]});
   clientPeerConnection.onicecandidate = gotClientIceCandidate;
   clientPeerConnection.ondatachannel = gotClientChannel;
+  clientPeerConnection.createOffer(gotClientDescription);
 }
 
 function gotClientIceCandidate(event) {
@@ -134,6 +157,13 @@ function gotClientChannel(event) {
   clientChannel.onmessage = handleMessage;
   clientChannel.onopen = handleClientChannelStateChange;
   clientChannel.onclose = handleClientChannelStateChange;
+}
+
+function gotClientDescription(desc) {
+  console.log("JR client desc "+desc);
+  clientPeerConnection.setLocalDescription(desc);
+ // hostPeerConnection.setRemoteDescription(desc);
+  clientSocket.send(JSON.stringify({'type' : 'offer', 'desc' : desc}));
 }
 
 function handleMessage(event) {

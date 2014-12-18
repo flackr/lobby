@@ -68,7 +68,13 @@ exports.Server = function() {
           websocket.close();
           return;
         }
-        session.socket.send(JSON.stringify({'client': clientId, 'data': message}));
+        console.log("JR client msg "+message);
+        var data;
+        try {
+          data = JSON.parse(message);
+        } catch (err) {
+        }
+        session.socket.send(JSON.stringify({'client': clientId, 'data': data}));
       });
       websocket.on('close', function() {
         // TODO(flackr): Test if this is called sychronously when host socket
@@ -108,7 +114,7 @@ exports.Server = function() {
             'message': 'Client does not exist.'}));
           return;
         }
-        client.socket.send(data.data);
+        client.socket.send(JSON.stringify(data.data));
       });
       websocket.on('close', function() {
         console.log("JR Host closed");
