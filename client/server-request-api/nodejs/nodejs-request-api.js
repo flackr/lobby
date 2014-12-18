@@ -13,14 +13,12 @@ var hostId;
 function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback) {
   websocket = new WebSocket('ws://localhost:' + testPort.toString() + '/new');
   websocket.addEventListener('open', function() {
-    console.log("Host connection open");
   });
   websocket.addEventListener('close', function(error) {
     //TODO(jonross) parse for errors vs close, call error callback
     console.log("Host connection close "+error.toString());
   });
   websocket.addEventListener('message', function(msg) {
-    console.log("Host message "+msg.data);
     var data;
     try {
       data = JSON.parse(msg.data);
@@ -28,18 +26,22 @@ function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback)
     }
     if (data.host) {
       hostId = data.host;
-      console.log("JR set host id "+hostId);
       onConnectionCallback();
     }
     if (data.client) {
       if (data.data.type == 'offer') {
-        console.log("Host offer received "+data.data.desc);
-        createHostConnection();
+        createHostConnection(data.client);
         var description = new RTCSessionDescription(data.data.desc);
+        console.log("Host remote desc set");
         hostPeerConnection.setRemoteDescription(description);
+        console.log("JR create answer from host");
         hostPeerConnection.createAnswer(function(desc) {
           gotHostDescription(desc, data.client);
         });
+      } else if (data.data.type == 'candidate' ) {
+        var candidate = new RTCIceCandidate(data.data.candidate);
+        hostPeerConnection.addIceCandidate(candidate);
+        console.log("Host added new ice candidate from client "+data.data.candidate.candidate);
       }
     }
   });
@@ -49,14 +51,12 @@ function nodeConnect(sessionId, descriptionId, onConnectionCallback, onErrorCall
   clientSocket = new WebSocket('ws://localhost:' + testPort.toString() + '/' + sessionId);
   clientSocket.addEventListener('open', function() {
     onConnectionCallback();
-    console.log("Client connection openned");
   });
   clientSocket.addEventListener('close', function(error) {
     //TODO(jonross) parse for errors vs close, call error callback
     console.log("Client connection close "+error)
   });
   clientSocket.addEventListener('message', function(msg) {
-    console.log("Client message "+msg.data)
     var data;
     try {
       data = JSON.parse(msg.data);
@@ -64,8 +64,12 @@ function nodeConnect(sessionId, descriptionId, onConnectionCallback, onErrorCall
     }
     if(data.type == 'answer') {
       var description = new RTCSessionDescription(data);
-      hostPeerConnection.setRemoteDescription(description);
-      console.log("Client received answer");
+      clientPeerConnection.setRemoteDescription(description);
+      console.log("Client remote desc set");
+    } else if (data.type == 'candidate') {
+      var candidate = new RTCIceCandidate(data.data);
+      clientPeerConnection.addIceCandidate(candidate);
+      console.log("Client added new ice candidate from host: "+data.data.candidate);
     }
   });
 }
@@ -87,8 +91,7 @@ function clientConnectionCallback(){
 nodeCreateSession(1337, onHostConnected, 42)
 
 function onHostConnected() {
-  console.log("JR host connected callback");
-  createHostConnection();
+ // createHostConnection();
   nodeConnect(hostId, 1337, clientConnectionCallback, 42)
 }
 
@@ -98,27 +101,28 @@ var clientPeerConnection;
 var hostChannel;
 var clientChannel;
 
-function createHostConnection() {
+function createHostConnection(clientId) {
   var servers = null;
   hostPeerConnection = new RTCPeerConnection(servers, {optional: [{RtpDataChannels: true}]});
-  try {
-    hostChannel = hostPeerConnection.createDataChannel("sendDataChannel", {reliable: false});
-  } catch (e) {
-    console.log("JR failed to create host channel "+e.message);
+  hostPeerConnection.onicecandidate = function(event) {
+    gotHostCandidate(event, clientId);
   }
-  hostPeerConnection.onicecandidate = gotHostCandidate;
-  hostChannel.onopen = handleHostChannelStateChange;
-  hostChannel.onclose = handleHostChannelStateChange;
+  hostPeerConnection.ondatachannel = gotHostChannel;
 }
 
-function gotHostCandidate(event) {
-  //console.log("JR host candidate event "+event);
+function gotHostCandidate(event, clientId) {
   if (event.candidate) {
     console.log("Host candidate "+event.candidate.candidate);
-    // Send candidate via websocket so client can add it
-    //clientPeerConnection.addIceCandidate(event.candidate);
-   // websocket.send(JSON.stringify({'client':clientId, 'data':event.candidate.candidate}));
+    websocket.send(JSON.stringify({'client':clientId, 'type':'candidate', 'data':{'type':'candidate', 'data':event.candidate}}));
   }
+}
+
+function gotHostChannel(event) {
+  console.log("JR Host Channel received");
+  hostChannel = event.channel;
+  hostChannel.onmessage = handleMessage;
+  hostChannel.onopen = handleHostChannelStateChange;
+  hostChannel.onclose = handleHostChannelStateChange;
 }
 
 function handleHostChannelStateChange() {
@@ -128,41 +132,35 @@ function handleHostChannelStateChange() {
 
 function gotHostDescription(desc, client) {
   hostPeerConnection.setLocalDescription(desc);
-  console.log('Host has description set');// + desc.sdp);
+  console.log('Host local description set');// + desc.sdp);
   websocket.send(JSON.stringify({'client':client, 'type': 'answer', 'data':desc}));
-  //Send via websocket to client
-  //clientPeerConnection.setRemoteDescription(desc);
- //         clientPeerConnection.createAnswer(gotRemoteDescription);
 }
 
 function createClientConnection() {
   var servers = null;
   clientPeerConnection = new RTCPeerConnection(servers, {optional: [{RtpDataChannels: true}]});
+  try {
+    clientChannel = clientPeerConnection.createDataChannel("sendDataChannel", {reliable: false});
+  } catch (e) {
+    console.log("JR failed to create client channel "+e.message);
+  }
   clientPeerConnection.onicecandidate = gotClientIceCandidate;
-  clientPeerConnection.ondatachannel = gotClientChannel;
+  clientChannel.onopen = handleClientChannelStateChange;
+  clientChannel.onclose = handleClientChannelStateChange;
+  console.log("JR create offer from client");
   clientPeerConnection.createOffer(gotClientDescription);
 }
 
 function gotClientIceCandidate(event) {
-  //console.log("JR client candidate event "+event);
   if (event.candidate) {
- //Send via websocket
-    //   localPeerConnection.addIceCandidate(event.candidate);
     console.log('Client ICE candidate: ' + event.candidate.candidate);
+    clientSocket.send(JSON.stringify({'type' : 'candidate', 'candidate' : event.candidate}));
   }
 }
 
-function gotClientChannel(event) {
-  clientChannel = event.channel;
-  clientChannel.onmessage = handleMessage;
-  clientChannel.onopen = handleClientChannelStateChange;
-  clientChannel.onclose = handleClientChannelStateChange;
-}
-
 function gotClientDescription(desc) {
-  console.log("JR client desc "+desc);
+  console.log("JR client local desc set");
   clientPeerConnection.setLocalDescription(desc);
- // hostPeerConnection.setRemoteDescription(desc);
   clientSocket.send(JSON.stringify({'type' : 'offer', 'desc' : desc}));
 }
 
@@ -173,4 +171,7 @@ function handleMessage(event) {
 function handleClientChannelStateChange() {
   var readyState = clientChannel.readyState;
   console.log("JR client change state change "+readyState);
+  if (readyState == "open") {
+    clientChannel.send("HEY LISTEN");
+  }
 }
