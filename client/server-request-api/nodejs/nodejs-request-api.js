@@ -29,19 +29,19 @@ function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback)
       onConnectionCallback();
     }
     if (data.client) {
-      if (data.data.type == 'offer') {
+      if (data.type == 'offer') {
         createHostConnection(data.client);
-        var description = new RTCSessionDescription(data.data.desc);
+        var description = new RTCSessionDescription(data.data);
         console.log("Host remote desc set");
         hostPeerConnection.setRemoteDescription(description);
         console.log("JR create answer from host");
         hostPeerConnection.createAnswer(function(desc) {
           gotHostDescription(desc, data.client);
         });
-      } else if (data.data.type == 'candidate' ) {
-        var candidate = new RTCIceCandidate(data.data.candidate);
+      } else if (data.type == 'candidate' ) {
+        var candidate = new RTCIceCandidate(data.data);
         hostPeerConnection.addIceCandidate(candidate);
-        console.log("Host added new ice candidate from client "+data.data.candidate.candidate);
+        console.log("Host added new ice candidate from client "+data.data.candidate);
       }
     }
   });
@@ -85,13 +85,11 @@ NodeConnection.prototype.constructor = NodeConnection;
 // Test calling server
 function clientConnectionCallback(){
   createClientConnection();
-  // Send intent
 }
 
 nodeCreateSession(1337, onHostConnected, 42)
 
 function onHostConnected() {
- // createHostConnection();
   nodeConnect(hostId, 1337, clientConnectionCallback, 42)
 }
 
@@ -154,14 +152,14 @@ function createClientConnection() {
 function gotClientIceCandidate(event) {
   if (event.candidate) {
     console.log('Client ICE candidate: ' + event.candidate.candidate);
-    clientSocket.send(JSON.stringify({'type' : 'candidate', 'candidate' : event.candidate}));
+    clientSocket.send(JSON.stringify({'type' : 'candidate', 'data' : event.candidate}));
   }
 }
 
 function gotClientDescription(desc) {
   console.log("JR client local desc set");
   clientPeerConnection.setLocalDescription(desc);
-  clientSocket.send(JSON.stringify({'type' : 'offer', 'desc' : desc}));
+  clientSocket.send(JSON.stringify({'type' : 'offer', 'data' : desc}));
 }
 
 function handleMessage(event) {

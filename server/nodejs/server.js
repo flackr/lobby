@@ -71,10 +71,12 @@ exports.Server = function() {
         console.log("JR client msg "+message);
         var data;
         try {
+          // Do not double JSON.stringify
           data = JSON.parse(message);
         } catch (err) {
         }
-        session.socket.send(JSON.stringify({'client': clientId, 'data': data}));
+        console.log("JR client data "+data);
+        session.socket.send(JSON.stringify({'client': clientId, 'type': data.type, 'data': data.data}));
       });
       websocket.on('close', function() {
         // TODO(flackr): Test if this is called sychronously when host socket
