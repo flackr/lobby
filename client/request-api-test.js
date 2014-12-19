@@ -1,5 +1,7 @@
 var peerConnection;
 var dataChannel;
+// Optional servers for RTCPeerConnection
+var servers = null;
 
 function startup() {
   if (window.location.hash != '') {
@@ -12,53 +14,45 @@ function startup() {
 }
 
 function onHostConnected(hostId) {
-  console.log("JR host onHostConnected!");
   window.location.hash = hostId;
 }
 
 function onClientOffer(clientID) {
-  var servers = null;
   peerConnection = new RTCPeerConnection(servers, {optional: [{RtpDataChannels: true}]});
   peerConnection.ondatachannel = gotHostChannel;
   return peerConnection;
 }
 
 function clientConnectionCallback(){
-  var servers = null;
   peerConnection = new RTCPeerConnection(servers, {optional: [{RtpDataChannels: true}]});
   try {
     dataChannel = peerConnection.createDataChannel("sendDataChannel", {reliable: false});
   } catch (e) {
-    console.log("JR failed to create client channel "+e.message);
+    console.log("Failed to create data channel "+e.message);
   }
-  dataChannel.onopen = handleClientChannelStateChange;
-  dataChannel.onclose = handleClientChannelStateChange;
-  createClientConnection(peerConnection, dataChannel);
+  dataChannel.onmessage = handleMessage;
+  dataChannel.onopen = handleChannelStateChange;
+  dataChannel.onclose = handleChannelStateChange;
+  createClientConnection(peerConnection);
 }
 
 function gotHostChannel(event) {
-  console.log("JR Host Channel received");
   dataChannel = event.channel;
   dataChannel.onmessage = handleMessage;
-  dataChannel.onopen = handleHostChannelStateChange;
-  dataChannel.onclose = handleHostChannelStateChange;
+  dataChannel.onopen = handleChannelStateChange;
+  dataChannel.onclose = handleChannelStateChange;
 }
 
-function handleClientChannelStateChange() {
+function handleChannelStateChange() {
   var readyState = dataChannel.readyState;
-  console.log("JR client change state change "+readyState);
+  console.log("Channel state change: "+readyState);
   if (readyState == "open") {
     dataChannel.send("HEY LISTEN");
   }
 }
 
-function handleHostChannelStateChange() {
-  var readyState = dataChannel.readyState;
-  console.log("JR host channel ready state "+readyState);
-}
-
 function handleMessage(event) {
-  console.log("JR client message "+event.data);
+  console.log("Channel message: "+event.data);
 }
 
 startup();

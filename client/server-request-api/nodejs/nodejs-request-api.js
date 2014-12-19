@@ -36,16 +36,13 @@ function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback,
         }
 
         var description = new RTCSessionDescription(data.data);
-        console.log("Host remote desc set");
         hostPeerConnection.setRemoteDescription(description);
-        console.log("JR create answer from host");
         hostPeerConnection.createAnswer(function(desc) {
           gotHostDescription(desc, data.client);
         });
       } else if (data.type == 'candidate' ) {
         var candidate = new RTCIceCandidate(data.data);
         hostPeerConnection.addIceCandidate(candidate);
-        console.log("Host added new ice candidate from client "+data.data.candidate);
       }
     }
   });
@@ -69,11 +66,9 @@ function nodeConnect(sessionId, descriptionId, onConnectionCallback, onErrorCall
     if(data.type == 'answer') {
       var description = new RTCSessionDescription(data);
       clientPeerConnection.setRemoteDescription(description);
-      console.log("Client remote desc set");
     } else if (data.type == 'candidate') {
       var candidate = new RTCIceCandidate(data.data);
       clientPeerConnection.addIceCandidate(candidate);
-      console.log("Client added new ice candidate from host: "+data.data.candidate);
     }
   });
 }
@@ -89,39 +84,31 @@ NodeConnection.prototype.constructor = NodeConnection;
 // Setup RTC
 var hostPeerConnection;
 var clientPeerConnection;
-var hostChannel;
-var clientChannel;
 
 function gotHostCandidate(event, clientId) {
   if (event.candidate) {
-    console.log("Host candidate "+event.candidate.candidate);
     websocket.send(JSON.stringify({'client':clientId, 'type':'candidate', 'data':{'type':'candidate', 'data':event.candidate}}));
   }
 }
 
 function gotHostDescription(desc, client) {
   hostPeerConnection.setLocalDescription(desc);
-  console.log('Host local description set');// + desc.sdp);
   websocket.send(JSON.stringify({'client':client, 'type': 'answer', 'data':desc}));
 }
 
-function createClientConnection(peerConnection, dataChannel) {
+function createClientConnection(peerConnection) {
   clientPeerConnection = peerConnection;
-  clientChannel = dataChannel;
   clientPeerConnection.onicecandidate = gotClientIceCandidate;
-  console.log("JR create offer from client");
   clientPeerConnection.createOffer(gotClientDescription);
 }
 
 function gotClientIceCandidate(event) {
   if (event.candidate) {
-    console.log('Client ICE candidate: ' + event.candidate.candidate);
     clientSocket.send(JSON.stringify({'type' : 'candidate', 'data' : event.candidate}));
   }
 }
 
 function gotClientDescription(desc) {
-  console.log("JR client local desc set");
   clientPeerConnection.setLocalDescription(desc);
   clientSocket.send(JSON.stringify({'type' : 'offer', 'data' : desc}));
 }
