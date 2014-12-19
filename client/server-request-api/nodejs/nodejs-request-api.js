@@ -64,7 +64,7 @@ function nodeConnect(sessionId, descriptionId, onConnectionCallback, onErrorCall
     } catch (err) {
     }
     if(data.type == 'answer') {
-      var description = new RTCSessionDescription(data);
+      var description = new RTCSessionDescription(data.data);
       clientPeerConnection.setRemoteDescription(description);
     } else if (data.type == 'candidate') {
       var candidate = new RTCIceCandidate(data.data);
@@ -87,7 +87,7 @@ var clientPeerConnection;
 
 function gotHostCandidate(event, clientId) {
   if (event.candidate) {
-    websocket.send(JSON.stringify({'client':clientId, 'type':'candidate', 'data':{'type':'candidate', 'data':event.candidate}}));
+    websocket.send(JSON.stringify({'client':clientId, 'type':'candidate', 'data': event.candidate}));
   }
 }
 

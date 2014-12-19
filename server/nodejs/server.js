@@ -117,7 +117,7 @@ exports.Server = function() {
           return;
         }
         console.log("JR HOST message: type "+data.type+" data "+data.data);
-        client.socket.send(JSON.stringify(data.data));
+        client.socket.send(JSON.stringify({'type':data.type, 'data':data.data}));
       });
       websocket.on('close', function() {
         console.log("JR Host closed");
