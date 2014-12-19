@@ -10,7 +10,7 @@ var websocket;
 var clientSocket;
 var hostId;
 
-function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback) {
+function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback, onClientOfferCallback) {
   websocket = new WebSocket('ws://localhost:' + testPort.toString() + '/new');
   websocket.addEventListener('open', function() {
   });
@@ -30,7 +30,11 @@ function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback)
     }
     if (data.client) {
       if (data.type == 'offer') {
-        createHostConnection(data.client);
+        hostPeerConnection = onClientOfferCallback(data.client);
+        hostPeerConnection.onicecandidate = function(event) {
+          gotHostCandidate(event, data.client);
+        }
+
         var description = new RTCSessionDescription(data.data);
         console.log("Host remote desc set");
         hostPeerConnection.setRemoteDescription(description);
@@ -82,31 +86,11 @@ var NodeConnection = function(sessionId) {
 NodeConnection.prototype = lobby.signaling.Connection.prototype;
 NodeConnection.prototype.constructor = NodeConnection;
 
-// Test calling server
-function clientConnectionCallback(){
-  createClientConnection();
-}
-
-//nodeCreateSession(1337, onHostConnected, 42)
-
-function onHostConnected() {
-  nodeConnect(hostId, 1337, clientConnectionCallback, 42)
-}
-
 // Setup RTC
 var hostPeerConnection;
 var clientPeerConnection;
 var hostChannel;
 var clientChannel;
-
-function createHostConnection(clientId) {
-  var servers = null;
-  hostPeerConnection = new RTCPeerConnection(servers, {optional: [{RtpDataChannels: true}]});
-  hostPeerConnection.onicecandidate = function(event) {
-    gotHostCandidate(event, clientId);
-  }
-  hostPeerConnection.ondatachannel = gotHostChannel;
-}
 
 function gotHostCandidate(event, clientId) {
   if (event.candidate) {
@@ -115,36 +99,16 @@ function gotHostCandidate(event, clientId) {
   }
 }
 
-function gotHostChannel(event) {
-  console.log("JR Host Channel received");
-  hostChannel = event.channel;
-  hostChannel.onmessage = handleMessage;
-  hostChannel.onopen = handleHostChannelStateChange;
-  hostChannel.onclose = handleHostChannelStateChange;
-}
-
-function handleHostChannelStateChange() {
-  var readyState = hostChannel.readyState;
-  console.log("JR host channel ready state "+readyState);
-}
-
 function gotHostDescription(desc, client) {
   hostPeerConnection.setLocalDescription(desc);
   console.log('Host local description set');// + desc.sdp);
   websocket.send(JSON.stringify({'client':client, 'type': 'answer', 'data':desc}));
 }
 
-function createClientConnection() {
-  var servers = null;
-  clientPeerConnection = new RTCPeerConnection(servers, {optional: [{RtpDataChannels: true}]});
-  try {
-    clientChannel = clientPeerConnection.createDataChannel("sendDataChannel", {reliable: false});
-  } catch (e) {
-    console.log("JR failed to create client channel "+e.message);
-  }
+function createClientConnection(peerConnection, dataChannel) {
+  clientPeerConnection = peerConnection;
+  clientChannel = dataChannel;
   clientPeerConnection.onicecandidate = gotClientIceCandidate;
-  clientChannel.onopen = handleClientChannelStateChange;
-  clientChannel.onclose = handleClientChannelStateChange;
   console.log("JR create offer from client");
   clientPeerConnection.createOffer(gotClientDescription);
 }
@@ -160,16 +124,4 @@ function gotClientDescription(desc) {
   console.log("JR client local desc set");
   clientPeerConnection.setLocalDescription(desc);
   clientSocket.send(JSON.stringify({'type' : 'offer', 'data' : desc}));
-}
-
-function handleMessage(event) {
-  console.log("JR client message "+event.data);
-}
-
-function handleClientChannelStateChange() {
-  var readyState = clientChannel.readyState;
-  console.log("JR client change state change "+readyState);
-  if (readyState == "open") {
-    clientChannel.send("HEY LISTEN");
-  }
 }
