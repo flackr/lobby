@@ -26,7 +26,7 @@ function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback)
     }
     if (data.host) {
       hostId = data.host;
-      onConnectionCallback();
+      onConnectionCallback(hostId);
     }
     if (data.client) {
       if (data.type == 'offer') {
@@ -87,7 +87,7 @@ function clientConnectionCallback(){
   createClientConnection();
 }
 
-nodeCreateSession(1337, onHostConnected, 42)
+//nodeCreateSession(1337, onHostConnected, 42)
 
 function onHostConnected() {
   nodeConnect(hostId, 1337, clientConnectionCallback, 42)
