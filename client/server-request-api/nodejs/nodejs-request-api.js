@@ -5,13 +5,14 @@ lobby.signaling.createSession = nodeCreateSession;
 lobby.signaling.connect = nodeConnect;
 
 //TODO(jonross) update to actual port
+var lobbyServer = 'lobbyjs.com';
 var testPort = 1337;
 var websocket;
 var clientSocket;
 var hostId;
 
 function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback, onClientOfferCallback) {
-  websocket = new WebSocket('ws://localhost:' + testPort.toString() + '/new');
+  websocket = new WebSocket('ws://' + lobbyServer + ':' + testPort.toString() + '/new');
   websocket.addEventListener('open', function() {
   });
   websocket.addEventListener('close', function(error) {
@@ -49,7 +50,7 @@ function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback,
 }
 
 function nodeConnect(sessionId, descriptionId, onConnectionCallback, onErrorCallback) {
-  clientSocket = new WebSocket('ws://localhost:' + testPort.toString() + '/' + sessionId);
+  clientSocket = new WebSocket('ws://' + lobbyServer + ':' + testPort.toString() + '/' + sessionId);
   clientSocket.addEventListener('open', function() {
     onConnectionCallback();
   });
