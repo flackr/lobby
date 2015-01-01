@@ -2,7 +2,7 @@
  * Lobby server providing game listings for aribtrary games.
  */
 var WebSocket = require('ws');
-var WebSocketServer = require('ws').Server;
+var WebSocketServer = WebSocket.Server;
 
 exports.Server = function() {
 
@@ -42,14 +42,16 @@ exports.Server = function() {
     },
 
     /**
-     * Connect client to host.
+     * Connect client on |websocket| to host specified by connection url.
+     *
+     * @param {WebSocket} websocket A connected websocket client connection.
      */
     connectClient_: function(websocket) {
       var self = this;
       var sessionId = websocket.upgradeReq.url.substr(1);
       var session = this.sessions[sessionId];
       if (!session) {
-        console.log("Client connection 404 no session, sessionId "+sessionId);
+        console.log("Client attempted to connect to invalid sessionId "+sessionId);
         // TODO(flackr): Investigate generating this error before upgrading to
         // a websocket. (http://nodejs.org/api/http.html#http_http_createserver_requestlistener)
         websocket.send(JSON.stringify({'error': 404}));
@@ -61,22 +63,26 @@ exports.Server = function() {
       session.clients[clientId] = {
         'socket': websocket
       };
+      console.log("Client " + clientId + " attempting to connect to session " + sessionId);
       websocket.on('message', function(message) {
         if (!session) {
-          console.log("JR client message, no session though so 404");
+          console.log("Client attempted to deliver a message on ended session.");
           websocket.send(JSON.stringify({'error': 404}));
           websocket.close();
           return;
         }
-        console.log("JR client msg "+message);
-        var data;
+        var data = null;
         try {
           // Do not double JSON.stringify
           data = JSON.parse(message);
         } catch (err) {
         }
-        console.log("JR client data "+data);
-        session.socket.send(JSON.stringify({'client': clientId, 'type': data.type, 'data': data.data}));
+        if (data !== null) {
+          session.socket.send(JSON.stringify({'client': clientId, 'type': data.type, 'data': data.data}));
+        } else {
+          console.log("Client message is not JSON: " + message);
+          websocket.close();
+        }
       });
       websocket.on('close', function() {
         // TODO(flackr): Test if this is called sychronously when host socket
@@ -91,6 +97,12 @@ exports.Server = function() {
       })
     },
 
+    /**
+     * Create a new session host accepting connections through signaling socket
+     * |websocket|.
+     *
+     * @param {WebSocket} websocket A connected websocket client connection.
+     */
     createHost_: function(websocket) {
       var self = this;
       var sessionId = this.getNextId_();
@@ -116,13 +128,11 @@ exports.Server = function() {
             'message': 'Client does not exist.'}));
           return;
         }
-        console.log("JR HOST message: type "+data.type+" data "+data.data);
         client.socket.send(JSON.stringify({'type':data.type, 'data':data.data}));
       });
       websocket.on('close', function() {
-        console.log("JR Host closed");
+        console.log("Session " + sessionId + " ended, disconnecting clients.");
         for (var clientId in session.clients) {
-          console.log("JR client id "+clientId);
           // Server went away while client was connecting.
           if (session.clients[clientId].socket.readyState != WebSocket.OPEN)
             continue;
@@ -135,6 +145,9 @@ exports.Server = function() {
       websocket.send(JSON.stringify({'host': sessionId}));
     },
 
+    /**
+     * Shuts down the signaling server for game sessions.
+     */
     shutdown: function() {
       this.webSocketServer_.close();
     },
