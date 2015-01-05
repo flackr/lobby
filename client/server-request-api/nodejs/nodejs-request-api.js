@@ -11,6 +11,23 @@ var websocket;
 var clientSocket;
 var hostId;
 
+/*
+lobby.WebsocketSignalingClient = function(host) {
+  this.host_ = host;
+}
+
+lobby.WebsocketSignalingClient.prototype =
+    lobby.util.extend(lobby.SignalingClientBase, {
+  createSession: function() {
+    
+  },
+
+  joinSession: function(identifier) {
+    
+  },
+});
+*/
+
 function nodeCreateSession(descriptionId, onConnectionCallback, onErrorCallback, onClientOfferCallback) {
   websocket = new WebSocket('ws://' + lobbyServer + ':' + testPort.toString() + '/new');
   websocket.addEventListener('open', function() {
