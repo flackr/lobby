@@ -16,8 +16,8 @@ lobby.LobbyApi.prototype = {
    *
    * @return {lobby.HostSession} A host lobby session.
    */
-  createSession: function() {
-    
+  createSession: function(acceptCallback) {
+    return this.signalingClient_.createSession(acceptCallback)
   },
 
   /**
@@ -25,8 +25,8 @@ lobby.LobbyApi.prototype = {
    *
    * @return {lobby.ClientSession} A client session.
    */
-  joinSession: function() {
-    
+  joinSession: function(identifier, rtcConnection) {
+    return this.signalingClient_.joinSession(identifier, rtcConnection);
   },
 };
 
@@ -34,7 +34,7 @@ lobby.HostSession = function() {
   lobby.util.EventSource.apply(this);
 }
 
-lobby.HostSession.prototype = lobby.util.extend(lobby.util.EventSource, {
+lobby.HostSession.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
 
   /**
    * Close the host session.

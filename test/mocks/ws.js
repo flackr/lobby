@@ -75,6 +75,9 @@ packages['ws'] = (function() {
   
   function WebSocketServerClientMock(ws) {
     this.ws = ws;
+    this.upgradeReq = {
+      url: ws.address.slice(ws.address.indexOf('/', 6)),
+    };
     setTimeout(this.ws.onConnection.bind(this.ws, this), 0);
   }
   
