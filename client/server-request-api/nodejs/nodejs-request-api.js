@@ -52,6 +52,7 @@ lobby.WebSocketSignalingHostSession.prototype = lobby.util.extend(lobby.util.Eve
     this.websocket_.send(JSON.stringify({'client':client, 'type': 'answer', 'data':desc}));
   },
   sendIceCandidate_: function(client, event) {
+    console.log('Send ice candidate');
     if (event.candidate) {
       this.websocket_.send(JSON.stringify({'client':client, 'type':'candidate', 'data': event.candidate}));
     }
@@ -67,19 +68,20 @@ lobby.WebSocketSignalingJoinSession = function(host, identifier, rtcConnection) 
   this.rtcConnection_ = rtcConnection;
   this.websocket_.addEventListener('open', this.onOpen_.bind(this));
   this.websocket_.addEventListener('message', this.onMessage_.bind(this));
+  this.rtcConnection_.onicecandidate = this.onIceCandidate_.bind(this);
 }
 
 lobby.WebSocketSignalingJoinSession.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
   onOpen_: function() {
     this.rtcConnection_.createOffer(this.onOffer_.bind(this));
-    this.rtcConnection_.onicecandidate = this.onIceCandidate_.bind(this);
   },
   onOffer_: function(desc) {
     this.rtcConnection_.setLocalDescription(desc);
     this.websocket_.send(JSON.stringify({'type' : 'offer', 'data' : desc}));
   },
   onIceCandidate_: function(event) {
-    this.websocket_.send(JSON.stringify({'type' : 'candidate', 'data' : event.candidate}));
+    if (event.candidate)
+      this.websocket_.send(JSON.stringify({'type' : 'candidate', 'data' : event.candidate}));
   },
   onMessage_: function(e) {
     var data = JSON.parse(e.data);
