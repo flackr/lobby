@@ -42,32 +42,55 @@ describe("lobby.Lobby", function() {
       })
     });
     
-    it("should be able to connect a client", function(done) {
-      var clientMsg = 'ping';
-      var serverMsg = 'pong';
-      var clientRtcPeerConnection = new RTCPeerConnection(configuration, null);
-      var client = lobbyApi.joinSession(sessionId, clientRtcPeerConnection);
-      var clientDataChannel = clientRtcPeerConnection.createDataChannel("data", {reliable: false});
+    describe("after connecting a client", function() {
+      
+      var clientRtcPeerConnection;
+      var clientDataChannel;
       var hostDataChannel;
-
-      clientDataChannel.onopen = function() {
-        client.close();
+      
+      beforeEach(function(done) {
+        clientRtcPeerConnection = new RTCPeerConnection(configuration, null);
+        var client = lobbyApi.joinSession(sessionId, clientRtcPeerConnection);
+        clientDataChannel = clientRtcPeerConnection.createDataChannel("data", {reliable: false});
+        clientDataChannel.onopen = function() {
+          client.close();
+          expect(hostRtcConnection).toBeTruthy();
+          hostRtcConnection.ondatachannel = function(e) {
+            hostDataChannel = e.channel;
+            hostDataChannel.onopen = done;
+          }
+        };
+      });
+      
+      it("should be able to connect a client", function(done) {
+        var clientMsg = 'ping';
+        var serverMsg = 'pong';
         clientDataChannel.addEventListener('message', function(e) {
           expect(e.data).toBe(serverMsg);
           done();
         });
         clientDataChannel.send(clientMsg);
-        expect(hostRtcConnection).toBeTruthy();
-        hostRtcConnection.ondatachannel = function(e) {
-          hostDataChannel = e.channel;
-          hostDataChannel.addEventListener('message', function(e) {
-            expect(e.data).toBe(clientMsg);
-            hostDataChannel.send(serverMsg);
-          })
-        };
-      };
-    })
+
+        hostDataChannel.addEventListener('message', function(e) {
+          expect(e.data).toBe(clientMsg);
+          hostDataChannel.send(serverMsg);
+        });
+      });
       
+      it("should detect the client disconnecting", function(done) {
+        hostDataChannel.addEventListener('close', function() {
+          done();
+        })
+        clientRtcPeerConnection.close();
+      });
+
+      it("should detect the host disconnecting", function(done) {
+        clientDataChannel.addEventListener('close', function() {
+          done();
+        })
+        hostRtcConnection.close();
+      });
+    });
   }); 
 
 });
