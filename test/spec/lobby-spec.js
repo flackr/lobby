@@ -14,7 +14,7 @@ describe("lobby.Lobby", function() {
     // Mock out communication, then run server
     installWebSocketMock();
     installWebRTCMock();
-    lobbyApi = new lobby.LobbyApi(new lobby.WebSocketSignalingClient('ws://localhost:'+testPort));
+    lobbyApi = new lobby.LobbyApi('ws://localhost:'+testPort);
     server = new Server(testPort);
     originalTimeout = jasmine.DEFAULT_TIMEOUT_INTERVAL;
     jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
