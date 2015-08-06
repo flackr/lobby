@@ -9,6 +9,7 @@ exports.Server = function() {
   var Server = function(port) {
     this.sessions = [];
     this.nextId_ = 1;
+    this.allowRelay_ = true;
     this.webSocketServer_ = new WebSocketServer({ 'port': port });
     this.webSocketServer_.on('connection', this.onConnection_.bind(this));
     console.log('Listening on ' + port);
@@ -142,7 +143,7 @@ exports.Server = function() {
         delete self.sessions[sessionId];
         self.sessions[sessionId] = undefined;
       });
-      websocket.send(JSON.stringify({'host': sessionId}));
+      websocket.send(JSON.stringify({'host': sessionId, 'relay': this.allowRelay_}));
     },
 
     /**

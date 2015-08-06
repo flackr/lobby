@@ -1,5 +1,6 @@
 var mockRTCConnections = [];
 var mockRTCConnectionIndex = 1;
+var mockRTCConnectionShouldSucceed = true;
 
 function MockRTCPeerConnection(configuration) {
   this.id_ = mockRTCConnectionIndex++;
@@ -45,7 +46,7 @@ MockRTCPeerConnection.prototype = lobby.util.extend(lobby.util.EventSource.proto
     }
 
     // Once both have received ice candidates (i.e. set this.remote_) we "connect" them.
-    if (this.remote_.remote_ == this) {
+    if (mockRTCConnectionShouldSucceed && this.remote_.remote_ == this) {
       for (var i in this.dataChannels_) {
         var localDC = this.dataChannels_[i];
         var remoteDC = this.remote_.dataChannels_[i];

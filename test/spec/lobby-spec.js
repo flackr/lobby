@@ -20,12 +20,13 @@ describe("lobby.Lobby", function() {
     jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
   });
 
-  describe("after creating a game", function() {
+  describe("if the server supports relay", function() {
 
     var session;
     var sessionId;
 
     beforeEach(function(done) {
+      server.allowRelay_ = true;
       session = lobbyApi.createSession();
       session.addEventListener('open', function(id) {
         expect(id).toBeTruthy();
@@ -33,40 +34,106 @@ describe("lobby.Lobby", function() {
         done();
       })
     });
-    
-    describe("after connecting a client", function() {
+
+    afterEach(function() {
+      server.allowRelay_ = true;
+    });
+
+    describe("it should be able to relay a client", function() {
       
-      var hostDataChannel;
-      var clientDataChannel;
+      var hostChannel;
+      var clientChannel;
       
       beforeEach(function(done) {
+        mockRTCConnectionShouldSucceed = false;
         session.addEventListener('connection', function(channel) {
-          hostDataChannel = channel;
-          if (clientDataChannel)
+          hostChannel = channel;
+          if (clientChannel)
             done();
         });
         var client = lobbyApi.joinSession(sessionId);
         client.addEventListener('open', function(channel) {
-          clientDataChannel = channel;
-          if (hostDataChannel)
+          clientChannel = client;
+          if (hostChannel)
             done();
         });
       });
+
+      afterEach(function() {
+        mockRTCConnectionShouldSucceed = true;
+      })
       
-      it("should be able to connect a client", function(done) {
+      it("and be able to send a ping", function(done) {
         var clientMsg = 'ping';
         var serverMsg = 'pong';
-        clientDataChannel.addEventListener('message', function(e) {
+        clientChannel.addEventListener('message', function(e) {
           expect(e.data).toBe(serverMsg);
           done();
         });
 
-        hostDataChannel.addEventListener('message', function(e) {
+        hostChannel.addEventListener('message', function(e) {
           expect(e.data).toBe(clientMsg);
-          hostDataChannel.send(serverMsg);
+          hostChannel.send(serverMsg);
         });
 
-        clientDataChannel.send(clientMsg);
+        clientChannel.send(clientMsg);
+      });
+    });
+
+  });
+
+  describe("after creating a game", function() {
+
+    var session;
+    var sessionId;
+
+    beforeEach(function(done) {
+      server.allowRelay_ = false;
+      session = lobbyApi.createSession();
+      session.addEventListener('open', function(id) {
+        expect(id).toBeTruthy();
+        sessionId = id;
+        done();
+      })
+    });
+
+    afterEach(function() {
+      server.allowRelay_ = true;
+    });
+    
+    describe("after connecting a client", function() {
+      
+      var hostChannel;
+      var clientChannel;
+      
+      beforeEach(function(done) {
+        session.addEventListener('connection', function(channel) {
+          hostChannel = channel;
+          if (clientChannel)
+            done();
+        });
+        var client = lobbyApi.joinSession(sessionId);
+        client.addEventListener('open', function(channel) {
+          clientChannel = client;
+          if (hostChannel)
+            done();
+        });
+      });
+      
+      it("should be able to send a ping", function(done) {
+        var clientMsg = 'ping';
+        var serverMsg = 'pong';
+        clientChannel.addEventListener('message', function(e) {
+          expect(e.data).toBe(serverMsg);
+          done();
+        });
+
+        hostChannel.addEventListener('message', function(e) {
+          expect(e.data).toBe(clientMsg);
+          hostChannel.send(serverMsg);
+        });
+
+        clientChannel.send(clientMsg);
       });      
     });
   }); 
