@@ -3,11 +3,6 @@ describe("lobby.Lobby", function() {
   var lobbyApi;
   var testPort = '1234';
   var server;
-  var configuration = {
-    iceServers: [
-        {urls: "stun:stun.l.google.com:19302"},
-    ],
-  };
   var originalTimeout;
 
   beforeEach(function() {
@@ -29,28 +24,9 @@ describe("lobby.Lobby", function() {
 
     var session;
     var sessionId;
-    var hostRtcConnection;
-    var hostDataChannel;
-    var hostDataChannelReady;
 
     beforeEach(function(done) {
-      hostDataChannelReady = function() {};
-      hostDataChannel = null;
-      callback = null;
-      session = lobbyApi.createSession(function(callback) {
-        hostRtcConnection = new RTCPeerConnection(configuration, null);
-        hostRtcConnection.ondatachannel = function(e) {
-          hostDataChannel = e.channel;
-          if (hostDataChannel.readyState == 'open') {
-            hostDataChannelReady();
-          } else {
-            hostDataChannel.onopen = function() {
-              hostDataChannelReady();
-            }
-          }
-        };
-        return hostRtcConnection;
-      });
+      session = lobbyApi.createSession();
       session.addEventListener('open', function(id) {
         expect(id).toBeTruthy();
         sessionId = id;
@@ -60,25 +36,21 @@ describe("lobby.Lobby", function() {
     
     describe("after connecting a client", function() {
       
-      var clientRtcPeerConnection;
+      var hostDataChannel;
       var clientDataChannel;
       
       beforeEach(function(done) {
-        clientRtcPeerConnection = new RTCPeerConnection(configuration, null);
-        var client = lobbyApi.joinSession(sessionId, clientRtcPeerConnection);
-        clientDataChannel = clientRtcPeerConnection.createDataChannel("data", {reliable: false});
-        clientDataChannel.onopen = function() {
-          client.close();
-          expect(hostRtcConnection).toBeTruthy();
-          if (!hostDataChannel || hostDataChannel.readyState != 'open') {
-            hostDataChannelReady = function() {
-              hostDataChannelReady = null;
-              done();
-            };
-          } else {
+        session.addEventListener('connection', function(channel) {
+          hostDataChannel = channel;
+          if (clientDataChannel)
             done();
-          }
-        };
+        });
+        var client = lobbyApi.joinSession(sessionId);
+        client.addEventListener('open', function(channel) {
+          clientDataChannel = channel;
+          if (hostDataChannel)
+            done();
+        });
       });
       
       it("should be able to connect a client", function(done) {
@@ -95,21 +67,7 @@ describe("lobby.Lobby", function() {
         });
 
         clientDataChannel.send(clientMsg);
-      });
-      
-      it("should detect the client disconnecting", function(done) {
-        hostDataChannel.addEventListener('close', function() {
-          done();
-        })
-        clientRtcPeerConnection.close();
-      });
-
-      it("should detect the host disconnecting", function(done) {
-        clientDataChannel.addEventListener('close', function() {
-          done();
-        })
-        hostRtcConnection.close();
-      });
+      });      
     });
   }); 
 
