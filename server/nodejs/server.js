@@ -1,21 +1,34 @@
 /**
  * Lobby server providing game listings for aribtrary games.
  */
+var http = require('http');
+var https = require('https');
 var WebSocket = require('ws');
 var WebSocketServer = WebSocket.Server;
 
 exports.Server = function() {
 
-  var Server = function(port) {
+  var Server = function(options) {
     this.sessions = [];
     this.nextId_ = 1;
     this.allowRelay_ = true;
-    this.webSocketServer_ = new WebSocketServer({ 'port': port });
+    options.port = options.port || (options.key ? 443 : 80);
+    if (options.key)
+      this.webServer_ = https.createServer(options, this.onRequest_.bind(this));
+    else
+      this.webServer_ = http.createServer(this.onRequest_.bind(this));
+    this.webSocketServer_ = new WebSocketServer({'server': this.webServer_});
     this.webSocketServer_.on('connection', this.onConnection_.bind(this));
-    console.log('Listening on ' + port);
+    this.webServer_.listen(options.port);
+    console.log('Listening on ' + options.port);
   };
 
   Server.prototype = {
+
+    onRequest_: function(req, res) {
+      res.writeHead(200, {'Content-Type': 'text/plain'});
+      res.end('This is the lobby server.');
+    },
 
     /**
      * Returns the next game id.
