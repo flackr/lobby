@@ -46,15 +46,19 @@ describe("lobby.Lobby", function() {
       var clientChannel;
       
       beforeEach(function(done) {
+        hostChannel = undefined;
+        clientChannel = undefined;
         mockRTCConnectionShouldSucceed = false;
         session.addEventListener('connection', function(channel) {
           hostChannel = channel;
+          expect(hostChannel.state).toBe('relay');
           if (clientChannel)
             done();
         });
         var client = lobbyApi.joinSession(sessionId);
         client.addEventListener('open', function(channel) {
           clientChannel = client;
+          expect(clientChannel.state).toBe('relay');
           if (hostChannel)
             done();
         });
@@ -62,6 +66,7 @@ describe("lobby.Lobby", function() {
 
       afterEach(function() {
         mockRTCConnectionShouldSucceed = true;
+        connectPendingMockRTCConnections = undefined;
       })
       
       it("and be able to send a ping", function(done) {
@@ -79,6 +84,45 @@ describe("lobby.Lobby", function() {
 
         clientChannel.send(clientMsg);
       });
+
+      it("should upgrade to a direct connection", function(done) {
+        var clientState = clientChannel.state;
+        var hostState = hostChannel.state;
+        expect(clientState).toBe('relay');
+        expect(hostState).toBe('relay');
+        clientChannel.addEventListener('state', function(state) {
+          clientState = state;
+          expect(clientState).toBe('open');
+          if (hostState == 'open')
+            done();
+        });
+        hostChannel.addEventListener('state', function(state) {
+          hostState = state;
+          expect(hostState).toBe('open');
+          expect(hostChannel.relay_).not.toBeTruthy();
+          if (clientState == 'open')
+            done();
+        })
+        mockRTCConnectionShouldSucceed = true;
+        if (connectPendingMockRTCConnections)
+          connectPendingMockRTCConnections();
+      });
+
+      it("should detect a disconnected client", function(done) {
+        hostChannel.addEventListener('close', function() {
+          done();
+        });
+        clientChannel.close();
+      });
+
+      it("should detect a disconnected host", function(done) {
+        clientChannel.addEventListener('close', function() {
+          done();
+        });
+        hostChannel.close();
+      });
+
+
     });
 
   });
@@ -110,14 +154,18 @@ describe("lobby.Lobby", function() {
       var clientChannel;
       
       beforeEach(function(done) {
+        clientChannel = undefined;
+        hostChannel = undefined;
         session.addEventListener('connection', function(channel) {
           hostChannel = channel;
+          expect(hostChannel.state).toBe('open');
           if (clientChannel)
             done();
         });
         var client = lobbyApi.joinSession(sessionId);
         client.addEventListener('open', function(channel) {
           clientChannel = client;
+          expect(clientChannel.state).toBe('open');
           if (hostChannel)
             done();
         });
@@ -137,7 +185,22 @@ describe("lobby.Lobby", function() {
         });
 
         clientChannel.send(clientMsg);
-      });      
+      });
+
+      it("should detect a disconnected client", function(done) {
+        hostChannel.addEventListener('close', function() {
+          done();
+        });
+        clientChannel.close();
+      });
+
+      it("should detect a disconnected host", function(done) {
+        clientChannel.addEventListener('close', function() {
+          done();
+        });
+        hostChannel.close();
+      });
+
     });
   }); 
 

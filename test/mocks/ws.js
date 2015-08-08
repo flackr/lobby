@@ -23,6 +23,7 @@ NodeJSEventSource.prototype = {
 function WebSocketClientMock(address) {
   this.addEventTypes(['open', 'message', 'close']);
   this.ws_ = null;
+  this.readyState = 0;
   this.address = address;
   // Need to give the caller a chance to attach listeners.
   setTimeout(listener.onConnection.bind(listener, this), 0);
@@ -34,11 +35,18 @@ WebSocketClientMock.prototype = lobby.util.extend(lobby.util.EventSource.prototy
   },
   onConnection: function(ws) {
     this.ws_ = ws;
+    this.readyState = 1;
     this.dispatchEvent('open');
   },
   close: function() {
+    if (this.readyState == 3)
+      return;
+    this.ws_.readyState = 2;
     this.ws_.dispatch('close');
+    this.ws_.readyState = 3;
+    this.ws_.ws = null;
     this.ws_ = null;
+    this.readyState = 3;
   },
 });
 
@@ -84,6 +92,7 @@ packages['ws'] = (function() {
     this.upgradeReq = {
       url: ws.address.match(/^(?:[^/]*\/){2}[^/]*(.*)/)[1],
     };
+    this.readyState = 1;
     setTimeout(this.ws.onConnection.bind(this.ws, this), 0);
   }
   
@@ -92,7 +101,14 @@ packages['ws'] = (function() {
       this.ws.dispatchEvent('message', {data: msg});
     },
     close: function() {
+      if (this.readyState == 3)
+        return;
+      this.ws.readyState = 2;
       this.ws.dispatchEvent('close');
+      this.ws.readyState = 3;
+      this.ws.ws = undefined;
+      this.ws = undefined;
+      this.readyState = 3;
     }
   });
 

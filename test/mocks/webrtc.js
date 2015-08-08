@@ -1,14 +1,16 @@
 var mockRTCConnections = [];
 var mockRTCConnectionIndex = 1;
 var mockRTCConnectionShouldSucceed = true;
+var connectPendingMockRTCConnections = undefined
 
 function MockRTCPeerConnection(configuration) {
   this.id_ = mockRTCConnectionIndex++;
   this.remote_ = null;
   this.signalingState = 'stable';
+  this.iceConnectionState = 'connected';
   this.dataChannels_ = {};
   this.configuration_ = configuration;
-  this.addEventTypes(['datachannel', 'icecandidate', 'signalingstatechange'])
+  this.addEventTypes(['datachannel', 'icecandidate', 'signalingstatechange', 'iceconnectionstatechange'])
 };
 
 MockRTCPeerConnection.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
@@ -46,12 +48,19 @@ MockRTCPeerConnection.prototype = lobby.util.extend(lobby.util.EventSource.proto
     }
 
     // Once both have received ice candidates (i.e. set this.remote_) we "connect" them.
-    if (mockRTCConnectionShouldSucceed && this.remote_.remote_ == this) {
-      for (var i in this.dataChannels_) {
-        var localDC = this.dataChannels_[i];
-        var remoteDC = this.remote_.dataChannels_[i];
-        setTimeout(localDC.onOpen_.bind(localDC), 0);
-        setTimeout(remoteDC.onOpen_.bind(remoteDC), 0);
+    if (this.remote_.remote_ == this) {
+      var self = this;
+      connectPendingMockRTCConnections = function() {
+        connectPendingMockRTCConnections = undefined;
+        for (var i in self.dataChannels_) {
+          var localDC = self.dataChannels_[i];
+          var remoteDC = self.remote_.dataChannels_[i];
+          setTimeout(localDC.onOpen_.bind(localDC), 0);
+          setTimeout(remoteDC.onOpen_.bind(remoteDC), 0);
+        }
+      };
+      if (mockRTCConnectionShouldSucceed) {
+        connectPendingMockRTCConnections();
       }
     }
   },
@@ -69,10 +78,13 @@ MockRTCPeerConnection.prototype = lobby.util.extend(lobby.util.EventSource.proto
     this.dispatchEvent('signalingstatechange');
   },
   close: function() {
-    // First close any data channels.
-    for (var i in this.dataChannels_) {
-      this.dataChannels_[i].close();
+    if (this.remote_) {
+      this.remote_.remote_ = undefined;
+      this.remote_.close();
+      this.remote_ = undefined;
     }
+    this.iceConnectionState = 'disconnected';
+    this.dispatchEvent('iceconnectionstatechange');
   },
 });
 
@@ -96,14 +108,6 @@ MockRTCDataChannel.prototype = lobby.util.extend(lobby.util.EventSource.prototyp
     this.dispatchEvent('message', {'data': msg});
   },
   close: function() {
-    if (this.remote_) {
-      // Unset the remote's link back to us so that we don't get back into close.
-      this.remote_.remote_ = null;
-      this.remote_.close();
-      this.remote_ = null;
-    }
-    this.dispatchEvent('close');
-    delete this.pc_.dataChannels[this.name_];
   },
   onOpen_: function() {
     this.readyState = 'open';

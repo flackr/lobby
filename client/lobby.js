@@ -62,15 +62,23 @@ lobby.HostSession.prototype = lobby.util.extend(lobby.util.EventSource.prototype
 });
 
 lobby.HostClient = function(hostSession, clientId) {
+  this.state = 'connecting';
   this.hostSession_ = hostSession;
   this.clientId_ = clientId;
-  this.addEventTypes(['open', 'message', 'close']);
+  this.addEventTypes(['open', 'message', 'close', 'state']);
 };
 
 lobby.HostClient.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
+  changeState: function(state) {
+    if (state == this.state)
+      return;
+    this.state = state;
+    this.dispatchEvent('state', state);
+  },
   connectRelay_: function() {
     this.relay_ = true;
     this.hostSession_.websocket_.send(JSON.stringify({'client': this.clientId_, 'type': 'relay', 'data': true}));
+    this.changeState('relay');
     this.dispatchEvent('open');
   },
   onMessage_: function(data) {
@@ -78,13 +86,29 @@ lobby.HostClient.prototype = lobby.util.extend(lobby.util.EventSource.prototype,
       this.rtcConnection_ = new RTCPeerConnection(this.hostSession_.configuration, null);
       this.rtcConnection_.ondatachannel = this.onDataChannel_.bind(this);
       this.rtcConnection_.onicecandidate = this.sendIceCandidate_.bind(this);
+      this.rtcConnection_.oniceconnectionstatechange = this.onIceConnectionStateChange_.bind(this);
       this.rtcConnection_.setRemoteDescription(new RTCSessionDescription(data.data));
       this.rtcConnection_.createAnswer(this.sendAnswer_.bind(this));
     } else if (data.type == 'candidate') {
       this.rtcConnection_.addIceCandidate(new RTCIceCandidate(data.data));
     } else if (data.type == 'message') {
       this.dispatchEvent('message', {'data': data.data});
+    } else if (data.type == 'close') {
+      this.relay_ = false;
+      if (!this.isDataChannelConnected_()) {
+        this.changeState('closed');
+        if (this.rtcConnection_)
+          this.rtcConnection_.close();
+        this.dispatchEvent('close');
+      }
     }
+  },
+  onIceConnectionStateChange_: function() {
+    if (this.rtcConnection_.iceConnectionState == 'disconnected' && !this.relay_)
+      this.dispatchEvent('close');
+  },
+  isDataChannelConnected_: function() {
+    return this.dataChannel_ && this.dataChannel_.readyState == 'open' && this.rtcConnection_.iceConnectionState == 'connected';
   },
   onDataChannelMessage_: function(e) {
     this.dispatchEvent('message', e);
@@ -100,46 +124,62 @@ lobby.HostClient.prototype = lobby.util.extend(lobby.util.EventSource.prototype,
     }
   },
   onDataChannel_: function(e) {
-    var channel = e.channel;
-    channel.addEventListener('message', this.onDataChannelMessage_.bind(this));
+    this.dataChannel_ = e.channel;
+    this.dataChannel_.addEventListener('message', this.onDataChannelMessage_.bind(this));
     var self = this;
-    if (channel.readyState == 'open') {
-      this.dataChannel_ = channel;
-      if (!this.relay_)
-        this.dispatchEvent('open', channel);
-    }
-    channel.onopen = function() {
-      self.dataChannel_ = channel;
-      if (!self.relay_)
-        self.dispatchEvent('open', channel);
+    if (this.dataChannel_.readyState == 'open')
+      this.onDataChannelConnected_();
+    else
+      this.dataChannel_.onopen = this.onDataChannelConnected_.bind(this);
+  },
+  onDataChannelConnected_: function(channel) {
+    if (this.relay_) {
+      this.hostSession_.websocket_.send(JSON.stringify({'client': this.clientId_, 'type': 'close', 'data': ''}));
+      this.relay_ = false;
+      this.changeState('open');
+    } else {
+      this.changeState('open');
+      this.dispatchEvent('open', channel);
     }
   },
   send: function(msg) {
-    if (this.dataChannel_)
+    if (this.dataChannel_ && this.dataChannel_.readyState == 'open')
       this.dataChannel_.send(msg);
     else
       this.hostSession_.websocket_.send(JSON.stringify({'client': this.clientId_, 'type': 'message', 'data': JSON.stringify(msg)}));
   },
   close: function() {
-    if (this.dataChannel_)
-      this.dataChannel_.close();
+    this.changeState('closed');
+    if (this.rtcConnection_)
+      this.rtcConnection_.close();
+    if (this.relay_)
+      this.hostSession_.websocket_.send(JSON.stringify({'client': this.clientId_, 'type': 'close', 'data': ''}));
   }
 });
 
 lobby.ClientSession = function(host, identifier, configuration) {
+  this.state = 'connecting';
   this.configuration = configuration;
   this.websocket_ = new WebSocket(host + '/' + identifier);
-  this.addEventTypes(['open', 'message', 'close']);
+  this.addEventTypes(['open', 'message', 'close', 'state']);
   this.rtcConnection_ = new RTCPeerConnection(this.configuration, null);
   this.dataChannel_ = this.rtcConnection_.createDataChannel('data', {reliable: false});
-  this.dataChannel_.addEventListener('open', this.onDataChannel_.bind(this, this.dataChannel_));
+  this.dataChannel_.addEventListener('open', this.onDataChannelConnected_.bind(this, this.dataChannel_));
   this.dataChannel_.addEventListener('message', this.onDataChannelMessage_.bind(this));
   this.websocket_.addEventListener('open', this.onOpen_.bind(this));
   this.websocket_.addEventListener('message', this.onMessage_.bind(this));
+  this.websocket_.addEventListener('close', this.onWebSocketClose_.bind(this));
   this.rtcConnection_.onicecandidate = this.onIceCandidate_.bind(this);
+  this.rtcConnection_.oniceconnectionstatechange = this.onIceConnectionStateChange_.bind(this);
 }
 
 lobby.ClientSession.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
+  changeState: function(state) {
+    if (state == this.state)
+      return;
+    this.state = state;
+    this.dispatchEvent('state', state);
+  },
   onOpen_: function() {
     this.rtcConnection_.createOffer(this.onOffer_.bind(this));
   },
@@ -161,13 +201,22 @@ lobby.ClientSession.prototype = lobby.util.extend(lobby.util.EventSource.prototy
       this.dispatchEvent('message', {'data': JSON.parse(data.data)});
     else if (data.type == 'relay') {
       this.relay_ = true;
+      this.changeState('relay');
       this.dispatchEvent('open');
     } else if (data.type == 'close') {
       this.websocket_.close();
-      delete this.websocket_;
+      this.onWebSocketClose_();
     }
   },
-  onDataChannel_: function(channel) {
+  onWebSocketClose_: function() {
+    delete this.websocket_;
+    if (!this.isDataChannelConnected_()) {
+      this.dispatchEvent('close');
+      this.rtcConnection_.close();
+    }
+  },
+  onDataChannelConnected_: function(channel) {
+    this.changeState('open');
     if (!this.relay_)
       this.dispatchEvent('open', channel);
   },
@@ -175,17 +224,30 @@ lobby.ClientSession.prototype = lobby.util.extend(lobby.util.EventSource.prototy
   onDataChannelMessage_: function(e) {
     this.dispatchEvent('message', e);
   },
+  
+  onIceConnectionStateChange_: function() {
+    if (this.rtcConnection_.iceConnectionState == 'disconnected' && !this.relay_)
+      this.dispatchEvent('close');
+  },
+  
+  isDataChannelConnected_: function() {
+    return this.dataChannel_.readyState == 'open' && this.rtcConnection_.iceConnectionState == 'connected';
+  },
 
   send: function(msg) {
     if (this.dataChannel_.readyState == 'open')
       this.dataChannel_.send(msg);
     else if (this.websocket_)
       this.websocket_.send(JSON.stringify({'type': 'message', 'data': msg}));
+    else
+      throw new Error('Trying to send message while not connected');
   },
 
   close: function() {
-    if (this.websocket_)
+    this.rtcConnection_.close();
+    if (this.websocket_) {
       this.websocket_.close();
-    this.dataChannel_.close();
+      delete this.websocket_;
+    }
   },
 });

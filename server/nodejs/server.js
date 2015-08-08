@@ -104,15 +104,19 @@ exports.Server = function() {
       websocket.on('close', function() {
         // TODO(flackr): Test if this is called sychronously when host socket
         // closes, if so remove.
-        if (!self.sessions[self.sessionId])
-          return;
-        console.log('Client ' + clientId + ' closing connection');
-        session.socket.send(JSON.stringify({
-          'client': clientId,
-          'type': 'close'}));
+        if (!self.sessions[sessionId]) {
+            console.log('client ' + clientId + ' disconnected for already closed server');
+        }
+
+        if (self.sessions[sessionId]) {
+            console.log('Client ' + clientId + ' closing connection');
+            session.socket.send(JSON.stringify({
+              'client': clientId,
+              'type': 'close'}));
+        }
         delete session.clients[clientId];
         session.clients[clientId] = undefined;
-      })
+      });
     },
 
     /**
@@ -146,12 +150,12 @@ exports.Server = function() {
             'message': 'Client does not exist.'}));
           return;
         }
-        if (data.type != 'close') {
-          client.socket.send(JSON.stringify({'type':data.type, 'data':data.data}));
+        client.socket.send(JSON.stringify({'type':data.type, 'data':data.data}));
+        if (data.type != 'close')
           return;
-        }
-        client.socket.send(JSON.stringify({'type': 'close'}));
         client.socket.close();
+        delete session.clients[clientId];
+        session.clients[clientId] = undefined;
       });
       websocket.on('close', function() {
         console.log("Session " + sessionId + " ended, disconnecting clients.");

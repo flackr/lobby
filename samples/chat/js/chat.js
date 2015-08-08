@@ -1,82 +1,67 @@
+var lobbyApi = new lobby.LobbyApi('wss://lobbyjs.com');
+
 function $(id) {
   return document.getElementById(id);
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-  lobby.GameLobby.setGameId('chat');
-  lobby.GameLobby.decorate($('chat-lobby'));
-  $('createGame').style.display = lobby.serverCapable() ? 'block' : 'none';
-  $('createGameBtn').addEventListener('click', function() {
-    var host;
-    window.server = new ChatServer(host = new lobby.Host($('chat-lobby').getUrl(), parseInt($('port').value)), $('gameName').value);
-    host.addEventListener('ready', function(address) {
-      window.client = new ChatClient($('connection'), server.createLocalClient(), $('localAlias').value);
+  if (location.hash) {
+    joinGame(location.hash.slice(1));
+  } else {
+    var session = lobbyApi.createSession();
+    window.server = new ChatServer(session, $('gameName').value);
+    session.addEventListener('open', function(id) {
+      location.hash = id;
+      joinGame(id);
     });
-  });
-  $('chat-lobby').onSelectGame = function(game) {
-    window.client = new ChatClient($('connection'), new lobby.Client(game), $('alias').value);
-  };
+  }
 });
+
+function joinGame(id) {
+  window.client = new ChatClient($('connection'), lobbyApi.joinSession(id), $('localAlias').value);
+}
 
 function ChatServer(connection, name) {
   this.clients_ = [];
   this.connection_ = connection;
-  this.connection_.updateInfo({
-    'gameId': 'chat',
-    'description': name,
-    'status': 'running'
-  });
-  this.connection_.addEventListener('message', this.onMessageReceived.bind(this));
-  this.connection_.addEventListener('error', this.onError.bind(this));
-  this.connection_.addEventListener('disconnection', this.onDisconnection.bind(this));
+  this.connection_.addEventListener('connection', this.onConnection.bind(this));
 }
 
 ChatServer.prototype = {
 
-  createLocalClient: function() {
-    return this.connection_.createLocalClient();
+  onConnection: function(connection) {
+    for (var i = 0; i < this.clients_.length; i++) {
+      this.clients_[i].send('connection');
+    }
+    this.clients_.push(connection);
+    connection.addEventListener('message', this.onMessageReceived.bind(this, connection));
+    connection.addEventListener('close', this.onClose.bind(this, connection))
   },
 
-  onMessageReceived: function(clientIndex, message) {
-    if (message.alias) {
-      this.clients_[clientIndex] = message.alias;
-      this.updatePlayers();
-    } else {
-      // Add user alias to message text.
-      message.text = (this.clients_[clientIndex] || 'Anonymous') + ': ' + message.text;
-
-      // Rebroadcast all messages to all clients.
-      for (var i in this.connection_.clients) {
-        this.connection_.send(i, message);
-      }
+  onMessageReceived: function(connection, e) {
+    // Rebroadcast all messages to all clients.
+    for (var i = 0; i < this.clients_.length; i++) {
+      this.clients_[i].send(e.data);
     }
   },
 
-  onError: function(errorMessage) {
-    console.log('Error: ', errorMessage);
+  onClose: function(connection) {
+    var i = this.clients_.indexOf(connection);
+    if (i == -1)
+      throw new Error('Client not found');
+    this.clients_.splice(i, 1);
+    for (var i = 0; i < this.clients_.length; i++) {
+      this.clients_[i].send('disconnection');
+    }
   },
-
-  onDisconnection: function(clientIndex) {
-    delete this.clients_[clientIndex];
-    this.updatePlayers();
-  },
-
-  updatePlayers: function() {
-    var aliases = [];
-    for (var i in this.clients_)
-      aliases.push(this.clients_[i]);
-    this.connection_.updateInfo({
-      players: aliases
-    });
-  }
 };
 
 function ChatClient(rootNode, connection, name) {
   this.connection_ = connection;
   this.rootNode_ = rootNode;
   this.name_ = name || 'Anonymous';
-  this.connection_.addEventListener('connected', this.onConnected.bind(this));
-  this.connection_.addEventListener('disconnected', this.onDisconnected.bind(this));
+  this.connection_.addEventListener('open', this.onConnected.bind(this));
+  this.connection_.addEventListener('close', this.onDisconnected.bind(this));
   this.connection_.addEventListener('message', this.onMessageReceived.bind(this));
   rootNode.querySelector('.send').addEventListener('click', this.sendMessage.bind(this));
   this.textbox_ = rootNode.querySelector('.input');
@@ -87,15 +72,14 @@ ChatClient.prototype = {
 
   onConnected: function() {
     document.body.classList.add('connected');
-    this.connection_.send({alias: this.name_});
   },
 
-  onMessageReceived: function(message) {
-    this.rootNode_.querySelector('.log').textContent += message.text + '\n';
+  onMessageReceived: function(e) {
+    this.rootNode_.querySelector('.log').textContent += e.data + '\n';
   },
 
   sendMessage: function() {
-    this.connection_.send({text: this.textbox_.value});
+    this.connection_.send(this.textbox_.value);
     this.textbox_.value = '';
     this.textbox_.focus();
   },
