@@ -111,7 +111,7 @@ exports.Server = function() {
 
         if (self.sessions[sessionId]) {
             console.log('Client ' + clientId + ' closing connection');
-            if (session.socket.readyState == WebSocket.OPEN) {
+            if (session.socket.readyState == 1) {
               session.socket.send(JSON.stringify({
                 'client': clientId,
                 'type': 'close'}));
@@ -151,7 +151,7 @@ exports.Server = function() {
             'message': 'Client does not exist.'}));
           return;
         }
-        if (client.socket.readyState == WebSocket.OPEN)
+        if (client.socket.readyState == 1)
           client.socket.send(JSON.stringify({'type':data.type, 'data':data.data}));
         if (data.type != 'close')
           return;
@@ -163,7 +163,7 @@ exports.Server = function() {
         console.log("Session " + sessionId + " ended, disconnecting clients.");
         for (var clientId in session.clients) {
           // Server went away while client was connecting.
-          if (session.clients[clientId].socket.readyState != WebSocket.OPEN)
+          if (session.clients[clientId].socket.readyState != 1)
             continue;
           session.clients[clientId].socket.send(JSON.stringify({'error': 404}));
           session.clients[clientId].socket.close();
