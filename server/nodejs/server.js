@@ -3,8 +3,7 @@
  */
 var http = require('http');
 var https = require('https');
-var WebSocket = require('ws');
-var WebSocketServer = WebSocket.Server;
+var WebSocketServer = require('ws').Server;
 var finalhandler = require('finalhandler');
 var serveStatic = require('serve-static');
 

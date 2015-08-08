@@ -2,6 +2,8 @@ describe("lobby.Lobby", function() {
 
   var lobbyApi;
   var lobbyServerLocation = location.origin.replace('http', 'ws');
+  if (lobbyServerLocation == 'file://')
+    lobbyServerLocation = 'wss://lobbyjs.com';
   var testPort = '1234';
   var server = {};
   var originalTimeout;
@@ -17,7 +19,7 @@ describe("lobby.Lobby", function() {
   });
   
   afterEach(function() {
-    uninstallWebSocketMock();
+    //uninstallWebSocketMock();
     jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
   });
 
@@ -27,6 +29,7 @@ describe("lobby.Lobby", function() {
     var sessionId;
 
     beforeEach(function(done) {
+      sessionId = undefined;
       server.allowRelay_ = true;
       session = lobbyApi.createSession();
       session.addEventListener('open', function(id) {
@@ -90,13 +93,19 @@ describe("lobby.Lobby", function() {
         var hostState = hostChannel.state;
         expect(clientState).toBe('relay');
         expect(hostState).toBe('relay');
+        hostState = 'relay';
+        clientState = 'relay';
         clientChannel.addEventListener('state', function(state) {
+          if (state == 'closed')
+            return;
           clientState = state;
           expect(clientState).toBe('open');
           if (hostState == 'open')
             done();
         });
         hostChannel.addEventListener('state', function(state) {
+          if (state == 'closed')
+            return;
           hostState = state;
           expect(hostState).toBe('open');
           expect(hostChannel.relay_).not.toBeTruthy();
@@ -134,6 +143,7 @@ describe("lobby.Lobby", function() {
 
     beforeEach(function(done) {
       server.allowRelay_ = false;
+      sessionId = undefined;
       session = lobbyApi.createSession();
       session.addEventListener('open', function(id) {
         expect(id).toBeTruthy();
