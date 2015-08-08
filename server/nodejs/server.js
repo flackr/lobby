@@ -101,6 +101,8 @@ exports.Server = function() {
         }
       });
       websocket.on('close', function() {
+        console.log('client ' + clientId + ' disconnected for session ' + sessionId);
+        delete session.clients[clientId];
         // TODO(flackr): Test if this is called sychronously when host socket
         // closes, if so remove.
         if (!self.sessions[sessionId]) {
@@ -109,12 +111,12 @@ exports.Server = function() {
 
         if (self.sessions[sessionId]) {
             console.log('Client ' + clientId + ' closing connection');
-            session.socket.send(JSON.stringify({
-              'client': clientId,
-              'type': 'close'}));
+            if (session.socket.readyState == WebSocket.OPEN) {
+              session.socket.send(JSON.stringify({
+                'client': clientId,
+                'type': 'close'}));
+            }
         }
-        delete session.clients[clientId];
-        session.clients[clientId] = undefined;
       });
     },
 
@@ -149,12 +151,13 @@ exports.Server = function() {
             'message': 'Client does not exist.'}));
           return;
         }
-        client.socket.send(JSON.stringify({'type':data.type, 'data':data.data}));
+        if (client.socket.readyState == WebSocket.OPEN)
+          client.socket.send(JSON.stringify({'type':data.type, 'data':data.data}));
         if (data.type != 'close')
           return;
+        console.log('Forcing session ' + sessionId + ', client ' + clientId + ' to close');
         client.socket.close();
         delete session.clients[clientId];
-        session.clients[clientId] = undefined;
       });
       websocket.on('close', function() {
         console.log("Session " + sessionId + " ended, disconnecting clients.");
@@ -166,7 +169,6 @@ exports.Server = function() {
           session.clients[clientId].socket.close();
         }
         delete self.sessions[sessionId];
-        self.sessions[sessionId] = undefined;
       });
       websocket.send(JSON.stringify({'host': sessionId, 'relay': this.allowRelay_}));
     },
