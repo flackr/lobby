@@ -5,6 +5,8 @@ var http = require('http');
 var https = require('https');
 var WebSocket = require('ws');
 var WebSocketServer = WebSocket.Server;
+var finalhandler = require('finalhandler');
+var serveStatic = require('serve-static');
 
 exports.Server = function() {
 
@@ -20,14 +22,15 @@ exports.Server = function() {
     this.webSocketServer_ = new WebSocketServer({'server': this.webServer_});
     this.webSocketServer_.on('connection', this.onConnection_.bind(this));
     this.webServer_.listen(options.port);
+    this.serve = serveStatic('../../');
     console.log('Listening on ' + options.port);
   };
 
   Server.prototype = {
 
     onRequest_: function(req, res) {
-      res.writeHead(200, {'Content-Type': 'text/plain'});
-      res.end('This is the lobby server.');
+      var done = finalhandler(req, res);
+      this.serve(req, res, done);
     },
 
     /**
@@ -103,6 +106,7 @@ exports.Server = function() {
         // closes, if so remove.
         if (!self.sessions[self.sessionId])
           return;
+        console.log('Client ' + clientId + ' closing connection');
         session.socket.send(JSON.stringify({
           'client': clientId,
           'type': 'close'}));
@@ -142,7 +146,12 @@ exports.Server = function() {
             'message': 'Client does not exist.'}));
           return;
         }
-        client.socket.send(JSON.stringify({'type':data.type, 'data':data.data}));
+        if (data.type != 'close') {
+          client.socket.send(JSON.stringify({'type':data.type, 'data':data.data}));
+          return;
+        }
+        client.socket.send(JSON.stringify({'type': 'close'}));
+        client.socket.close();
       });
       websocket.on('close', function() {
         console.log("Session " + sessionId + " ended, disconnecting clients.");

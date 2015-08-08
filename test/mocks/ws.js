@@ -57,9 +57,15 @@ packages['ws'] = (function() {
   
   function WebSocketServerMock(obj) {
     if (obj) {
-      this.port = obj.port;
-      listener = this;
-      listeningPorts[this.port] = this;
+      if (obj.server) {
+        this.server = obj.server;
+        this.server.webSocketServer = this;
+        this.port = this.server.port;
+      } else if (obj.port) {
+        this.port = obj.port;
+        listener = this;
+        listeningPorts[this.port] = this;
+      }
     }
   }
   
@@ -104,7 +110,8 @@ packages['ws'] = (function() {
 })();
 
 packages['http'] = (function() {
-  function MockHttpServer() {
+  function MockHttpServer(handler) {
+    this.handler_ = handler;
     this.port = undefined;
   }
   
@@ -116,14 +123,25 @@ packages['http'] = (function() {
   }
   
   MockHttpServer.prototype.onConnection = function(client) {
+    if (client instanceof WebSocketClientMock && this.webSocketServer) {
+      this.webSocketServer.onConnection(client);
+      return;
+    }
     throw new Error('Received unhandled connection from client');
   }
   
-  function createMockServer() {
-    return new MockHttpServer();
+  function createMockServer(handler) {
+    return new MockHttpServer(handler);
   }
   
   return {
     'createServer': createMockServer,
   }
-})
+})();
+
+packages['serve-static'] = (function() {
+
+  return function() {
+    console.log('serve-static not actually implemented');
+  };
+})();

@@ -1,16 +1,17 @@
 describe("lobby.Lobby", function() {
 
   var lobbyApi;
+  var lobbyServerLocation = location.origin.replace('http', 'ws');
   var testPort = '1234';
-  var server;
+  var server = {};
   var originalTimeout;
 
   beforeEach(function() {
     // Mock out communication, then run server
     installWebSocketMock();
     installWebRTCMock();
-    lobbyApi = new lobby.LobbyApi('ws://localhost:'+testPort);
-    server = new Server(testPort);
+    lobbyApi = new lobby.LobbyApi(lobbyServerLocation);
+    server = new Server({'port': testPort});
     originalTimeout = jasmine.DEFAULT_TIMEOUT_INTERVAL;
     jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
   });
@@ -93,6 +94,8 @@ describe("lobby.Lobby", function() {
       session.addEventListener('open', function(id) {
         expect(id).toBeTruthy();
         sessionId = id;
+        // Disable relay on this host.
+        session.relay_ = false;
         done();
       })
     });

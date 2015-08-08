@@ -162,11 +162,12 @@ lobby.ClientSession.prototype = lobby.util.extend(lobby.util.EventSource.prototy
     else if (data.type == 'relay') {
       this.relay_ = true;
       this.dispatchEvent('open');
+    } else if (data.type == 'close') {
+      this.websocket_.close();
+      delete this.websocket_;
     }
   },
   onDataChannel_: function(channel) {
-    this.websocket_.close();
-    delete this.websocket_;
     if (!this.relay_)
       this.dispatchEvent('open', channel);
   },
@@ -176,9 +177,10 @@ lobby.ClientSession.prototype = lobby.util.extend(lobby.util.EventSource.prototy
   },
 
   send: function(msg) {
-    if (this.websocket_)
+    if (this.dataChannel_.readyState == 'open')
+      this.dataChannel_.send(msg);
+    else if (this.websocket_)
       this.websocket_.send(JSON.stringify({'type': 'message', 'data': msg}));
-    this.dataChannel_.send(msg);
   },
 
   close: function() {
