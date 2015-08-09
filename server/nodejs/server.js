@@ -118,6 +118,8 @@ exports.Server = function() {
             }
         }
       });
+      // Inform the server that a client connected.
+      session.socket.send(JSON.stringify({'client': clientId}));
     },
 
     /**

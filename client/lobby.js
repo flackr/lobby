@@ -86,10 +86,7 @@ lobby.HostClient.prototype = lobby.util.extend(lobby.util.EventSource.prototype,
     this.dispatchEvent('open');
   },
   onMessage_: function(data) {
-    if (data.type == 'relay') {
-      if (!this.relay_)
-        this.hostSession_.websocket_.send(JSON.stringify({'client': this.clientId_, 'type': 'close', 'data': ''}));
-    } else if (data.type == 'offer') {
+    if (data.type == 'offer') {
       this.rtcConnection_ = new RTCPeerConnection(this.hostSession_.configuration, null);
       this.rtcConnection_.ondatachannel = this.onDataChannel_.bind(this);
       this.rtcConnection_.onicecandidate = this.sendIceCandidate_.bind(this);
@@ -167,7 +164,6 @@ lobby.HostClient.prototype = lobby.util.extend(lobby.util.EventSource.prototype,
 lobby.ClientSession = function(host, identifier, configuration) {
   this.state = 'connecting';
   this.configuration = configuration;
-  this.websocket_ = new WebSocket(host + '/' + identifier);
   this.addEventTypes(['open', 'message', 'close', 'state']);
   if (window.RTCPeerConnection) {
     this.rtcConnection_ = new RTCPeerConnection(this.configuration, null);
@@ -177,6 +173,7 @@ lobby.ClientSession = function(host, identifier, configuration) {
     this.rtcConnection_.onicecandidate = this.onIceCandidate_.bind(this);
     this.rtcConnection_.oniceconnectionstatechange = this.onIceConnectionStateChange_.bind(this);
   }
+  this.websocket_ = new WebSocket(host + '/' + identifier);
   this.websocket_.addEventListener('open', this.onOpen_.bind(this));
   this.websocket_.addEventListener('message', this.onMessage_.bind(this));
   this.websocket_.addEventListener('close', this.onWebSocketClose_.bind(this));
@@ -192,15 +189,14 @@ lobby.ClientSession.prototype = lobby.util.extend(lobby.util.EventSource.prototy
   onOpen_: function() {
     if (this.rtcConnection_)
       this.rtcConnection_.createOffer(this.onOffer_.bind(this));
-    else
-      this.websocket_.send(JSON.stringify({'type': 'relay', 'data': ''}));
   },
   onOffer_: function(desc) {
     this.rtcConnection_.setLocalDescription(desc);
-    this.websocket_.send(JSON.stringify({'type' : 'offer', 'data' : desc}));
+    if (this.websocket_)
+      this.websocket_.send(JSON.stringify({'type' : 'offer', 'data' : desc}));
   },
   onIceCandidate_: function(event) {
-    if (event.candidate)
+    if (event.candidate && this.websocket_)
       this.websocket_.send(JSON.stringify({'type' : 'candidate', 'data' : event.candidate}));
   },
   onMessage_: function(e) {

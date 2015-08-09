@@ -36,7 +36,10 @@ WebSocketClientMock.prototype = lobby.util.extend(lobby.util.EventSource.prototy
   onConnection: function(ws) {
     this.ws_ = ws;
     this.readyState = 1;
-    this.dispatchEvent('open');
+    var self = this;
+    setTimeout(function() {
+      self.dispatchEvent('open');
+    }, 0);
   },
   close: function() {
     if (this.readyState == 3)
@@ -82,7 +85,8 @@ packages['ws'] = (function() {
       httpServer.onConnection = this.onConnection.bind(this);
     },
     onConnection: function(ws) {
-      this.dispatch('connection', new WebSocketServerClientMock(ws));
+      var connection = new WebSocketServerClientMock(ws);
+      this.dispatch('connection', connection);
     },
     
   });
@@ -93,7 +97,7 @@ packages['ws'] = (function() {
       url: ws.address.match(/^(?:[^/]*\/){2}[^/]*(.*)/)[1],
     };
     this.readyState = 1;
-    setTimeout(this.ws.onConnection.bind(this.ws, this), 0);
+    this.ws.onConnection(this);
   }
   
   WebSocketServerClientMock.prototype = lobby.util.extend(NodeJSEventSource.prototype, {
