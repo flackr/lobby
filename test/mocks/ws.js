@@ -20,11 +20,12 @@ NodeJSEventSource.prototype = {
   }
 }
 
-function WebSocketClientMock(address) {
+function WebSocketClientMock(address, origin) {
   this.addEventTypes(['open', 'message', 'close']);
   this.ws_ = null;
   this.readyState = 0;
   this.address = address;
+  this.origin_ = origin;
   // Need to give the caller a chance to attach listeners.
   setTimeout(listener.onConnection.bind(listener, this), 0);
 }
@@ -95,6 +96,9 @@ packages['ws'] = (function() {
     this.ws = ws;
     this.upgradeReq = {
       url: ws.address.match(/^(?:[^/]*\/){2}[^/]*(.*)/)[1],
+      headers: {
+        origin: ws.origin_,
+      },
     };
     this.readyState = 1;
     this.ws.onConnection(this);

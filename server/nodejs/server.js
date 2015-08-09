@@ -11,6 +11,8 @@ exports.Server = function() {
 
   var Server = function(options) {
     this.sessions = [];
+    this.listings_ = {};
+    this.listingTypes_ = [];
     this.nextId_ = 1;
     this.allowRelay_ = true;
     options.port = options.port || (options.key ? 443 : 80);
@@ -28,8 +30,24 @@ exports.Server = function() {
   Server.prototype = {
 
     onRequest_: function(req, res) {
-      var done = finalhandler(req, res);
-      this.serve(req, res, done);
+      console.log('Request for ' + req.url);
+      if (req.url == '/list' || req.url.substring(0, 6) == '/list/') {
+        this.listSessions_(req, res);
+      } else {
+        // Default handler.
+        var done = finalhandler(req, res);
+        this.serve(req, res, done);
+      }
+    },
+
+    listSessions_: function(req, res) {
+      res.writeHead(200, {'Content-Type': 'application/json'});
+      if (req.url.length > 6) {
+        res.end(JSON.stringify(this.listings_[req.url.slice(6)] || {}));
+      } else {
+        // Simply look up game types.
+        res.end(JSON.stringify(this.listingTypes_));
+      }
     },
 
     /**
@@ -48,8 +66,9 @@ exports.Server = function() {
      * @param {WebSocket} websocket A connected websocket client connection.
      */
     onConnection_: function(websocket) {
-      console.log('connection for ' + websocket.upgradeReq.url);
-      var self = this;
+      // Origin is of the form 'https://www.lobbyjs.com'
+      var origin = websocket.upgradeReq.headers.origin || 'unknown';
+      console.log('connection for ' + origin);
       if (websocket.upgradeReq.url == '/new') {
         this.createHost_(websocket);
         return;
@@ -122,6 +141,32 @@ exports.Server = function() {
       session.socket.send(JSON.stringify({'client': clientId}));
     },
 
+    registerListing_: function(type, id, details) {
+      if (!this.listings_[type]) {
+        this.listings_[type] = {};
+        this.updateListingTypes_();
+      }
+      this.listings_[type][id] = details;
+    },
+
+    removeListing_: function(type, id) {
+      delete this.listings_[type][id];
+      // Check if there are still any games in this type.
+      for (var i in this.listings_[type]) {
+        return;
+      }
+      // If not, remove the type.
+      delete this.listings_[type];
+      this.updateListingTypes_();
+    },
+
+    updateListingTypes_: function() {
+      this.listingTypes_ = [];
+      for (var i in this.listings_) {
+        this.listingTypes_.push(i);
+      }
+    },
+
     /**
      * Create a new session host accepting connections through signaling socket
      * |websocket|.
@@ -130,13 +175,17 @@ exports.Server = function() {
      */
     createHost_: function(websocket) {
       var self = this;
+      var origin = websocket.upgradeReq.headers.origin || 'unknown';
       var sessionId = this.getNextId_();
       console.log('Created session ' + sessionId);
       var session = this.sessions[sessionId] = {
         'socket': websocket,
         'clients': {},
-        'nextClientId': 1
+        'nextClientId': 1,
+        'type': origin,
+        'desc': {},
       };
+      this.registerListing_(session.type, sessionId, session.desc);
       websocket.on('message', function(message) {
         var data;
         try {
@@ -163,6 +212,7 @@ exports.Server = function() {
       });
       websocket.on('close', function() {
         console.log("Session " + sessionId + " ended, disconnecting clients.");
+        self.removeListing_(session.type, sessionId);
         for (var clientId in session.clients) {
           // Server went away while client was connecting.
           if (session.clients[clientId].socket.readyState != 1)
