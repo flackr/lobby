@@ -1,4 +1,4 @@
-var lobby = lobby || {};
+window.lobby = lobby || {};
 var RTCPeerConnection = RTCPeerConnection || webkitRTCPeerConnection || mozRTCPeerConection;
 
 lobby.LobbyApi = function(host, configuration) {

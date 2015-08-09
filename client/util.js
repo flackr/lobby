@@ -5,7 +5,7 @@ Object.create = Object.create || function(proto) {
   return new f();
 };
 
-var lobby = {};
+window.lobby = {};
 
 lobby.util = {};
 
