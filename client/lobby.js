@@ -1,5 +1,9 @@
-window.lobby = lobby || {};
-var RTCPeerConnection = RTCPeerConnection || webkitRTCPeerConnection || mozRTCPeerConection;
+'use strict';
+
+window.lobby = window.lobby || {};
+window.RTCPeerConnection = window.RTCPeerConnection || window.webkitRTCPeerConnection || window.mozRTCPeerConnection;
+window.RTCSessionDescription = window.RTCSessionDescription || window.webkitRTCSessionDescription || window.mozRTCSessionDescription;
+window.RTCIceCandidate = window.RTCIceCandidate || window.webkitRTCIceCandidate || window.mozRTCIceCandidate;
 
 lobby.LobbyApi = function(host, configuration) {
   this.host_ = host;
@@ -167,7 +171,7 @@ lobby.ClientSession = function(host, identifier, configuration) {
   this.addEventTypes(['open', 'message', 'close', 'state']);
   if (window.RTCPeerConnection) {
     this.rtcConnection_ = new RTCPeerConnection(this.configuration, null);
-    this.dataChannel_ = this.rtcConnection_.createDataChannel('data', {reliable: false});
+    this.dataChannel_ = this.rtcConnection_.createDataChannel('data', null);
     this.dataChannel_.addEventListener('open', this.onDataChannelConnected_.bind(this, this.dataChannel_));
     this.dataChannel_.addEventListener('message', this.onDataChannelMessage_.bind(this));
     this.rtcConnection_.onicecandidate = this.onIceCandidate_.bind(this);
@@ -220,7 +224,7 @@ lobby.ClientSession.prototype = lobby.util.extend(lobby.util.EventSource.prototy
     delete this.websocket_;
     if (!this.isDataChannelConnected_()) {
       this.dispatchEvent('close');
-      if (this.rtcConnection_.signalingState != 'closed')
+      if (this.rtcConnection_ && this.rtcConnection_.signalingState != 'closed')
         this.rtcConnection_.close();
     }
   },
@@ -240,7 +244,7 @@ lobby.ClientSession.prototype = lobby.util.extend(lobby.util.EventSource.prototy
   },
   
   isDataChannelConnected_: function() {
-    return this.dataChannel_.readyState == 'open' && this.rtcConnection_.iceConnectionState != 'disconnected';
+    return this.dataChannel_ && this.dataChannel_.readyState == 'open' && this.rtcConnection_.iceConnectionState != 'disconnected';
   },
 
   send: function(msg) {

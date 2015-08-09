@@ -1,3 +1,5 @@
+'use strict';
+
 // Polyfill Object.create
 Object.create = Object.create || function(proto) {
   var f = function() {};
@@ -5,7 +7,7 @@ Object.create = Object.create || function(proto) {
   return new f();
 };
 
-window.lobby = {};
+window.lobby = window.lobby || {};
 
 lobby.util = {};
 

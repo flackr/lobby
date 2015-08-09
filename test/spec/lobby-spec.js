@@ -19,7 +19,7 @@ describe("lobby.Lobby", function() {
   });
   
   afterEach(function() {
-    //uninstallWebSocketMock();
+    uninstallWebSocketMock();
     jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
   });
 
@@ -212,6 +212,7 @@ describe("lobby.Lobby", function() {
     var sessionId;
 
     beforeEach(function(done) {
+      expect(window.RTCPeerConnection).toBeTruthy();
       server.allowRelay_ = false;
       sessionId = undefined;
       session = lobbyApi.createSession();
@@ -234,8 +235,6 @@ describe("lobby.Lobby", function() {
       var clientChannel;
       
       beforeEach(function(done) {
-        clientChannel = undefined;
-        hostChannel = undefined;
         session.addEventListener('connection', function(channel) {
           hostChannel = channel;
           expect(hostChannel.state).toBe('open');
@@ -249,6 +248,11 @@ describe("lobby.Lobby", function() {
           if (hostChannel)
             done();
         });
+      });
+
+      afterEach(function() {
+        clientChannel = undefined;
+        hostChannel = undefined;
       });
       
       it("should be able to send a ping", function(done) {
