@@ -23,6 +23,76 @@ describe("lobby.Lobby", function() {
     jasmine.DEFAULT_TIMEOUT_INTERVAL = originalTimeout;
   });
 
+  describe("if the client does not support WebRTC", function() {
+    var session;
+    var sessionId;
+    var oldRTCPeerConnection = window.RTCPeerConnection;
+    var oldRTCSessionDescription = window.RTCSessionDescription;
+    var oldRTCIceCandidate = window.RTCIceCandidate;
+
+    beforeEach(function(done) {
+      window.RTCPeerConnection = undefined;
+      window.RTCSessionDescription = undefined;
+      window.RTCIceCandidate = undefined;
+      sessionId = undefined;
+      session = lobbyApi.createSession();
+      session.addEventListener('open', function(id) {
+        expect(id).toBeTruthy();
+        sessionId = id;
+        done();
+      })
+    });
+
+    afterEach(function() {
+      window.RTCPeerConnection = oldRTCPeerConnection;
+      window.RTCSessionDescription = oldRTCSessionDescription;
+      window.RTCIceCandidate = oldRTCIceCandidate;
+    });
+    
+    describe("it should connect using the relay", function() {
+      
+      var hostChannel;
+      var clientChannel;
+      
+      beforeEach(function(done) {
+        session.addEventListener('connection', function(channel) {
+          hostChannel = channel;
+          expect(hostChannel.state).toBe('relay');
+          if (clientChannel)
+            done();
+        });
+        var client = lobbyApi.joinSession(sessionId);
+        client.addEventListener('open', function(channel) {
+          clientChannel = client;
+          expect(clientChannel.state).toBe('relay');
+          if (hostChannel)
+            done();
+        });
+      });
+
+      afterEach(function() {
+        hostChannel = undefined;
+        clientChannel = undefined;
+      })
+      
+      it("and be able to send a ping", function(done) {
+        var clientMsg = 'ping';
+        var serverMsg = 'pong';
+        clientChannel.addEventListener('message', function(e) {
+          expect(e.data).toBe(serverMsg);
+          done();
+        });
+
+        hostChannel.addEventListener('message', function(e) {
+          expect(e.data).toBe(clientMsg);
+          hostChannel.send(serverMsg);
+        });
+
+        clientChannel.send(clientMsg);
+      });
+    });
+  });
+
   describe("if the server supports relay", function() {
 
     var session;
