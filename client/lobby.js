@@ -78,8 +78,8 @@ lobby.LobbyApi.prototype = {
    *
    * @return {lobby.HostSession} A host lobby session.
    */
-  createSession: function() {
-    return new lobby.HostSession(this.host_, this.configuration);
+  createSession: function(type) {
+    return new lobby.HostSession(this.host_, this.configuration, type);
   },
 
   /**
@@ -92,15 +92,18 @@ lobby.LobbyApi.prototype = {
   },
 };
 
-lobby.HostSession = function(host, configuration) {
+lobby.HostSession = function(host, configuration, type) {
   this.configuration = configuration;
   this.addEventTypes(['open', 'connection', 'close']);
-  this.websocket_ = new WebSocket(host + '/new');
+  this.websocket_ = new WebSocket(host + '/new' + (type ? ('/' + type) : ''));
   this.websocket_.addEventListener('message', this.onMessage_.bind(this));
   this.clients_ = [];
 };
 
 lobby.HostSession.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
+  setDescription: function(data) {
+    this.websocket_.send(JSON.stringify({'type': 'desc', 'data': data}));
+  },
   onMessage_: function(e) {
     var data = JSON.parse(e.data);
     if (data.host) {

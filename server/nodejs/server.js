@@ -69,8 +69,8 @@ exports.Server = function() {
       // Origin is of the form 'https://www.lobbyjs.com'
       var origin = websocket.upgradeReq.headers.origin || 'unknown';
       console.log('connection for ' + origin);
-      if (websocket.upgradeReq.url == '/new') {
-        this.createHost_(websocket);
+      if (websocket.upgradeReq.url == '/new' || websocket.upgradeReq.url.substring(0, 5) == '/new/') {
+        this.createHost_(websocket, websocket.upgradeReq.url.substring(5));
         return;
       }
       this.connectClient_(websocket);
@@ -112,7 +112,7 @@ exports.Server = function() {
           data = JSON.parse(message);
         } catch (err) {
         }
-        if (data !== null) {
+        if (data !== null && session.socket.readyState == 1) {
           session.socket.send(JSON.stringify({'client': clientId, 'type': data.type, 'data': data.data}));
         } else {
           console.log("Client message is not JSON: " + message);
@@ -150,6 +150,8 @@ exports.Server = function() {
     },
 
     removeListing_: function(type, id) {
+      if (!this.listings_[type])
+        return;
       delete this.listings_[type][id];
       // Check if there are still any games in this type.
       for (var i in this.listings_[type]) {
@@ -173,7 +175,7 @@ exports.Server = function() {
      *
      * @param {WebSocket} websocket A connected websocket client connection.
      */
-    createHost_: function(websocket) {
+    createHost_: function(websocket, type) {
       var self = this;
       var origin = websocket.upgradeReq.headers.origin || 'unknown';
       var sessionId = this.getNextId_();
@@ -182,16 +184,22 @@ exports.Server = function() {
         'socket': websocket,
         'clients': {},
         'nextClientId': 1,
-        'type': origin,
+        'type': type || origin,
         'desc': {},
       };
-      this.registerListing_(session.type, sessionId, session.desc);
       websocket.on('message', function(message) {
         var data;
         try {
           data = JSON.parse(message);
         } catch (err) {
           websocket.close();
+          return;
+        }
+        if (!data.client) {
+          if (data.type == 'desc') {
+            session.desc = data.data;
+            self.registerListing_(session.type, sessionId, session.desc);
+          }
           return;
         }
         var clientId = data.client;
