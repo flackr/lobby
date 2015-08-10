@@ -97,12 +97,19 @@ lobby.HostSession = function(host, configuration, type) {
   this.addEventTypes(['open', 'connection', 'close']);
   this.websocket_ = new WebSocket(host + '/new' + (type ? ('/' + type) : ''));
   this.websocket_.addEventListener('message', this.onMessage_.bind(this));
+  this.websocket_.addEventListener('close', this.onClose_.bind(this));
   this.clients_ = [];
 };
 
 lobby.HostSession.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
+  close: function() {
+    this.websocket_.close();
+  },
   setDescription: function(data) {
     this.websocket_.send(JSON.stringify({'type': 'desc', 'data': data}));
+  },
+  onClose_: function() {
+    this.dispatchEvent('close');
   },
   onMessage_: function(e) {
     var data = JSON.parse(e.data);
