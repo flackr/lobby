@@ -159,7 +159,9 @@ lobby.HostClient.prototype = lobby.util.extend(lobby.util.EventSource.prototype,
       this.rtcConnection_.onicecandidate = this.sendIceCandidate_.bind(this);
       this.rtcConnection_.oniceconnectionstatechange = this.onIceConnectionStateChange_.bind(this);
       this.rtcConnection_.setRemoteDescription(new RTCSessionDescription(data.data));
-      this.rtcConnection_.createAnswer(this.sendAnswer_.bind(this));
+      this.rtcConnection_.createAnswer(this.sendAnswer_.bind(this), function(e) {
+        console.log('Failed to create answer');
+      });
     } else if (data.type == 'candidate' && this.rtcConnection_.signalingState != 'closed') {
       this.rtcConnection_.addIceCandidate(new RTCIceCandidate(data.data));
     } else if (data.type == 'message') {
@@ -254,8 +256,11 @@ lobby.ClientSession.prototype = lobby.util.extend(lobby.util.EventSource.prototy
     this.dispatchEvent('state', state);
   },
   onOpen_: function() {
-    if (this.rtcConnection_)
-      this.rtcConnection_.createOffer(this.onOffer_.bind(this));
+    if (this.rtcConnection_) {
+      this.rtcConnection_.createOffer(this.onOffer_.bind(this), function(e) {
+        console.log('Failed to create offer');
+      });
+    }
   },
   onOffer_: function(desc) {
     this.rtcConnection_.setLocalDescription(desc);
