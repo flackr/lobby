@@ -41,6 +41,7 @@ exports.Server = function() {
     },
 
     listSessions_: function(req, res) {
+      res.setHeader('Access-Control-Allow-Origin', '*');
       res.writeHead(200, {'Content-Type': 'application/json'});
       if (req.url.length > 6) {
         res.end(JSON.stringify(this.listings_[req.url.slice(6)] || {}));
