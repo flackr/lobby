@@ -62,7 +62,7 @@ describe("lobby.Lobby", function() {
             done();
         });
         var client = lobbyApi.joinSession(sessionId);
-        client.addEventListener('open', function(channel) {
+        client.addEventListener('open', function() {
           clientChannel = client;
           expect(clientChannel.state).toBe('relay');
           if (hostChannel)
@@ -129,7 +129,7 @@ describe("lobby.Lobby", function() {
             done();
         });
         var client = lobbyApi.joinSession(sessionId);
-        client.addEventListener('open', function(channel) {
+        client.addEventListener('open', function() {
           clientChannel = client;
           expect(clientChannel.state).toBe('relay');
           if (hostChannel)
@@ -228,7 +228,80 @@ describe("lobby.Lobby", function() {
     afterEach(function() {
       server.allowRelay_ = true;
     });
-    
+
+    describe("after connecting a local client", function() {
+
+      var hostChannel;
+      var clientChannel;
+
+      beforeEach(function(done) {
+        session.addEventListener('connection', function(channel) {
+          hostChannel = channel;
+          if (clientChannel)
+            done();
+        });
+        var client = session.createLocalConnection();
+        client.addEventListener('open', function() {
+          clientChannel = client;
+          expect(clientChannel.state).toBe('local');
+          if (hostChannel)
+            done();
+        });
+      });
+
+      afterEach(function() {
+        clientChannel = undefined;
+        hostChannel = undefined;
+      });
+
+      it("client should be able to send a ping", function(done) {
+        var clientMsg = 'ping';
+        var serverMsg = 'pong';
+        clientChannel.addEventListener('message', function(e) {
+          expect(e.data).toBe(serverMsg);
+          done();
+        });
+
+        hostChannel.addEventListener('message', function(e) {
+          expect(e.data).toBe(clientMsg);
+          hostChannel.send(serverMsg);
+        });
+
+        clientChannel.send(clientMsg);
+      });
+
+      it("host should be able to send a ping", function(done) {
+        var serverMsg = 'ping';
+        var clientMsg = 'pong';
+        clientChannel.addEventListener('message', function(e) {
+          expect(e.data).toBe(serverMsg);
+          clientChannel.send(clientMsg);
+        });
+
+        hostChannel.addEventListener('message', function(e) {
+          expect(e.data).toBe(clientMsg);
+          done();
+        });
+
+        hostChannel.send(serverMsg);
+      });
+
+      it("should detect a disconnected client", function(done) {
+        hostChannel.addEventListener('close', function() {
+          done();
+        });
+        clientChannel.close();
+      });
+
+      it("should detect a disconnected host", function(done) {
+        clientChannel.addEventListener('close', function() {
+          done();
+        });
+        hostChannel.close();
+      });
+
+    });
+
     describe("after connecting a client", function() {
       
       var hostChannel;
@@ -242,7 +315,7 @@ describe("lobby.Lobby", function() {
             done();
         });
         var client = lobbyApi.joinSession(sessionId);
-        client.addEventListener('open', function(channel) {
+        client.addEventListener('open', function() {
           clientChannel = client;
           expect(clientChannel.state).toBe('open');
           if (hostChannel)

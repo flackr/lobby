@@ -120,16 +120,60 @@ lobby.HostSession.prototype = lobby.util.extend(lobby.util.EventSource.prototype
     if (data.client) {
       if (!this.clients_[data.client]) {
         this.clients_[data.client] = new lobby.HostClient(this, data.client);
-        this.clients_[data.client].addEventListener('open', this.onConnection_.bind(this, data.client));
+        this.clients_[data.client].addEventListener('open', this.onConnection_.bind(this, this.clients_[data.client]));
         if (this.relay_)
           this.clients_[data.client].connectRelay_();
       }
       this.clients_[data.client].onMessage_(data);
     }
   },
-  onConnection_: function(clientId) {
-    this.dispatchEvent('connection', this.clients_[clientId]);
-  }
+  onConnection_: function(connection) {
+    this.dispatchEvent('connection', connection);
+  },
+  createLocalConnection: function() {
+    var conn = new lobby.LocalConnection();
+    var self = this;
+    conn.remote_.addEventListener('open', function() {
+      self.onConnection_(conn.remote_);
+    });
+    return conn;
+  },
+});
+
+lobby.LocalConnection = function(remote) {
+  this.addEventTypes(['open', 'message', 'close', 'state']);
+  this.state = 'connecting';
+  this.remote_ = remote || new lobby.LocalConnection(this);
+  setTimeout(this.onConnection_.bind(this), 0);
+};
+
+lobby.LocalConnection.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
+  changeState_: function(state) {
+    if (state == this.state)
+      return;
+    this.state = state;
+    this.dispatchEvent('state', state);
+  },
+  send: function(msg) {
+    // Many applications will not be able to handle messsages arriving synchronously.
+    setTimeout(this.remote_.onMessage_.bind(this.remote_, msg), 0);
+  },
+  close: function() {
+    if (this.state == 'closing')
+      return;
+    this.changeState_('closing');
+    this.remote_.close();
+    this.remote_ = null;
+    this.changeState_('closed');
+    this.dispatchEvent('close');
+  },
+  onConnection_: function() {
+    this.changeState_('local');
+    this.dispatchEvent('open');
+  },
+  onMessage_: function(data) {
+    this.dispatchEvent('message', {'data': data});
+  },
 });
 
 lobby.HostClient = function(hostSession, clientId) {
@@ -212,7 +256,7 @@ lobby.HostClient.prototype = lobby.util.extend(lobby.util.EventSource.prototype,
       this.changeState('open');
     } else {
       this.changeState('open');
-      this.dispatchEvent('open', channel);
+      this.dispatchEvent('open');
     }
   },
   send: function(msg) {
@@ -299,7 +343,7 @@ lobby.ClientSession.prototype = lobby.util.extend(lobby.util.EventSource.prototy
   onDataChannelConnected_: function(channel) {
     this.changeState('open');
     if (!this.relay_)
-      this.dispatchEvent('open', channel);
+      this.dispatchEvent('open');
   },
 
   onDataChannelMessage_: function(e) {
