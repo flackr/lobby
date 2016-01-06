@@ -205,6 +205,20 @@ describe("lobby.Lobby", function() {
     });
 
   });
+  
+  it("should dispatch an error if trying to connect to a game that doesn't exist", function(done) {
+    var client = lobbyApi.joinSession(1);
+    var callbacks = jasmine.createSpyObj('callbacks', ['open', 'error']);
+    client.addEventListener('open', callbacks.open);
+    client.addEventListener('error', callbacks.error);
+    client.addEventListener('close', function() {
+      // We should not receive an open event if session does not exist.
+      expect(callbacks.open).not.toHaveBeenCalled();
+      // We should receive an error event before close if session does not exist.
+      expect(callbacks.error).toHaveBeenCalledWith(404, '');
+      done();
+    });
+  });
 
   describe("after creating a game", function() {
 

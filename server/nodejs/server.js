@@ -90,7 +90,7 @@ exports.Server = function() {
         console.log("Client attempted to connect to invalid sessionId "+sessionId);
         // TODO(flackr): Investigate generating this error before upgrading to
         // a websocket. (http://nodejs.org/api/http.html#http_http_createserver_requestlistener)
-        websocket.send(JSON.stringify({'error': 404}));
+        websocket.send(JSON.stringify({'type': 'error', 'error': 404}));
         websocket.close();
         return;
       }
