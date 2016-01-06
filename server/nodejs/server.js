@@ -139,7 +139,9 @@ exports.Server = function() {
         }
       });
       // Inform the server that a client connected.
-      session.socket.send(JSON.stringify({'client': clientId}));
+      if (session.socket.readyState == 1) {
+        session.socket.send(JSON.stringify({'client': clientId}));
+      }
     },
 
     registerListing_: function(type, id, details) {
