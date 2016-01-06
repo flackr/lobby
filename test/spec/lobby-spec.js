@@ -215,7 +215,7 @@ describe("lobby.Lobby", function() {
       // We should not receive an open event if session does not exist.
       expect(callbacks.open).not.toHaveBeenCalled();
       // We should receive an error event before close if session does not exist.
-      expect(callbacks.error).toHaveBeenCalledWith(404, '');
+      expect(callbacks.error).toHaveBeenCalledWith(404, 'The requested session id does not exist.');
       done();
     });
   });
