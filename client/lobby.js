@@ -312,11 +312,11 @@ lobby.ClientSession.prototype = lobby.util.extend(lobby.util.EventSource.prototy
   },
   onOffer_: function(desc) {
     this.rtcConnection_.setLocalDescription(desc);
-    if (this.websocket_)
+    if (this.websocket_ && this.websocket_.readyState == 1)
       this.websocket_.send(JSON.stringify({'type' : 'offer', 'data' : desc}));
   },
   onIceCandidate_: function(event) {
-    if (event.candidate && this.websocket_)
+    if (event.candidate && this.websocket_ && this.websocket_.readyState == 1)
       this.websocket_.send(JSON.stringify({'type' : 'candidate', 'data' : event.candidate}));
   },
   onMessage_: function(e) {
@@ -372,7 +372,7 @@ lobby.ClientSession.prototype = lobby.util.extend(lobby.util.EventSource.prototy
   send: function(msg) {
     if (this.dataChannel_ && this.dataChannel_.readyState == 'open')
       this.dataChannel_.send(msg);
-    else if (this.websocket_)
+    else if (this.websocket_ && this.websocket_.readyState == 1)
       this.websocket_.send(JSON.stringify({'type': 'message', 'data': msg}));
     else
       throw new Error('Trying to send message while not connected');
