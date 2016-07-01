@@ -1,5 +1,4 @@
-<!-- Mock out websocket stuff. -->
-
+/* global lobby */
 // TODO(flackr): Use listeningPorts to bind the mock server to the correct fake local port.
 var listener = null;
 var listeningPorts = {};
@@ -19,6 +18,61 @@ NodeJSEventSource.prototype = {
       console.log('Warning, no handler for event type ' + type);
   }
 }
+
+function XMLHttpRequestMock() {
+  this.addEventTypes(['load', 'error', 'loadend']);
+  this.readyState = 0;
+  this.method = '';
+  this.address = '';
+  this.server_ = null;
+  this.async = true;
+}
+
+XMLHttpRequestMock.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
+  open: function(method, address, is_async) {
+    this.readyState = 1;
+    this.method = method;
+    this.address = address;
+    this.async = is_async;
+  },
+  send: function(data) {
+    this.data = data;
+    if (this.readyState != 1)
+      return;
+    var req = {};
+    setTimeout(listener.handler_.bind(listener, req, new XMLHttpRequestMockServer(this)), 0);
+  },
+});
+
+function XMLHttpRequestMockServer(client) {
+  this.request_ = client;
+}
+
+XMLHttpRequestMockServer.prototype = lobby.util.extend(lobby.util.EventSource.prototype, {
+  setHeader: function(name, value) {
+  },
+  writeHead: function(resultCode, headers) {
+    // TODO: Do something with 'Content-type' header.
+    this.request_.readyState = 2;
+    this.request_.responseCode = resultCode;
+    this.request_.responseType = headers['Content-Type'] || 'application/text';
+  },
+  end: function(msg) {
+    // TODO: Set other response types appropriately.
+    if (this.request_.responseType == 'application/json') {
+      this.request_.response = JSON.parse(msg);
+    } else {
+      this.request_.responseText = msg;
+    }
+    this.request_.readyState = 4;
+    if (this.request_.responseCode == 200)
+      this.request_.dispatchEvent('load');
+    else
+      this.request_.dispatchEvent('error');
+      // loadend is dispatched regardless of the result.
+    this.request_.dispatchEvent('loadend');
+  },
+});
 
 function WebSocketClientMock(address, origin) {
   this.addEventTypes(['open', 'message', 'close']);
@@ -53,6 +107,17 @@ WebSocketClientMock.prototype = lobby.util.extend(lobby.util.EventSource.prototy
     this.readyState = 3;
   },
 });
+
+window.originalXMLHttpRequest = window.XMLHttpRequest;
+function installXMLHttpRequestMock() {
+  window.XMLHttpRequest = XMLHttpRequestMock;
+  window.XMLHttpRequest.prototype = XMLHttpRequestMock.prototype;
+}
+
+function uninstallXMLHttpRequestMock() {
+  window.XMLHttpRequest = originalXMLHttpRequest;
+  window.XMLHttpRequest.prototype = originalXMLHttpRequest.prototype;
+}
 
 window.originalWebSocket = window.WebSocket;
 function installWebSocketMock() {
