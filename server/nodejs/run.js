@@ -2,4 +2,5 @@ var lobby = require("./server.js");
 
 var options = {};
 
-new lobby.Server(options);
+var server = new lobby.Server();
+server.listen(options);

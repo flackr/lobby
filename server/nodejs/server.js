@@ -9,27 +9,32 @@ var serveStatic = require('serve-static');
 
 exports.Server = function() {
 
-  var Server = function(options) {
+  var Server = function() {
     this.sessions = [];
     this.listings_ = {};
     this.listingTypes_ = [];
     this.nextId_ = 1;
     this.allowRelay_ = true;
-    options.port = options.port || (options.key ? 443 : 80);
-    if (options.key)
-      this.webServer_ = https.createServer(options, this.onRequest_.bind(this));
-    else
-      this.webServer_ = http.createServer(this.onRequest_.bind(this));
-    this.webSocketServer_ = new WebSocketServer({'server': this.webServer_});
-    this.webSocketServer_.on('connection', this.onConnection_.bind(this));
-    this.webServer_.listen(options.port);
+    this.webServer_ = null;
+    this.webSocketServer_ = null;
     this.serve = serveStatic('../../');
-    console.log('Listening on ' + options.port);
   };
 
   Server.prototype = {
 
-    onRequest_: function(req, res) {
+    listen: function(options) {
+      options.port = options.port || (options.key ? 443 : 80);
+      if (options.key)
+        this.webServer_ = https.createServer(options, this.onRequest.bind(this));
+      else
+        this.webServer_ = http.createServer(this.onRequest.bind(this));
+      this.webSocketServer_ = new WebSocketServer({'server': this.webServer_});
+      this.webSocketServer_.on('connection', this.onConnection.bind(this));
+      this.webServer_.listen(options.port);
+      console.log('Listening on ' + options.port);
+    },
+
+    onRequest: function(req, res) {
       console.log('Request for ' + req.url);
       if (req.url == '/list' || req.url.substring(0, 6) == '/list/') {
         this.listSessions_(req, res);
@@ -66,7 +71,7 @@ exports.Server = function() {
      *
      * @param {WebSocket} websocket A connected websocket client connection.
      */
-    onConnection_: function(websocket) {
+    onConnection: function(websocket) {
       // Origin is of the form 'https://www.lobbyjs.com'
       var origin = websocket.upgradeReq.headers.origin || 'unknown';
       console.log('connection for ' + origin);

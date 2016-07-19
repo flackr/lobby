@@ -13,7 +13,8 @@ describe("lobby.Lobby", function() {
     installWebSocketMock();
     installWebRTCMock();
     lobbyApi = new lobby.LobbyApi(lobbyServerLocation);
-    server = new Server({'port': testPort});
+    server = new Server();
+    server.listen({'port': testPort});
     originalTimeout = jasmine.DEFAULT_TIMEOUT_INTERVAL;
     jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
   });
