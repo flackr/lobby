@@ -150,23 +150,24 @@ packages['ws'] = (function() {
     attach: function(httpServer) {
       httpServer.onConnection = this.onConnection.bind(this);
     },
-    onConnection: function(ws) {
+    onConnection: function(ws, req) {
       var connection = new WebSocketServerClientMock(ws);
-      this.dispatch('connection', connection);
+      this.dispatch('connection', connection, connection.upgradeReq);
     },
     
   });
   
   function WebSocketServerClientMock(ws) {
     this.ws = ws;
-    this.upgradeReq = {
+    let req = {
       url: ws.address.match(/^(?:[^/]*\/){2}[^/]*(.*)/)[1],
       headers: {
         origin: ws.origin_,
       },
     };
+    this.upgradeReq = req;
     this.readyState = 1;
-    this.ws.onConnection(this);
+    this.ws.onConnection(this, req);
   }
   
   WebSocketServerClientMock.prototype = lobby.util.extend(NodeJSEventSource.prototype, {
@@ -211,9 +212,9 @@ packages['http'] = (function() {
     return this;
   }
   
-  MockHttpServer.prototype.onConnection = function(client) {
+  MockHttpServer.prototype.onConnection = function(client, req) {
     if (client instanceof WebSocketClientMock && this.webSocketServer) {
-      this.webSocketServer.onConnection(client);
+      this.webSocketServer.onConnection(client, req);
       return;
     }
     throw new Error('Received unhandled connection from client');

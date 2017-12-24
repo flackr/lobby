@@ -70,26 +70,29 @@ exports.Server = function() {
      * Dispatched when a client connects to a websocket.
      *
      * @param {WebSocket} websocket A connected websocket client connection.
+     * @param {Object?} req The request object. May be undefined on older node.
      */
-    onConnection: function(websocket) {
+    onConnection: function(websocket, req) {
       // Origin is of the form 'https://www.lobbyjs.com'
-      var origin = websocket.upgradeReq.headers.origin || 'unknown';
+      req = req || websocket.upgradeReq;
+      var origin = req.origin || 'unknown';
       console.log('connection for ' + origin);
-      if (websocket.upgradeReq.url == '/new' || websocket.upgradeReq.url.substring(0, 5) == '/new/') {
-        this.createHost_(websocket, websocket.upgradeReq.url.substring(5));
+      if (req.url == '/new' || req.url.substring(0, 5) == '/new/') {
+        this.createHost_(websocket, req, req.url.substring(5));
         return;
       }
-      this.connectClient_(websocket);
+      this.connectClient_(websocket, req);
     },
 
     /**
      * Connect client on |websocket| to host specified by connection url.
      *
      * @param {WebSocket} websocket A connected websocket client connection.
+     * @param {Object} req The request object.
      */
-    connectClient_: function(websocket) {
+    connectClient_: function(websocket, req) {
       var self = this;
-      var sessionId = websocket.upgradeReq.url.substr(1);
+      var sessionId = req.url.substr(1);
       var session = this.sessions[sessionId];
       if (!session) {
         console.log("Client attempted to connect to invalid sessionId "+sessionId);
@@ -182,10 +185,11 @@ exports.Server = function() {
      * |websocket|.
      *
      * @param {WebSocket} websocket A connected websocket client connection.
+     * @param {Object} req The request object.
      */
-    createHost_: function(websocket, type) {
+    createHost_: function(websocket, req, type) {
       var self = this;
-      var origin = websocket.upgradeReq.headers.origin || 'unknown';
+      var origin = req.headers.origin || 'unknown';
       var sessionId = this.getNextId_();
       console.log('Created session ' + sessionId);
       var session = this.sessions[sessionId] = {

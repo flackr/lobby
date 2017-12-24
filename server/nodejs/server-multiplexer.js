@@ -33,11 +33,12 @@ exports.ServerMultiplexer = function() {
       this.defaultHandler_.onRequest(req, res);
     },
 
-    onConnection: function(websocket) {
+    onConnection: function(websocket, req) {
+      req = req || websocket.upgradeReq;
       for (var prefix in this.otherHandlers_) {
-        if (websocket.upgradeReq.url.substring(0, prefix.length) == prefix) {
-          websocket.upgradeReq.url = '/' + websocket.upgradeReq.url.substring(prefix.length);
-          this.otherHandlers_[prefix].onConnection(websocket);
+        if (req.url.substring(0, prefix.length) == prefix) {
+          req.url = '/' + req.url.substring(prefix.length);
+          this.otherHandlers_[prefix].onConnection(websocket, req);
           return;
         }
       }

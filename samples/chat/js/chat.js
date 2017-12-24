@@ -1,4 +1,6 @@
-var lobbyApi = new lobby.LobbyApi('wss://lobbyjs.com');
+var lobbyWsUrl = window.location.origin.endsWith('.github.io') ?
+    'wss://www.lobbyjs.com' : window.location.origin.replace(/^http/, 'ws');
+var lobbyApi = new lobby.LobbyApi(lobbyWsUrl);
 
 function $(id) {
   return document.getElementById(id);
