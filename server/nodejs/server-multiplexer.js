@@ -42,7 +42,7 @@ exports.ServerMultiplexer = function() {
           return;
         }
       }
-      this.defaultHandler_.onConnection(websocket);
+      this.defaultHandler_.onConnection(websocket, req);
     },
   };
 
