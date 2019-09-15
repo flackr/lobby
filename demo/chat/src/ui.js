@@ -216,7 +216,7 @@ async function loadGame(room_id) {
 function gameChatKeypress(evt) {
   if (!currentGame)
     return;
-  if (evt.key == 'Enter') {
+  if (evt.keyCode == 13) {
     let msg = evt.target.value;
     evt.target.value = '';
     currentGame.sendEvent('m.room.message', {
