@@ -36,8 +36,8 @@ async function fetchJson(url, options, params, data) {
   return response.json();
 }
 
-export async function createClient(gameKey) {
-  return new GameClient(gameKey);
+export async function createClient(options) {
+  return new GameClient(options);
 }
 
 function parse_user_id(user_id) {
@@ -54,8 +54,11 @@ function parse_user_id(user_id) {
 const USER_AUTH_KEY = 'com.github.flackr.lobby.User';
 
 class GameClient {
-  constructor(gameKey) {
-    this.gameKey_ = gameKey;
+  constructor(options) {
+    this.options_ = options || {};
+    this.options_.defaultHost = this.options_.defaultHost || 'https://matrix.org';
+    // Set a default app name of the URL.
+    this.options_.appName = this.options_.appName || (window.location.origin + window.location.pathname);
     this.access_token = '';
     this.user_id = '';
     this.type = '';
@@ -81,7 +84,10 @@ class GameClient {
   }
   
   async login(user_id, password) {
-    let parsed = parse_user_id(user_id);
+    let parsed = user_id.startsWith('@') ? parse_user_id(user_id) : {
+      username: user_id,
+      host: this.options_.defaultHost,
+    };
     let username = parsed.username;
     let user = await fetchJson(parsed.host + '/_matrix/client/r0/login', {'method': 'POST'}, null, {
       'type': 'm.login.password',
@@ -98,7 +104,10 @@ class GameClient {
   
   async register(user_id, password) {
     let user;
-    let parsed = parse_user_id(user_id);
+    let parsed = user_id.startsWith('@') ? parse_user_id(user_id) : {
+      username: user_id,
+      host: this.options_.defaultHost,
+    };
     let username = parsed.username;
     let params = {
       'username': username,
@@ -136,7 +145,7 @@ class GameClient {
   }
   
   async loginAsGuest(host) {
-    let user = await fetchJson(host + '/_matrix/client/r0/register', {'method': 'POST'}, {'kind': 'guest'});
+    let user = await fetchJson(host || this.options_.defaultHost + '/_matrix/client/r0/register', {'method': 'POST'}, {'kind': 'guest'});
     this.setUser(user, 'guest');
     return true;
   }
@@ -231,8 +240,15 @@ class GameClient {
       'initial_state': [
         { 'type': 'com.github.flackr.lobby.Game',
           'content': {
-            // The URL is used to identify the same game.
-            'url': window.location.origin + window.location.pathname}},
+            // The URL is used to identify the same app.
+            'url': window.location.origin + window.location.pathname,
+            // In the future, this can be used to identify the same app hosted
+            // from different locations.
+            // TODO: Consider a default of turning the location into a Java-like
+            // package name and using this as the namespace for event types
+            // instead of lobby types as above.
+            'tag': this.options_.appName,
+          }},
 
         // TODO: Support registered-user only games.
         { 'type': 'm.room.guest_access', 'content': {'guest_access': 'can_join'}},

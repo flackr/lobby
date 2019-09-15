@@ -67,7 +67,10 @@ const LISTING_ROOM = '!qZGjDGznXuUhkkyAEa:matrix.org';
 
 async function init() {
   showPage('loading');
-  client = await lobby.createClient('com.github.flackr.lobby.Chat');
+  client = await lobby.createClient({
+    appName: 'com.github.flackr.lobby.Chat',
+    defaultHost: DEFAULT_MATRIX_HOST,
+  });
   window.client = client;
   if (await client.reauthenticate()) {
     // show games list
