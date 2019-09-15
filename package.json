@@ -1,0 +1,24 @@
+{
+  "name": "lobby",
+  "version": "0.0.1",
+  "description": "A framework for creating self hosted multiplayer games",
+  "repository": "",
+  "author": "Robert Flack <flackr@gmail.com>",
+  "scripts": {
+    "build": "webpack --mode production"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.6.0",
+    "@babel/core": "^7.6.0",
+    "@babel/plugin-transform-runtime": "^7.6.0",
+    "@babel/preset-env": "^7.6.0",
+    "babel-loader": "^8.0.6",
+    "babel-plugin-transform-class-properties": "^6.24.1",
+    "babel-polyfill": "^6.26.0",
+    "babel-regenerator-runtime": "^6.5.0",
+    "regenerator-runtime": "^0.13.3",
+    "webpack": "^4.40.2",
+    "webpack-cli": "^3.3.8",
+    "whatwg-fetch": "^3.0.0"
+  }
+}
