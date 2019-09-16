@@ -3,6 +3,7 @@ const path = require('path');
 function getCommonConfig() {
   return {
     entry: ['babel-polyfill', 'whatwg-fetch'],
+    devtool: 'source-map',
     module: {
       rules: [
         {
