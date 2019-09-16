@@ -98,29 +98,41 @@ async function init() {
 }
 
 async function loginGuest() {
-  if (!(await client.loginAsGuest(DEFAULT_MATRIX_HOST))) {
-    console.error('Guest login failed');
-    return;
+  try {
+    if (!(await client.loginAsGuest(DEFAULT_MATRIX_HOST))) {
+      console.error('Guest login failed');
+      return;
+    }
+    onlogin();
+  } catch (e) {
+    showError(e);
   }
-  onlogin();
 }
 
 async function login() {
   console.log('attempting log in');
-  if (!(await client.login($('#login-user-id').value, $('#login-password').value))) {
-    console.error('Login failed');
-    return;
+  try {
+    if (!(await client.login($('#login-user-id').value, $('#login-password').value))) {
+      console.error('Login failed');
+      return;
+    }
+    onlogin();
+  } catch (e) {
+    showError(e);
   }
-  onlogin();
 }
 
 async function register() {
   console.log('attempting log in');
-  if (!(await client.register($('#register-user-id').value, $('#register-password').value))) {
-    console.error('Login failed');
-    return;
+  try {
+    if (!(await client.register($('#register-user-id').value, $('#register-password').value))) {
+      console.error('Login failed');
+      return;
+    }
+    onlogin();
+  } catch (e) {
+    showError(e);
   }
-  onlogin();
 }
 
 function createRoomElement(room_id, name) {
@@ -138,13 +150,37 @@ function createRoomElement(room_id, name) {
   return btn;
 }
 
+function showError(e) {
+  let data = {
+    message: e.message,
+    timeout: 8000,
+  };
+  if (data.message.length > 100)
+    data.message = data.message.substring(0, 97) + '...';
+  if (e.details && e.details.consent_uri) {
+    data.actionHandler = function() {
+      window.location = e.details.consent_uri;
+    }
+    data.actionText = 'Consent';
+  }
+  $('#snackbar').MaterialSnackbar.showSnackbar(data);
+}
+
 async function onlogin() {
   document.body.classList.add('auth');
   // Fire the hashchange handler to update the currently visible page.
   onhashchange();
   $('#user').textContent = client.user_id;
-  let room = await client.join(LISTING_ROOM);
-  listingRoom = room;
+  try {
+    let room = await client.join(LISTING_ROOM);
+    listingRoom = room;
+    updateListings(room);
+  } catch (e) {
+    showError(e);
+  }
+}
+
+async function updateListings(room) {
   // Clear all existing rooms.
   $('#rooms').innerHTML = '';
   $('#joined').innerHTML = '';
@@ -230,15 +266,19 @@ function gameChatKeypress(evt) {
 }
 
 async function createRoom() {
-  let room_id = await client.create(listingRoom);
-  let joinUrl = window.location.origin + window.location.pathname + '#game-' + room_id;
-  listingRoom.sendEvent('m.room.message', {
-    msgtype: 'm.text',
-    body: 'Created game at ' + joinUrl,
-    url: window.location.origin + window.location.pathname,
-    room_id 
-  });
-  window.location = '#game-' + room_id;
+  try {
+    let room_id = await client.create(listingRoom);
+    let joinUrl = window.location.origin + window.location.pathname + '#game-' + room_id;
+    listingRoom.sendEvent('m.room.message', {
+      msgtype: 'm.text',
+      body: 'Created game at ' + joinUrl,
+      url: window.location.origin + window.location.pathname,
+      room_id 
+    });
+    window.location = '#game-' + room_id;
+  } catch (e) {
+    showError(e);
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

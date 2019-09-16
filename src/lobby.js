@@ -14,6 +14,15 @@
 
 'use strict';
 
+export class MatrixError extends Error {
+  constructor(json) {
+    super(json.errcode + ': ' + json.error);
+    this.errcode = json.errcode;
+    this.error = json.error;
+    this.details = json;
+  }
+}
+
 async function fetchJson(url, options, params, data) {
   if (params) {
     if (url.indexOf('?') == -1)
@@ -33,7 +42,10 @@ async function fetchJson(url, options, params, data) {
     options.body = JSON.stringify(data || {});
   }
   let response = await fetch(url, options);
-  return response.json();
+  let json = await response.json();
+  if (response.status >= 400 && response.status < 500 && json.errcode)
+    throw new MatrixError(json);
+  return json;
 }
 
 export async function createClient(options) {
@@ -134,7 +146,7 @@ class GameClient {
         }
       }
       if (i == result.flows.length)
-        throw Error('Matrix server does not support plain registration.');
+        throw Error('Matrix server does not support password only registration.');
       params.auth = {
         session: result.session,
         type: 'm.login.dummy',
@@ -145,7 +157,7 @@ class GameClient {
   }
   
   async loginAsGuest(host) {
-    let user = await fetchJson(host || this.options_.defaultHost + '/_matrix/client/r0/register', {'method': 'POST'}, {'kind': 'guest'});
+    let user = await fetchJson((host || this.options_.defaultHost) + '/_matrix/client/r0/register', {'method': 'POST'}, {'kind': 'guest'});
     this.setUser(user, 'guest');
     return true;
   }
