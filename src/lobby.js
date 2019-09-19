@@ -48,8 +48,8 @@ async function fetchJson(url, options, params, data) {
   return json;
 }
 
-export async function createClient(options) {
-  return new GameClient(options);
+export async function createService(options) {
+  return new Service(options);
 }
 
 function parse_user_id(user_id) {
@@ -64,37 +64,24 @@ function parse_user_id(user_id) {
 }
 
 const USER_AUTH_KEY = 'com.github.flackr.lobby.User';
-
-class GameClient {
+class Service {
   constructor(options) {
     this.options_ = options || {};
     this.options_.defaultHost = this.options_.defaultHost || 'https://matrix.org';
     // Set a default app name of the URL.
     this.options_.appName = this.options_.appName || (window.location.origin + window.location.pathname);
-    this.access_token = '';
-    this.user_id = '';
-    this.type = '';
-    this.txnCtr_ = 0;
-    this.host_ = '';
+    this.client_ = null;
   }
-  
+
   async reauthenticate() {
     let userJson = localStorage.getItem(USER_AUTH_KEY);
     if (!userJson)
-      return false;
+      return null;
     let user = JSON.parse(userJson);
-    this.setUser(user, user.type);
-    return true;
+    // TODO: Verify access token?
+    return this.client = new Client(this, user, user.type);
   }
-  
-  logout() {
-    // Clear all user state.
-    this.setUser({
-      access_token: '',
-      user_id: '',
-    }, '');
-  }
-  
+
   async login(user_id, password) {
     let parsed = user_id.startsWith('@') ? parse_user_id(user_id) : {
       username: user_id,
@@ -110,10 +97,10 @@ class GameClient {
       'password': password,
       'initial_device_display_name': 'Lobby Client',
     });
-    this.setUser(user, 'user');
-    return true;
+    // TODO: Verify access token?
+    return this.client = new Client(this, user, 'user');
   }
-  
+
   async register(user_id, password) {
     let user;
     let parsed = user_id.startsWith('@') ? parse_user_id(user_id) : {
@@ -152,51 +139,87 @@ class GameClient {
         type: 'm.login.dummy',
       };
     }
-    this.setUser(user, 'user');
-    return true;
+    // TODO: Verify access token?
+    return this.client = new Client(this, user, 'user');
   }
-  
+
   async loginAsGuest(host) {
     let user = await fetchJson((host || this.options_.defaultHost) + '/_matrix/client/r0/register', {'method': 'POST'}, {'kind': 'guest'});
-    this.setUser(user, 'guest');
-    return true;
-  }
-  
-  setUser(user, type) {
-    // Log out of the current user if one is logged in. Don't wait for these
-    // responses to avoid slowing down the logout request.
-    if (this.access_token) {
-      if (this.type == 'guest') {
-        // When logging out of a "guest" account, we will never be able to log
-        // back in so it seems the nice thing to do is deactivate the account.
-        this.fetch('/_matrix/client/r0/account/deactivate', 'POST');
-      } else if (this.user_id) {
-        this.fetch('/_matrix/client/r0/logout', 'POST');
-      }
-    }
-
     // TODO: Verify access token?
+    return this.client = new Client(this, user, 'guest');
+  }
+
+  set client(newClient) {
+    let oldClient = this.client_;
+    this.client_ = newClient;
+
+    // Only one client should be logged in at a time. Note, we log out the
+    // client after replacing the new client so that it doesn't recursively
+    // invoke set client(null).
+    if (oldClient)
+      oldClient.logout();
+
+    if (this.client_) {
+      localStorage.setItem(USER_AUTH_KEY, JSON.stringify({
+        'access_token': this.client_.access_token,
+        'user_id': this.client_.user_id,
+        'type': this.client_.type,
+      }));
+    } else {
+      localStorage.removeItem(USER_AUTH_KEY);
+    }
+    return this.client_;
+  }
+
+  get client() {
+    return this.client_;
+  }
+};
+
+class Client {
+  constructor(service, user, userType) {
+    this.service_ = service;
     this.access_token = user.access_token;
     this.user_id = user.user_id;
-    this.type = type;
-    this.txnCtr_ = 0;
-    this.host_ = '';
+    this.type = userType;
 
-    // Remove the stored user credentials if no user provided.
-    if (!this.user_id) {
-      localStorage.removeItem(USER_AUTH_KEY);
+    // Set a default app name of the URL.
+    this.txnCtr_ = 0;
+    let parsed = parse_user_id(this.user_id);
+    this.host_ = parsed.host;
+    this.lobby_ = null;
+  }
+
+  async lobby() {
+    if (!this.service_.options_.lobbyRoom)
+      return null;
+    if (!this.lobby_)
+      this.lobby_ = await new Lobby(this, this.service_.options_.lobbyRoom);
+    return this.lobby_;
+  }
+
+  logout() {
+    if (this.service_ && this.service_.client == this) {
+      // Invoking this setter will recusively log out this client.
+      this.service_.client = null;
+      this.service_ = null;
       return;
     }
 
-    let parsed = parse_user_id(this.user_id);
-    this.host_ = parsed.host;
-    localStorage.setItem(USER_AUTH_KEY, JSON.stringify({
-      'access_token': this.access_token,
-      'user_id': this.user_id,
-      'type': this.type,
-    }));
+    if (!this.access_token)
+      return;
+    // Log out of the current user if one is logged in. Don't wait for these
+    // responses to avoid slowing down the logout request.
+    if (this.type == 'guest') {
+      // When logging out of a "guest" account, we will never be able to log
+      // back in so it seems the nice thing to do is deactivate the account.
+      this.fetch('/_matrix/client/r0/account/deactivate', 'POST');
+    } else if (this.user_id) {
+      this.fetch('/_matrix/client/r0/logout', 'POST');
+    }
+    this.access_token = '';
   }
-  
+
   async fetch(url, method, params, data) {
     return fetchJson(this.host_ + url,
         {
@@ -228,21 +251,26 @@ class GameClient {
       for (let i = 0; i < states.length; i++) {
         roomDetails[states[i].type] = states[i].content;
       }
-      // Filter only rooms matching the current url.
+      // Filter only rooms matching the current app name.
       if (roomDetails['com.github.flackr.lobby.Game'] &&
-          roomDetails['com.github.flackr.lobby.Game'].url == window.location.origin + window.location.pathname) {
+          roomDetails['com.github.flackr.lobby.Game'].tag == this.service_.options_.appName) {
         result[roomid] = roomDetails;
       }
     }
     return result;
   }
-  
-  async join(roomIdOrAlias) {
-    let response = await this.fetch('/_matrix/client/r0/join/' + roomIdOrAlias, 'POST');
-    let room_id = response.room_id;
-    return new Room(this, room_id)
+
+  // This allows you to interact with a room without explicitly joining it.
+  view(roomId) {
+    return new Room(this, roomId);
   }
-  
+
+  async join(roomIdOrAlias) {
+    let room = new Room(this, roomIdOrAlias);
+    await room.join();
+    return room;
+  }
+
   async create() {
     let room_id = (await this.fetch('/_matrix/client/r0/createRoom', 'POST', null, {
       'visibility': 'private', /* These are specialized rooms not for chat. */
@@ -259,16 +287,17 @@ class GameClient {
             // TODO: Consider a default of turning the location into a Java-like
             // package name and using this as the namespace for event types
             // instead of lobby types as above.
-            'tag': this.options_.appName,
+            'tag': this.service_.options_.appName,
           }},
 
         // TODO: Support registered-user only games.
         { 'type': 'm.room.guest_access', 'content': {'guest_access': 'can_join'}},
       ],
     })).room_id;
+    // TODO: Automatically post an event to the lobby if one exists.
     return room_id;
   }
-  
+
   /**
    * Generates a transactionId.
    */
@@ -279,9 +308,8 @@ class GameClient {
 
 class Room {
   constructor(client, room_id) {
-    this.room_id = room_id;
     this.client_ = client;
-    this.connected = true;
+    this.room_id = room_id;
     this.timeout_ = 30000;
     this.syncParams_ = {
       'filter': {
@@ -297,7 +325,26 @@ class Room {
       },
     };
   }
-  
+
+  get connected() {
+    return this.client_.access_token;
+  }
+
+  async join() {
+    let response = await this.client_.fetch('/_matrix/client/r0/join/' + this.room_id, 'POST');
+    // Joining an alias reveals the internal room id which is used for other
+    // API calls.
+    this.room_id = response.room_id;
+  }
+
+  async leave() {
+    let response = await this.client_.fetch('/_matrix/client/r0/rooms/' + this.room_id + '/leave', 'POST');
+  }
+
+  async members() {
+    return (await this.client_.fetch('/_matrix/client/r0/rooms/' + this.room_id + '/members', 'GET')).chunk;
+  }
+
   setTimelineTypes(types) {
     this.syncParams_.filter.room.timeline.types = types;
   }
@@ -305,7 +352,7 @@ class Room {
   setStateTypes(types) {
     this.syncParams_.filter.room.state.types = types;
   }
-  
+
   async fetchEvents() {
     let response = await this.client_.fetch('/_matrix/client/r0/sync?', 'GET',
         this.syncParams_);
@@ -316,7 +363,7 @@ class Room {
     let roomDetails = response.rooms.join[this.room_id];
     return roomDetails ? roomDetails.timeline.events : [];
   }
-  
+
   async sendEvent(eventType, content) {
     let txnId = this.client_.makeTxnId();
     let response = await this.client_.fetch('/_matrix/client/r0/rooms/' +
@@ -324,8 +371,22 @@ class Room {
         encodeURI(txnId), 'PUT', null, content);
     return response.event_id;
   }
-  
-  quit() {
-    this.connected = false;
+}
+
+class Lobby extends Room {
+  constructor(client, room_id) {
+    super(client, room_id);
+    this.rooms = {};
+    this.roomCount = 0;
   }
+
+  async advertise(room) {
+    let event = room;
+    event.msgtype = 'm.text';
+    event.body = 'Created game at ' + room.url;
+    event.tag = this.client_.service_.options_.appName;
+    // TODO: Replace m.room.message with custom event type.
+    await this.sendEvent('m.room.message', event);
+  }
+  // TODO: Figure out what sort of API the lobby should provide.
 }

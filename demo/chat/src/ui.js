@@ -30,10 +30,6 @@ function showPage(page) {
 let currentGame;
 function onhashchange() {
   // Stop updating if we switch away from the current game.
-  if (currentGame) {
-    currentGame.quit();
-    currentGame = null;
-  }
   if (document.body.classList.contains('auth')) {
     if (window.location.hash.startsWith('#game-')) {
       loadGame(window.location.hash.substring(6));
@@ -59,6 +55,7 @@ window.hidemenu = function() {
   document.querySelector('.mdl-layout__obfuscator').click();
 }
 
+let service;
 let client;
 let listingRoom;
 
@@ -67,12 +64,13 @@ const LISTING_ROOM = '!qZGjDGznXuUhkkyAEa:matrix.org';
 
 async function init() {
   showPage('loading');
-  client = await lobby.createClient({
+  service = await lobby.createService({
     appName: 'com.github.flackr.lobby.Chat',
     defaultHost: DEFAULT_MATRIX_HOST,
+    lobbyRoom: LISTING_ROOM,
   });
-  window.client = client;
-  if (await client.reauthenticate()) {
+  window.service = service;
+  if (client = await service.reauthenticate()) {
     // show games list
     onlogin();
   } else {
@@ -99,7 +97,7 @@ async function init() {
 
 async function loginGuest() {
   try {
-    if (!(await client.loginAsGuest(DEFAULT_MATRIX_HOST))) {
+    if (!(client = await service.loginAsGuest(DEFAULT_MATRIX_HOST))) {
       console.error('Guest login failed');
       return;
     }
@@ -112,7 +110,7 @@ async function loginGuest() {
 async function login() {
   console.log('attempting log in');
   try {
-    if (!(await client.login($('#login-user-id').value, $('#login-password').value))) {
+    if (!(client = await service.login($('#login-user-id').value, $('#login-password').value))) {
       console.error('Login failed');
       return;
     }
@@ -125,7 +123,7 @@ async function login() {
 async function register() {
   console.log('attempting log in');
   try {
-    if (!(await client.register($('#register-user-id').value, $('#register-password').value))) {
+    if (!(client = await service.register($('#register-user-id').value, $('#register-password').value))) {
       console.error('Login failed');
       return;
     }
@@ -151,6 +149,7 @@ function createRoomElement(room_id, name) {
 }
 
 function showError(e) {
+  console.error(e);
   let data = {
     message: e.message,
     timeout: 8000,
@@ -164,6 +163,9 @@ function showError(e) {
     data.actionText = 'Consent';
   }
   $('#snackbar').MaterialSnackbar.showSnackbar(data);
+  // Rethrow the error if it's not a lobby error
+  if (!(e instanceof lobby.MatrixError))
+    throw e;
 }
 
 async function onlogin() {
@@ -172,9 +174,7 @@ async function onlogin() {
   onhashchange();
   $('#user').textContent = client.user_id;
   try {
-    let room = await client.join(LISTING_ROOM);
-    listingRoom = room;
-    updateListings(room);
+    updateListings(await client.lobby());
   } catch (e) {
     showError(e);
   }
@@ -184,6 +184,7 @@ async function updateListings(room) {
   // Clear all existing rooms.
   $('#rooms').innerHTML = '';
   $('#joined').innerHTML = '';
+  // TODO: Move most of this functionality to Lobby.
   let joinedRooms = await client.joinedRoomStates();
   for (let room_id in joinedRooms) {
     let element = createRoomElement(room_id, joinedRooms[room_id]['m.room.topic'].topic);
@@ -195,7 +196,7 @@ async function updateListings(room) {
     if (!room.connected)
       return;
     for (let evt of events) {
-      if (evt.content.url == window.location.origin + window.location.pathname && evt.content.room_id) {
+      if (evt.content.tag == service.options_.appName && evt.content.room_id) {
         // Skip rooms we're already in.
         if (joinedRooms[evt.content.room_id])
           continue;
@@ -208,14 +209,6 @@ async function updateListings(room) {
 }
 
 async function onlogout() {
-  if (listingRoom) {
-    listingRoom.quit();
-    listingRoom = null;
-  }
-  if (currentGame) {
-    currentGame.quit();
-    currentGame = null;
-  }
   document.body.classList.remove('auth');
   showPage('page-login');
   $('#user').textContent = '';
@@ -230,14 +223,14 @@ function stampTemplate(template, details) {
 }
 
 async function loadGame(room_id) {
+  $('#game-log').innerHTML = '';
   showPage('page-game');
   let game = await client.join(room_id);
   currentGame = game;
-  $('#game-log').innerHTML = '';
   while (true) {
-    // TODO: Only fetch N most recent events rather than all events.
     let events = await game.fetchEvents();
-    if (!game.connected)
+    // TODO: Also stop updating if we're not currently viewing the game.
+    if (!game == currentGame)
       return;
     let wasScolledToBottom = $('#game-log').scrollTop >= $('#game-log').scrollHeight - $('#game-log').clientHeight;
     for (let evt of events) {
@@ -267,14 +260,15 @@ function gameChatKeypress(evt) {
 
 async function createRoom() {
   try {
-    let room_id = await client.create(listingRoom);
+    let room_id = await client.create();
+    let lobby = await client.lobby();
     let joinUrl = window.location.origin + window.location.pathname + '#game-' + room_id;
-    listingRoom.sendEvent('m.room.message', {
-      msgtype: 'm.text',
-      body: 'Created game at ' + joinUrl,
-      url: window.location.origin + window.location.pathname,
-      room_id 
-    });
+    if (lobby) {
+      lobby.advertise({
+        'room_id': room_id,
+        'url': joinUrl,
+      });
+    }
     window.location = '#game-' + room_id;
   } catch (e) {
     showError(e);
