@@ -5,62 +5,7 @@
     <link rel="stylesheet" href="./third_party/code.getmdl.io/1.3.0/material.min.css">
     <script src="./third_party/code.getmdl.io/1.3.0/material.min.js"></script>
     <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
-    <style>
-      .app-page {
-        /* Pages should not be visible until JS determines which one should
-           be shown. */
-        display: none;
-        margin: 15px;
-      }
-      .padding {
-        padding: 0 15px;
-      }
-      .app-page.visible {
-        display: block;
-      }
-      .controls {
-        position: absolute;
-        bottom: 10px;
-        right: 10px;
-      }
-      body.auth .visible-before-auth,
-      .visible-after-auth {
-        display: none !important;
-      }
-      .visible-before-auth,
-      body.auth .visible-after-auth {
-        display: block !important;
-      }
-      #page-game {
-        height: 100%;
-        margin: 0;
-        -webkit-flex-direction: column;
-        -ms-flex-direction: column;
-        flex-direction: column;
-      }
-      #page-game.visible {
-        display: -webkit-flex;
-        display: -ms-flexbox;
-        display: flex;
-      }
-      #page-game .scroller {
-        -webkit-flex-grow: 1;
-        -ms-flex-positive: 1;
-        flex-grow: 1;
-        padding: 5px 15px;
-        overflow-y: scroll;
-      }
-      #templates {
-        display: none;
-      }
-      .chat-message > .sender {
-        font-weight: bold;
-        margin: 0;
-      }
-      .chat-message > .body {
-        margin: 5px 0px 10px 30px;
-      }
-    </style>
+    <link rel="stylesheet" href="ui.css">
     <script src="build/bundle.js"></script>
     <!-- For rapid development, use this script instead of bundle.js.
     <script src="src/ui.js" type="module"></script>
@@ -70,7 +15,20 @@
     <div id="templates">
       <div class="chat-message">
         <p class="sender">@testuser:server.com</h2>
-        <p class="body">Test message</div>
+        <p class="body">Test message</p>
+      </div>
+      <div class="room demo-card-wide mdl-card mdl-shadow--2dp">
+        <div class="mdl-card__title">
+          <h2 class="mdl-card__title-text title">Topic</h2>
+        </div>
+        <div class="mdl-card__supporting-text details">
+          Players, etc
+        </div>
+        <div class="mdl-card__actions mdl-card--border">
+          <a class="mdl-button mdl-button--colored mdl-js-button mdl-js-ripple-effect join">
+            Play
+          </a>
+        </div>
       </div>
     </div>
     <!-- Always shows a header, even in smaller screens. -->
@@ -81,7 +39,15 @@
 					<span class="mdl-layout-title">Lobby Demo</span>
 					<!-- Add spacer, to align navigation to the right -->
 					<div class="mdl-layout-spacer"></div>
-					<span id="user"></span>
+					<button id="menu"
+                  class="mdl-button mdl-js-button mdl-button--icon">
+            <i class="material-icons">more_vert</i>
+          </button>
+
+          <ul class="mdl-menu mdl-menu--bottom-right mdl-js-menu mdl-js-ripple-effect"
+              for="menu">
+            <li class="mdl-menu__item" id="leave-button">Leave</li>
+          </ul>
 				</div>
 			</header>
 			<div class="mdl-layout__drawer">
@@ -89,8 +55,10 @@
 				<nav class="mdl-navigation">
 					<a class="mdl-navigation__link visible-before-auth" href="#login" onclick="hidemenu()">Login</a>
 					<a class="mdl-navigation__link visible-before-auth" href="#register" onclick="hidemenu()">Register</a>
-					<a class="mdl-navigation__link visible-after-auth" href="#list" onclick="hidemenu()">Games List</a>
+					<a class="mdl-navigation__link visible-after-auth" href="#list" onclick="hidemenu()">Room List</a>
+					<a class="mdl-navigation__link visible-after-auth" href="#create" onclick="hidemenu()">Create Room</a>
 					<a class="mdl-navigation__link visible-after-auth" href="#logout" id="logout" onclick="hidemenu()">Logout</a>
+					<span id="user"></span>
 				</nav>
 			</div>
 			<main class="mdl-layout__content">
@@ -103,12 +71,12 @@
             <p>User id</p>
             <div class="mdl-textfield mdl-js-textfield">
               <input class="mdl-textfield__input" type="text" id="login-user-id" value="">
-              <label class="mdl-textfield__label" for="sample2">Username...</label>
+              <label class="mdl-textfield__label" for="login-user-id">Username...</label>
             </div>
             <p>Password</p>
             <div class="mdl-textfield mdl-js-textfield">
               <input class="mdl-textfield__input" type="password" id="login-password" value="">
-              <label class="mdl-textfield__label" for="sample2">Password...</label>
+              <label class="mdl-textfield__label" for="login-password">Password...</label>
             </div>
             <br>
             <input type="submit" value="Login" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent">
@@ -131,12 +99,12 @@
             <p>User id</p>
             <div class="mdl-textfield mdl-js-textfield">
               <input class="mdl-textfield__input" type="text" id="register-user-id" value="">
-              <label class="mdl-textfield__label" for="sample2">Username...</label>
+              <label class="mdl-textfield__label" for="register-user-id">Username...</label>
             </div>
             <p>Password</p>
             <div class="mdl-textfield mdl-js-textfield">
               <input class="mdl-textfield__input" type="password" id="register-password" value="">
-              <label class="mdl-textfield__label" for="sample2">Password...</label>
+              <label class="mdl-textfield__label" for="register-password">Password...</label>
             </div>
             <br>
             <input type="submit" value="Create account" class="mdl-button mdl-js-button mdl-button--raised mdl-js-ripple-effect mdl-button--accent">
@@ -144,15 +112,22 @@
           </form>
 				</div>
 				<div class="page-content app-page" id="page-list">
-          <h4>Active games:</p>
-          <div id ="joined"></div>
-          <h4>Available games:</p>
           <div id ="rooms"></div>
-          <div class="controls">
-            <button class="mdl-button mdl-js-button mdl-button--fab mdl-button--colored" id="create">
-              <i class="material-icons">add</i>
-            </button>
-          </div>
+        </div>
+				<div class="page-content app-page" id="page-create">
+				  <h4>Create a new room</h4>
+          <form id="room-form">
+            <p>Topic</p>
+            <div class="mdl-textfield mdl-js-textfield">
+              <input class="mdl-textfield__input" type="text" id="room-topic" value="">
+              <label class="mdl-textfield__label" for="room-topic">Room topic...</label>
+            </div>
+            <div class="controls">
+              <button class="mdl-button mdl-js-button mdl-button--fab mdl-button--colored">
+                <i class="material-icons">add</i>
+              </button>
+            </div>
+          </form>
         </div>
 				<div class="page-content app-page" id="page-game">
           <div class="scroller" id="game-log"></div>

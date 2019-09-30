@@ -21,8 +21,11 @@ function $(selector) {
 }
 
 function showPage(page) {
-  if (currentPage)
+  if (currentPage) {
+    document.body.classList.remove(currentPage);
     $('#' + currentPage).classList.remove('visible');
+  }
+  document.body.classList.add(page);
   $('#' + page).classList.add('visible');
   currentPage = page;
 }
@@ -35,11 +38,11 @@ function onhashchange() {
       loadGame(window.location.hash.substring(6));
       return;
     }
-    // If authenticated, the only other valid page is the listing page.
-    // Update the url to reflect this if necessary.
-    if (window.location.hash != '#list')
+    // If authenticated, default to the listing page if a valid page is not
+    // specified.
+    if (['#list', '#create'].indexOf(window.location.hash) == -1)
       window.location = '#list';
-    showPage('page-list');
+    showPage('page-' + window.location.hash.substring(1));
   } else {
     // If not authenticated, allow user to view registration page.
     if (window.location.hash == '#register') {
@@ -85,12 +88,16 @@ async function init() {
     register();
   });
   $('#login-guest').addEventListener('click', loginGuest);
-  $('#create').addEventListener('click', createRoom);
+  $('#room-form').addEventListener('submit', function(evt) {
+    evt.preventDefault();
+    createRoom();
+  })
   $('#logout').addEventListener('click', function(evt) {
     evt.preventDefault();
     client.logout();
     onlogout();
   });
+  $('#leave-button').addEventListener('click', leaveRoom);
   $('#game-chat').addEventListener('keypress', gameChatKeypress);
   window.addEventListener('hashchange', onhashchange);
 }
@@ -133,19 +140,24 @@ async function register() {
   }
 }
 
-function createRoomElement(room_id, name) {
-  let btn = document.createElement('button');
-  btn.className = 'mdl-button mdl-js-button mdl-js-ripple-effect';
-  btn.textContent = name;
-  // TODO: Add attribute to game event for room id and/or direct link.
-  btn.setAttribute('room-id', room_id);
+function createRoomElement(room) {
+  let elem = stampTemplate('.room');
+
+  elem.querySelector('.title').textContent = room.state_.state['m.room.topic'].content.topic;
+  let members = room.state_.activeMembers();
+  let memberDisplayNames = [];
+  for (let user_id in members) {
+    memberDisplayNames.push(members[user_id].displayname);
+  }
+  elem.querySelector('.details').textContent = memberDisplayNames.join(', ');
+
+  let btn = elem.querySelector('.join');
+  btn.setAttribute('room-id', room.room_id);
   btn.addEventListener('click', function(evt) {
     evt.preventDefault();
     window.location = '#game-' + btn.getAttribute('room-id');
-    if (btn.parentNode.getAttribute('id') != 'joined')
-      $('#joined').appendChild(btn);
   });
-  return btn;
+  return elem;
 }
 
 function showError(e) {
@@ -180,32 +192,49 @@ async function onlogin() {
   }
 }
 
-async function updateListings(room) {
+async function updateListings(lobby) {
   // Clear all existing rooms.
   $('#rooms').innerHTML = '';
-  $('#joined').innerHTML = '';
-  // TODO: Move most of this functionality to Lobby.
-  let joinedRooms = await client.joinedRoomStates();
-  for (let room_id in joinedRooms) {
-    let element = createRoomElement(room_id, joinedRooms[room_id]['m.room.topic'].topic);
-    $('#joined').appendChild(element);
-  }
-  while (true) {
-    // TODO: Only fetch N most recent events rather than all events.
-    let events = await room.fetchEvents();
-    if (!room.connected)
-      return;
-    for (let evt of events) {
-      if (evt.content.tag == service.options_.appName && evt.content.room_id) {
-        // Skip rooms we're already in.
-        if (joinedRooms[evt.content.room_id])
-          continue;
-        // TODO: Support removal / update events for existing games.
-        let btn = createRoomElement(evt.content.room_id, evt.sender);
-        $('#rooms').appendChild(btn);
-      }
+
+  const EXTRA_HEIGHT = 200;
+  let scroller = document.querySelector('.mdl-layout__content');
+
+  let addRooms = function(rooms, beforeChild) {
+    for (let i = 0; i < rooms.length; i++) {
+      $('#rooms').insertBefore(createRoomElement(rooms[i]), beforeChild);
     }
   }
+
+  let maybeFetchHistory = async function() {
+    if (scroller.getBoundingClientRect().bottom < $('#rooms').getBoundingClientRect().bottom - EXTRA_HEIGHT)
+      return;
+    while (scroller.getBoundingClientRect().bottom >= $('#rooms').getBoundingClientRect().bottom - EXTRA_HEIGHT) {
+      // Avoid additional calls while syncing history.
+      scroller.removeEventListener('scroll', maybeFetchHistory);
+
+      let prev = await lobby.syncRooms(true);
+      if (!lobby.connected || prev == null) {
+        // Nothing more to sync
+        return;
+      }
+      addRooms(prev, null);
+    }
+    scroller.addEventListener('scroll', maybeFetchHistory);
+  }
+
+  let rooms = await lobby.syncRooms();
+  if (!lobby.connected)
+    return;
+  scroller.addEventListener('scroll', maybeFetchHistory);
+  addRooms(rooms, $('#rooms').firstChild);
+  maybeFetchHistory();
+  while (true) {
+    rooms = await lobby.syncRooms();
+    if (!lobby.connected)
+      break;
+    addRooms(rooms, $('#rooms').firstChild);
+  }
+  scroller.removeEventListener('scroll', maybeFetchHistory);
 }
 
 async function onlogout() {
@@ -258,9 +287,16 @@ function gameChatKeypress(evt) {
   }
 }
 
+function leaveRoom() {
+  if (!currentGame)
+    return;
+  currentGame.leave();
+  window.location.hash = 'list';
+}
+
 async function createRoom() {
   try {
-    let room_id = await client.create();
+    let room_id = await client.create({topic: $('#room-topic').value});
     let lobby = await client.lobby();
     let joinUrl = window.location.origin + window.location.pathname + '#game-' + room_id;
     if (lobby) {

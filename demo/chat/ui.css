@@ -1,0 +1,67 @@
+.app-page {
+  /* Pages should not be visible until JS determines which one should
+     be shown. */
+  display: none;
+  margin: 15px;
+}
+.padding {
+  padding: 0 15px;
+}
+.app-page.visible {
+  display: block;
+}
+.controls {
+  position: fixed;
+  bottom: 10px;
+  right: 10px;
+}
+body.auth .visible-before-auth,
+.visible-after-auth {
+  display: none !important;
+}
+.visible-before-auth,
+body.auth .visible-after-auth {
+  display: block !important;
+}
+#menu {
+  display: none;
+}
+body.page-game #menu {
+  display: block;
+}
+#page-game {
+  height: 100%;
+  margin: 0;
+  -webkit-flex-direction: column;
+  -ms-flex-direction: column;
+  flex-direction: column;
+}
+#page-game.visible {
+  display: -webkit-flex;
+  display: -ms-flexbox;
+  display: flex;
+}
+#page-game .scroller {
+  -webkit-flex-grow: 1;
+  -ms-flex-positive: 1;
+  flex-grow: 1;
+  padding: 5px 15px;
+  overflow-y: scroll;
+}
+#templates {
+  display: none;
+}
+.chat-message > .sender {
+  font-weight: bold;
+  margin: 0;
+}
+.chat-message > .body {
+  margin: 5px 0px 10px 30px;
+}
+.mdl-card.room {
+  width: auto;
+  min-height: auto;
+}
+#user {
+  margin: 15px 0 0 15px
+}

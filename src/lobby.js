@@ -63,6 +63,17 @@ function parse_user_id(user_id) {
   };
 }
 
+function clone(json) {
+  return JSON.parse(JSON.stringify(json));
+}
+
+function keys(dict) {
+  let val = [];
+  for (let key in dict)
+    val.push(key);
+  return val;
+}
+
 const USER_AUTH_KEY = 'com.github.flackr.lobby.User';
 class Service {
   constructor(options) {
@@ -271,12 +282,13 @@ class Client {
     return room;
   }
 
-  async create() {
+  async create(details) {
+    details = details || {};
     let room_id = (await this.fetch('/_matrix/client/r0/createRoom', 'POST', null, {
       'visibility': 'private', /* These are specialized rooms not for chat. */
       'preset': 'public_chat', /* Invitation-only rooms not yet supported. */
-      'name': 'WebGame', /* TODO: Support customization. */
-      'topic': 'WebGame game session', /* TODO: Support customization. */
+      'name': details.name || 'Unnamed',
+      'topic': details.topic || 'Default Lobby Topic',
       'initial_state': [
         { 'type': 'com.github.flackr.lobby.Game',
           'content': {
@@ -292,6 +304,10 @@ class Client {
 
         // TODO: Support registered-user only games.
         { 'type': 'm.room.guest_access', 'content': {'guest_access': 'can_join'}},
+
+        // World readability history_visibility to allow guests to preview
+        // room states.
+        { 'type': 'm.room.history_visibility', 'content': {'history_visibility': 'world_readable'}},
       ],
     })).room_id;
     // TODO: Automatically post an event to the lobby if one exists.
@@ -311,13 +327,12 @@ class Room {
     this.client_ = client;
     this.room_id = room_id;
     this.timeout_ = 30000;
+    this.joined = false;
+    this.state_ = new RoomState();
     this.syncParams_ = {
       'filter': {
         'room': {
           'rooms': [this.room_id],
-          'state': {
-            'types': [],
-          },
           'timeline': {
             'types': ['m.room.message'],
           },
@@ -331,18 +346,20 @@ class Room {
   }
 
   async join() {
-    let response = await this.client_.fetch('/_matrix/client/r0/join/' + this.room_id, 'POST');
+    let response = await this.client_.fetch('/_matrix/client/r0/join/' + encodeURI(this.room_id), 'POST');
     // Joining an alias reveals the internal room id which is used for other
     // API calls.
     this.room_id = response.room_id;
+    this.joined = true;
+    this.state_.reset();
   }
 
   async leave() {
-    let response = await this.client_.fetch('/_matrix/client/r0/rooms/' + this.room_id + '/leave', 'POST');
+    let response = await this.client_.fetch('/_matrix/client/r0/rooms/' + encodeURI(this.room_id) + '/leave', 'POST');
   }
 
   async members() {
-    return (await this.client_.fetch('/_matrix/client/r0/rooms/' + this.room_id + '/members', 'GET')).chunk;
+    return (await this.client_.fetch('/_matrix/client/r0/rooms/' + encodeURI(this.room_id) + '/members', 'GET')).chunk;
   }
 
   setTimelineTypes(types) {
@@ -353,15 +370,23 @@ class Room {
     this.syncParams_.filter.room.state.types = types;
   }
 
-  async fetchEvents() {
+  async sync() {
     let response = await this.client_.fetch('/_matrix/client/r0/sync?', 'GET',
         this.syncParams_);
-    // TODO: Support using prev_batch token and limit to fetch recent events
-    // without entire history.
     this.syncParams_.since = response.next_batch;
     this.syncParams_.timeout = this.timeout_;
     let roomDetails = response.rooms.join[this.room_id];
-    return roomDetails ? roomDetails.timeline.events : [];
+    if (roomDetails)
+      this.state_.process(roomDetails.state.events);
+    return {
+      state: roomDetails ? roomDetails.state.events : [],
+      timeline: roomDetails ? roomDetails.timeline.events : [],
+    };
+  }
+
+  // Deprecated
+  async fetchEvents() {
+    return (await this.sync()).timeline;
   }
 
   async sendEvent(eventType, content) {
@@ -371,13 +396,78 @@ class Room {
         encodeURI(txnId), 'PUT', null, content);
     return response.event_id;
   }
-}
+
+  async state() {
+    if (!this.joined && this.state_.empty) {
+      let events = await this.client_.fetch('/_matrix/client/r0/rooms/' + encodeURI(this.room_id) + '/state', 'GET');
+      this.state_.process(events);
+    }
+    return this.state_;
+  }
+};
+
+class RoomState {
+  constructor(events) {
+    this.reset();
+  }
+
+  reset() {
+    this.empty = true;
+    this.state = {};
+  }
+
+  process(events) {
+    this.empty = false;
+    // TODO: Return a list of state changes for listeners.
+    for (let i = 0; i < events.length; i++) {
+      if (events[i].state_key) {
+        this.state[events[i].type] = this.state[events[i].type] || {};
+        this.state[events[i].type][events[i].state_key] = events[i];
+      } else {
+        this.state[events[i].type] = events[i];
+      }
+    }
+  }
+
+  activeMembers() {
+    let members = {};
+    for (let key in this.state['m.room.member']) {
+      let details = this.state['m.room.member'][key];
+      if (details.content.membership == 'join') {
+        members[details.user_id] = {
+          displayname: details.content.displayname,
+        };
+      }
+    }
+    return members;
+  }
+};
 
 class Lobby extends Room {
   constructor(client, room_id) {
     super(client, room_id);
+    // If true, cleans up obsolete rooms while iterating through room listings.
+    this.cleanup_ = true;
+    this.initialFetch_ = true;
     this.rooms = {};
     this.roomCount = 0;
+    // Add API to add whatever states should be synced when fetching room states.
+    this.syncStates_ = ['m.room.topic', 'com.github.flackr.lobby.Game'];
+    this.prev_batch = '';
+    this.next_bacth = '';
+    this.fetchAmount_ = 20;
+    this.lobbySyncParams_ = {
+      'filter': {
+        'room': {
+          'rooms': [this.room_id],
+          'state': {
+            'types': [],
+          },
+          // Using a filter seems to break the prev_batch token.
+          'timeline': {},
+        },
+      },
+    };
   }
 
   async advertise(room) {
@@ -388,5 +478,87 @@ class Lobby extends Room {
     // TODO: Replace m.room.message with custom event type.
     await this.sendEvent('m.room.message', event);
   }
-  // TODO: Figure out what sort of API the lobby should provide.
+
+  // Returns an array of rooms and sets prev_batch and next_batch to fetch
+  // more rooms in either direction.
+  async syncRooms(backwards) {
+    let events = null;
+    if (backwards) {
+      // Investigate why we're duplicating initial results.
+      if (this.initialFetch_) {
+        throw new Error('No prev_batch token yet, sync in forwards direction first');
+      }
+      // TODO: Fetch messages backwards.
+      let params = clone(this.lobbySyncParams_);
+      params.from = this.prev_batch;
+      params.dir = 'b';
+      params.limit = this.fetchAmount_;
+      let response = await this.client_.fetch('/_matrix/client/r0/rooms/' + encodeURI(this.room_id) + '/messages', 'GET',
+          params);
+      this.prev_batch = response.end;
+      events = response.chunk;
+      if (events.length == 0)
+        return null;
+    } else {
+      let params = clone(this.lobbySyncParams_);
+      if (this.next_batch) {
+        params.since = this.next_batch;
+        params.timeout = this.timeout_;
+      } else {
+        params.filter.room.timeline.limit = this.fetchAmount_;
+      }
+      let response = await this.client_.fetch('/_matrix/client/r0/sync?', 'GET', params);
+      this.next_batch = response.next_batch;
+      this.syncParams_.timeout = this.timeout_;
+      let roomDetails = response.rooms.join[this.room_id];
+      // Save the prev_batch token for enumerating backwards events.
+      if (this.initialFetch_) {
+        this.initialFetch_ = false;
+        if (roomDetails)
+          this.prev_batch = roomDetails.timeline.prev_batch;
+      }
+      events = roomDetails && roomDetails.timeline.events || [];
+    }
+
+    // For each room, fetch information about the room. This loop creates the
+    // promises and the following loop awaits them to allow the fetches to be
+    // run simultaneously.
+    let game_promises = [];
+    for (let i = 0; i < events.length; i++) {
+      if (events[i].content.tag != this.client_.service_.options_.appName ||
+          !events[i].content.room_id)
+        continue;
+      game_promises.push({
+          event: events[i],
+          room: this.gameInfo(events[i].content.room_id)});
+    }
+    let games = [];
+    for (let i = 0; i < game_promises.length; i++) {
+      let remove = false;
+      try {
+        let room = await game_promises[i].room;
+        if (keys(room.state_.activeMembers()).length > 0) {
+          games.push(room);
+        } else {
+          // Remove empty rooms
+          remove = true;
+        }
+      } catch (e) {
+        console.warn('Skipping game due to error fetching details', e);
+      }
+      if (remove) {
+        let event = game_promises[i].event;
+        let txnId = this.client_.makeTxnId();
+        this.client_.fetch('/_matrix/client/r0/rooms/' + encodeURI(this.room_id) + '/redact/' + encodeURI(event.event_id) + '/' + encodeURI(txnId), 'PUT');
+      }
+    }
+    return games;
+  }
+
+  async gameInfo(room_id) {
+    let room = this.client_.view(room_id);
+    // Await room details.
+    await room.state();
+    return room;
+  }
 }
