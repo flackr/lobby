@@ -328,14 +328,12 @@ class Room {
     this.room_id = room_id;
     this.timeout_ = 30000;
     this.joined = false;
+    this.initialSync_ = true;
     this.state_ = new RoomState();
     this.syncParams_ = {
       'filter': {
         'room': {
           'rooms': [this.room_id],
-          'timeline': {
-            'types': ['m.room.message'],
-          },
         },
       },
     };
@@ -374,14 +372,32 @@ class Room {
     let response = await this.client_.fetch('/_matrix/client/r0/sync?', 'GET',
         this.syncParams_);
     this.syncParams_.since = response.next_batch;
-    this.syncParams_.timeout = this.timeout_;
     let roomDetails = response.rooms.join[this.room_id];
     if (roomDetails)
       this.state_.process(roomDetails.state.events);
-    return {
+    let result = {
       state: roomDetails ? roomDetails.state.events : [],
       timeline: roomDetails ? roomDetails.timeline.events : [],
     };
+    if (roomDetails && this.initialSync_) {
+      let prev_batch = roomDetails.timeline.prev_batch;
+      // Fetch all events
+      let params = clone(this.syncParams_);
+      params.dir = 'b';
+      while (prev_batch) {
+        params.from = prev_batch;
+        response = await this.client_.fetch('/_matrix/client/r0/rooms/' + encodeURI(this.room_id) + '/messages', 'GET',
+            params);
+        if (response.chunk.length == 0)
+          break;
+        // TODO: There may be a more efficient way to build this array.
+        result.timeline = response.chunk.reverse().concat(result.timeline);
+        prev_batch = result.prev_batch;
+      }
+    }
+    this.syncParams_.timeout = this.timeout_;
+    this.initialSync_ = false;
+    return result;
   }
 
   // Deprecated

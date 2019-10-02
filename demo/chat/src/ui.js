@@ -263,6 +263,8 @@ async function loadGame(room_id) {
       return;
     let wasScolledToBottom = $('#game-log').scrollTop >= $('#game-log').scrollHeight - $('#game-log').clientHeight;
     for (let evt of events) {
+      if (evt.type != 'm.room.message')
+        continue;
       let div = stampTemplate('.chat-message', {
         sender: evt.sender,
         body: evt.content.body,
