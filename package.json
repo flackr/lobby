@@ -8,17 +8,17 @@
     "build": "webpack --mode production"
   },
   "devDependencies": {
-    "@babel/cli": "^7.6.0",
-    "@babel/core": "^7.6.0",
-    "@babel/plugin-transform-runtime": "^7.6.0",
-    "@babel/preset-env": "^7.6.0",
+    "@babel/cli": "^7.7.5",
+    "@babel/core": "^7.7.5",
+    "@babel/plugin-transform-runtime": "^7.7.6",
+    "@babel/preset-env": "^7.7.6",
     "babel-loader": "^8.0.6",
     "babel-plugin-transform-class-properties": "^6.24.1",
     "babel-polyfill": "^6.26.0",
     "babel-regenerator-runtime": "^6.5.0",
     "regenerator-runtime": "^0.13.3",
-    "webpack": "^4.40.2",
-    "webpack-cli": "^3.3.8",
+    "webpack": "^4.41.3",
+    "webpack-cli": "^3.3.10",
     "whatwg-fetch": "^3.0.0"
   }
 }
