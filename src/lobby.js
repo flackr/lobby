@@ -41,7 +41,16 @@ async function fetchJson(url, options, params, data) {
     options.headers['Content-Type'] = 'application/json';
     options.body = JSON.stringify(data || {});
   }
-  let response = await fetch(url, options);
+  let success = false;
+  let response;
+  while (!success) {
+    try {
+      response = await fetch(url, options);
+      success = true;
+    } catch (e) {
+      console.error(e);
+    }
+  }
   let json = await response.json();
   if (response.status >= 400 && response.status < 500 && json.errcode)
     throw new MatrixError(json);
@@ -90,7 +99,7 @@ class Service {
       return null;
     let user = JSON.parse(userJson);
     // TODO: Verify access token?
-    return this.client = new Client(this, user, user.type);
+    return this.client = new Client(this, user, user.type, user.host);
   }
 
   async login(user_id, password) {
@@ -109,7 +118,7 @@ class Service {
       'initial_device_display_name': 'Lobby Client',
     });
     // TODO: Verify access token?
-    return this.client = new Client(this, user, 'user');
+    return this.client = new Client(this, user, 'user', parsed.host);
   }
 
   async register(user_id, password) {
@@ -175,6 +184,7 @@ class Service {
         'access_token': this.client_.access_token,
         'user_id': this.client_.user_id,
         'type': this.client_.type,
+        'host': this.client_.host_,
       }));
     } else {
       localStorage.removeItem(USER_AUTH_KEY);
@@ -188,7 +198,7 @@ class Service {
 };
 
 class Client {
-  constructor(service, user, userType) {
+  constructor(service, user, userType, host) {
     this.service_ = service;
     this.access_token = user.access_token;
     this.user_id = user.user_id;
@@ -197,7 +207,7 @@ class Client {
     // Set a default app name of the URL.
     this.txnCtr_ = 0;
     let parsed = parse_user_id(this.user_id);
-    this.host_ = parsed.host;
+    this.host_ = host || parsed.host;
     this.lobby_ = null;
   }
 
@@ -284,7 +294,7 @@ class Client {
 
   async create(details) {
     details = details || {};
-    let room_id = (await this.fetch('/_matrix/client/r0/createRoom', 'POST', null, {
+    let creationDetails = {
       'visibility': 'private', /* These are specialized rooms not for chat. */
       'preset': 'public_chat', /* Invitation-only rooms not yet supported. */
       'name': details.name || 'Unnamed',
@@ -309,7 +319,12 @@ class Client {
         // room states.
         { 'type': 'm.room.history_visibility', 'content': {'history_visibility': 'world_readable'}},
       ],
-    })).room_id;
+    };
+    if (details.initial_state) {
+      for (let i = 0; i < details.initial_state.length; i++)
+        creationDetails.initial_state.push(details.initial_state[i]);
+    }
+    let room_id = (await this.fetch('/_matrix/client/r0/createRoom', 'POST', null, creationDetails)).room_id;
     // TODO: Automatically post an event to the lobby if one exists.
     return room_id;
   }
@@ -344,7 +359,17 @@ class Room {
   }
 
   async join() {
-    let response = await this.client_.fetch('/_matrix/client/r0/join/' + encodeURI(this.room_id), 'POST');
+    let params = {};
+    const serverPattern = /^!([^:]*):(.*)$/;
+    let m = this.room_id.match(serverPattern);
+    if (m)
+      params.server_name = m[2];
+    let response = await this.client_.fetch('/_matrix/client/r0/join/' + encodeURI(this.room_id), 'POST', params);
+    return {
+      'username': m[1],
+      'host': 'https://' + m[2],
+    };
+
     // Joining an alias reveals the internal room id which is used for other
     // API calls.
     this.room_id = response.room_id;
@@ -392,7 +417,7 @@ class Room {
           break;
         // TODO: There may be a more efficient way to build this array.
         result.timeline = response.chunk.reverse().concat(result.timeline);
-        prev_batch = result.prev_batch;
+        prev_batch = response.end;
       }
     }
     this.syncParams_.timeout = this.timeout_;

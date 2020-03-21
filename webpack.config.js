@@ -31,5 +31,6 @@ function createTarget(entries, outputPath, outputFile) {
 
 const lobbyConfig = createTarget(['./src/lobby.js'], 'build', 'lobby.min.js');
 const demoChatConfig = createTarget(['./demo/chat/src/ui.js'], 'demo/chat/build', 'bundle.js');
+const codesConfig = createTarget(['./demo/codes/src/ui.js'], 'demo/codes/build', 'bundle.js');
 
-module.exports = [lobbyConfig, demoChatConfig];
+module.exports = [lobbyConfig, demoChatConfig, codesConfig];
