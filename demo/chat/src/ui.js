@@ -13,7 +13,7 @@
 // limitations under the License.
 
 'use strict';
-import * as lobby from '../../../src/lobby.js';
+import * as lobby from '../../../src/lobby.mjs';
 
 let currentPage = undefined;
 function $(selector) {

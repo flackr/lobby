@@ -4,21 +4,29 @@
   "description": "A framework for creating self hosted multiplayer games",
   "repository": "",
   "author": "Robert Flack <flackr@gmail.com>",
+  "ava": {
+    "nodeArguments": [
+      "--experimental-modules"
+    ]
+  },
   "scripts": {
-    "build": "webpack --mode production"
+    "build": "webpack --mode production",
+    "test": "ava"
   },
   "devDependencies": {
-    "@babel/cli": "^7.7.5",
-    "@babel/core": "^7.7.5",
-    "@babel/plugin-transform-runtime": "^7.7.6",
-    "@babel/preset-env": "^7.7.6",
-    "babel-loader": "^8.0.6",
+    "@babel/cli": "^7.8.4",
+    "@babel/core": "^7.9.0",
+    "@babel/plugin-transform-runtime": "^7.9.0",
+    "@babel/preset-env": "^7.9.0",
+    "ava": "^3.5.1",
+    "babel-loader": "^8.1.0",
     "babel-plugin-transform-class-properties": "^6.24.1",
     "babel-polyfill": "^6.26.0",
     "babel-regenerator-runtime": "^6.5.0",
-    "regenerator-runtime": "^0.13.3",
-    "webpack": "^4.41.3",
-    "webpack-cli": "^3.3.10",
+    "regenerator-runtime": "^0.13.5",
+    "webpack": "^4.42.1",
+    "webpack-cli": "^3.3.11",
     "whatwg-fetch": "^3.0.0"
-  }
+  },
+  "dependencies": {}
 }
