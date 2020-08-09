@@ -28,5 +28,8 @@
     "webpack-cli": "^3.3.11",
     "whatwg-fetch": "^3.0.0"
   },
+  "engines": {
+    "node": ">=14.0.0"
+  },
   "dependencies": {}
 }

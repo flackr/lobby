@@ -23,40 +23,6 @@ export class MatrixError extends Error {
   }
 }
 
-async function fetchJson(url, options, params, data) {
-  if (params) {
-    if (url.indexOf('?') == -1)
-      url += '?';
-    for (let k in params) {
-      let val = params[k];
-      if (val instanceof Object)
-        val = JSON.stringify(val);
-      if (!url.endsWith('?'))
-        url += '&';
-      url += encodeURIComponent(k) + '=' + encodeURIComponent(val)
-    }
-  }
-  if (options.method != 'GET') {
-    options.headers = options.headers || {};
-    options.headers['Content-Type'] = 'application/json';
-    options.body = JSON.stringify(data || {});
-  }
-  let success = false;
-  let response;
-  while (!success) {
-    try {
-      response = await fetch(url, options);
-      success = true;
-    } catch (e) {
-      console.error(e);
-    }
-  }
-  let json = await response.json();
-  if (response.status >= 400 && response.status < 500 && json.errcode)
-    throw new MatrixError(json);
-  return json;
-}
-
 export async function createService(options) {
   return new Service(options);
 }
@@ -90,11 +56,48 @@ class Service {
     this.options_.defaultHost = this.options_.defaultHost || 'https://matrix.org';
     // Set a default app name of the URL.
     this.options_.appName = this.options_.appName || (window.location.origin + window.location.pathname);
+    this.options_.globals = this.options_.globals || {fetch: fetch.bind(globalThis), localStorage};
     this.client_ = null;
   }
 
+  async fetchJson(url, options, params, data) {
+    if (params) {
+      if (url.indexOf('?') == -1)
+        url += '?';
+      for (let k in params) {
+        let val = params[k];
+        if (val instanceof Object)
+          val = JSON.stringify(val);
+        if (!url.endsWith('?'))
+          url += '&';
+        url += encodeURIComponent(k) + '=' + encodeURIComponent(val)
+      }
+    }
+    if (options.method != 'GET') {
+      options.headers = options.headers || {};
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(data || {});
+    }
+    let success = false;
+    let response;
+    let tries = 0;
+    while (!success && tries < 3) {
+      ++tries;
+      try {
+        response = await this.options_.globals.fetch(url, options);
+        success = true;
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    let json = await response.json();
+    if (response.status >= 400 && response.status < 500 && json.errcode)
+      throw new MatrixError(json);
+    return json;
+  }  
+
   async reauthenticate() {
-    let userJson = localStorage.getItem(USER_AUTH_KEY);
+    let userJson = this.options_.globals.localStorage.getItem(USER_AUTH_KEY);
     if (!userJson)
       return null;
     let user = JSON.parse(userJson);
@@ -108,7 +111,7 @@ class Service {
       host: this.options_.defaultHost,
     };
     let username = parsed.username;
-    let user = await fetchJson(parsed.host + '/_matrix/client/r0/login', {'method': 'POST'}, null, {
+    let user = await this.fetchJson(parsed.host + '/_matrix/client/r0/login', {'method': 'POST'}, null, {
       'type': 'm.login.password',
       'identifier': {
         'type': 'm.id.user',
@@ -136,7 +139,7 @@ class Service {
     let attempts = 0;
     while(true) {
       attempts++;
-      let result = await fetchJson(parsed.host + '/_matrix/client/r0/register', {'method': 'POST'}, null, params);
+      let result = await this.fetchJson(parsed.host + '/_matrix/client/r0/register', {'method': 'POST'}, null, params);
       // Success
       if (result.access_token) {
         user = result;
@@ -164,7 +167,7 @@ class Service {
   }
 
   async loginAsGuest(host) {
-    let user = await fetchJson((host || this.options_.defaultHost) + '/_matrix/client/r0/register', {'method': 'POST'}, {'kind': 'guest'});
+    let user = await this.fetchJson((host || this.options_.defaultHost) + '/_matrix/client/r0/register', {'method': 'POST'}, {'kind': 'guest'});
     // TODO: Verify access token?
     return this.client = new Client(this, user, 'guest');
   }
@@ -180,14 +183,14 @@ class Service {
       oldClient.logout();
 
     if (this.client_) {
-      localStorage.setItem(USER_AUTH_KEY, JSON.stringify({
+      this.options_.globals.localStorage.setItem(USER_AUTH_KEY, JSON.stringify({
         'access_token': this.client_.access_token,
         'user_id': this.client_.user_id,
         'type': this.client_.type,
         'host': this.client_.host_,
       }));
     } else {
-      localStorage.removeItem(USER_AUTH_KEY);
+      this.options_.globals.localStorage.removeItem(USER_AUTH_KEY);
     }
     return this.client_;
   }
@@ -242,7 +245,7 @@ class Client {
   }
 
   async fetch(url, method, params, data) {
-    return fetchJson(this.host_ + url,
+    return this.service_.fetchJson(this.host_ + url,
         {
           'method': method,
           'headers': {'Authorization': 'Bearer ' + this.access_token}
@@ -303,7 +306,7 @@ class Client {
         { 'type': 'com.github.flackr.lobby.Game',
           'content': {
             // The URL is used to identify the same app.
-            'url': window.location.origin + window.location.pathname,
+            'url': globalThis.location && (globalThis.location.origin + globalThis.location.pathname) || 'unknown',
             // In the future, this can be used to identify the same app hosted
             // from different locations.
             // TODO: Consider a default of turning the location into a Java-like
