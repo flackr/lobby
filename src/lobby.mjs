@@ -57,6 +57,7 @@ class Service {
     // Set a default app name of the URL.
     this.options_.appName = this.options_.appName || (window.location.origin + window.location.pathname);
     this.options_.globals = this.options_.globals || {fetch: fetch.bind(globalThis), localStorage};
+    this.options_.timeout = this.options_.timeout || 30000;
     this.client_ = null;
   }
 
@@ -344,7 +345,7 @@ class Room {
   constructor(client, room_id) {
     this.client_ = client;
     this.room_id = room_id;
-    this.timeout_ = 30000;
+    this.timeout_ = this.client_.service_.options_.timeout;
     this.joined = false;
     this.initialSync_ = true;
     this.state_ = new RoomState();

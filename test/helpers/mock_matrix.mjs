@@ -27,6 +27,7 @@ export default class MockMatrixServer {
     this._servers = {};
     this._rooms = {};
     this._messages = [];
+    this._onmessage = new Set();
   }
 
   connect(server) {
@@ -83,23 +84,33 @@ export default class MockMatrixServer {
       let details = JSON.parse(init.body);
       let message = {type: result.groups.type, content: details, room_id: result.groups.room};
       this._messages.push(message);
+      for (let observer of this._onmessage)
+        observer();
       return {status: 200, body: JSON.stringify({
         event_id: generateTxnId(this._options.host),
       })};
     } else if (request.startsWith(SYNC_PREFIX)) {
       let params = {};
+      let since = 0;
+      let filter;
+      let timeout;
       if (request[SYNC_PREFIX.length] == '?') {
         let split = request.substring(SYNC_PREFIX.length + 1).split('&');
         for (let param of split) {
           let contents = param.split('=', 2);
-          if (contents[0] != 'filter')
-            throw new Error('Sync parameter ' + param + ' unsupported');
           params[contents[0]] = decodeURIComponent(contents[1]);
+          if (contents[0] == 'filter')
+            filter = JSON.parse(params.filter);
+          else if (contents[0] == 'since')
+            since = JSON.parse(params.since);
+          else if (contents[0] == 'timeout')
+            timeout = JSON.parse(params.timeout);
+          else
+            throw new Error('Sync parameter ' + param + ' unsupported');
         }
       }
-      if (!params['filter'])
+      if (!filter)
         throw new Error('Sync only supported with filter');
-      let filter = JSON.parse(params.filter);
       if (!filter.room || !filter.room.rooms)
         throw new Error('Sync only supported with room filter');
       if (filter.room.rooms.length != 1)
@@ -115,10 +126,40 @@ export default class MockMatrixServer {
           prev_batch: 0,
         },
       };
-      for (let i = 0; i < this._messages.length; i++) {
-        if (this._messages[i].room_id != room)
+      let messageCount = 0;
+      let filterFn = function(msg) {
+        return msg.room_id == room
+      }
+
+      for (; since < this._messages.length; since++) {
+        if (!filterFn(this._messages[since]))
           continue;
-        roomUpdates.join[room].timeline.events.push(this._messages[i]);
+        messageCount++;
+        roomUpdates.join[room].timeline.events.push(this._messages[since]);
+      }
+      if (timeout && messageCount == 0) {
+        const self = this;
+        await new Promise((resolve) => {
+          let finish = () => {
+            self._onmessage.delete(handler);
+            self._options.globals.clearTimeout(timer);
+            resolve();
+          }
+
+          let handler = function() {
+            for (; since < self._messages.length; since++) {
+              if (!filterFn(self._messages[since]))
+                continue;
+              messageCount++;
+              roomUpdates.join[room].timeline.events.push(self._messages[since]);
+            }
+            if (messageCount)
+              finish();
+          }
+
+          let timer = self._options.globals.setTimeout(finish, timeout);
+          self._onmessage.add(handler);
+        });
       }
       let response = {
         next_batch: this._messages.length,
