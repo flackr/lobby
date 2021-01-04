@@ -36,7 +36,7 @@ class MockClock {
     this._time = 0;
     this._originals = {};
     this._global = global;
-    this._autoAdvance = false;
+    this._autoAdvance = 0;
     this._advanceTimer = null;
     if (!this._global)
       return;
@@ -53,18 +53,18 @@ class MockClock {
       this._global[method] = this._originals[method];
   }
 
-  set autoAdvance(value) {
-    this._autoAdvance = value;
+  autoAdvance(ms) {
+    this._autoAdvance = this._time + ms;
     this._maybeAdvance();
   }
 
   _maybeAdvance() {
-    if (!this._autoAdvance || this._advanceTimer !== null || this._events.isEmpty())
+    if (this._autoAdvance < this._time || this._advanceTimer !== null || this._events.isEmpty())
       return;
     const settimout = this._originals.setTimeout || setTimeout;
     this._advanceTimer = settimout(() => {
-      if (this._autoAdvance)
-        this.finish();
+      if (this._autoAdvance >= this._time)
+        this.finish(this._autoAdvance);
       this._advanceTimer = null;
     }, 0);
   }
@@ -82,9 +82,9 @@ class MockClock {
     this._time = target;
   }
 
-  finish() {
+  finish(finishTime) {
     let hadEvents = false;
-    while (!this._events.isEmpty()) {
+    while (!this._events.isEmpty() && this._events.peek()._time <= finishTime) {
       let event = this._events.pop();
       this._time = event._time;
       hadEvents = event.dispatch() || hadEvents;

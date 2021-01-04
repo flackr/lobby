@@ -290,8 +290,10 @@ class Client {
     return new Room(this, roomId);
   }
 
-  async join(roomIdOrAlias) {
-    let room = new Room(this, roomIdOrAlias);
+  async join(roomIdOrAlias, isExperimental) {
+    let room = isExperimental ?
+        new RTCRoom(this, roomIdOrAlias) :
+        new Room(this, roomIdOrAlias);
     await room.join();
     return room;
   }
@@ -369,16 +371,16 @@ class Room {
     if (m)
       params.server_name = m[2];
     let response = await this.client_.fetch('/_matrix/client/r0/join/' + encodeURI(this.room_id), 'POST', params);
-    return {
-      'username': m[1],
-      'host': 'https://' + m[2],
-    };
 
     // Joining an alias reveals the internal room id which is used for other
     // API calls.
     this.room_id = response.room_id;
     this.joined = true;
-    this.state_.reset();
+
+    return {
+      'username': m[1],
+      'host': 'https://' + m[2],
+    };
   }
 
   async leave() {
@@ -405,6 +407,7 @@ class Room {
     if (roomDetails)
       this.state_.process(roomDetails.state.events);
     let result = {
+      ephemeral: roomDetails ? roomDetails.ephemeral.events : [],
       state: roomDetails ? roomDetails.state.events : [],
       timeline: roomDetails ? roomDetails.timeline.events : [],
     };
@@ -487,6 +490,26 @@ class RoomState {
     return members;
   }
 };
+
+class RTCRoom extends Room {
+  constructor(client, room_id) {
+    super(client, room_id);
+  }
+
+  async join() {
+    let response = await super.join();
+    this.sendTyping();
+    return response;
+  }
+
+  async sendTyping() {
+    let response = await this.client_.fetch('/_matrix/client/r0/rooms/' +
+        encodeURI(this.room_id) + '/typing/' + encodeURI(this.client_.user_id), 'PUT', null, {
+          typing: true,
+          timeout: 30000,
+        });
+  }
+}
 
 class Lobby extends Room {
   constructor(client, room_id) {

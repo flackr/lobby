@@ -31,3 +31,12 @@ As such, even when peer to peer messaging is available, if your application
 would benefit from these capabilities it's encouraged to send the minimum
 necessary state to restore the session through matrix even if more rich or
 frequent messages are available when connected directly.
+
+Fully connected
+Regularly exchange pings, track ping + packet loss.
+Master accepts all connections, facilitates peer connections
+Master uses typing notifications to indicate they are still there?
+When races occur, origin_server_ts disambiguates
+Netsplits prefer greatest number of players, then origin_server_ts. This means people who end up in the wrong group may lose state.
+Can regularly renegotiate master
+Games can support either offline continuation or not (no matrix side backup)

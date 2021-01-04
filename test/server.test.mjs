@@ -17,7 +17,7 @@ test.afterEach(t => {
 
 test('handles a request', async (t) => {
   const clock = t.context.clock;
-  clock.autoAdvance = true;
+  clock.autoAdvance(200000);
   const requestUrl = 'https://foo.com';
   const responseObject = {test: 'response'};
   t.context.network.install(async (resource, init) => {

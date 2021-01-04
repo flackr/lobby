@@ -3,10 +3,15 @@ const AUTH_PREFIX = 'Bearer ';
 const JOIN_PREFIX = 'join/';
 const SYNC_PREFIX = 'sync';
 const SEND_REGEX = /^rooms\/(?<room>[^\/]*)\/send\/(?<type>[^\/]*)\/(?<id>.*)$/;
+const TYPING_REGEX = /^rooms\/(?<room>[^\/]*)\/typing\/(?<id>.*)$/;
 const TOKEN_PREFIX = 'token';
 let tokenIndex = 0;
 let roomIndex = 0;
 let txnIndex = 0;
+
+// Internal message types
+const TYPE_EPHEMERAL = 'ephemeral';
+const TYPE_TIMELINE = 'timeline';
 
 function generateTxnId(host) {
   return '$' + (++txnIndex) + ':' + host;
@@ -71,6 +76,7 @@ export default class MockMatrixServer {
       let room_id = generateRoomId(this._options.host);
       this._rooms[room_id] = {
         messages: [],
+        typing: [],
       };
       return {status: 200, body: JSON.stringify({
         room_id,
@@ -82,13 +88,19 @@ export default class MockMatrixServer {
       return {status: 200, body: JSON.stringify({room_id})};
     } else if (result = request.match(SEND_REGEX)) {
       let details = JSON.parse(init.body);
-      let message = {type: result.groups.type, content: details, room_id: result.groups.room};
-      this._messages.push(message);
-      for (let observer of this._onmessage)
-        observer();
+      let message = {
+          _internal: TYPE_TIMELINE,
+          type: result.groups.type,
+          content: details,
+          room_id: result.groups.room};
+      this.commitMessage(message);
       return {status: 200, body: JSON.stringify({
         event_id: generateTxnId(this._options.host),
       })};
+    } else if (result = request.match(TYPING_REGEX)) {
+      let details = JSON.parse(init.body);
+      this.setTyping(result.groups.room, result.groups.id, details.typing, details.timeout);
+      return {status: 200, body: JSON.stringify({})};
     } else if (request.startsWith(SYNC_PREFIX)) {
       let params = {};
       let since = 0;
@@ -118,6 +130,9 @@ export default class MockMatrixServer {
       let room = filter.room.rooms[0];
       let roomUpdates = {join: {}};
       roomUpdates.join[room] = {
+        ephemeral: {
+          events: [],
+        },
         state: {
           events: [],
         },
@@ -135,8 +150,11 @@ export default class MockMatrixServer {
         if (!filterFn(this._messages[since]))
           continue;
         messageCount++;
-        roomUpdates.join[room].timeline.events.push(this._messages[since]);
+        let message = this._messages[since];
+        roomUpdates.join[room][message._internal].events.push(message);
       }
+
+      // Wait for more events if none have occurred yet.
       if (timeout && messageCount == 0) {
         const self = this;
         await new Promise((resolve) => {
@@ -151,7 +169,8 @@ export default class MockMatrixServer {
               if (!filterFn(self._messages[since]))
                 continue;
               messageCount++;
-              roomUpdates.join[room].timeline.events.push(self._messages[since]);
+              let message = self._messages[since];
+              roomUpdates.join[room][message._internal].events.push(message);
             }
             if (messageCount)
               finish();
@@ -169,5 +188,40 @@ export default class MockMatrixServer {
     }
     // return {status: 200, body: JSON.stringify({})};
     throw new Error('Request ' + request + ' unhandled');
+  }
+
+  commitMessage(message) {
+    this._messages.push(message);
+    for (let observer of this._onmessage)
+      observer();
+  }
+
+  setTyping(roomId, userId, typing, timeout) {
+    if (this._rooms[roomId].typing[userId]) {
+      // Cancel previous timeout.
+      this._options.globals.clearTimeout(this._rooms[roomId].typing[userId]);
+      delete this._rooms[roomId].typing[userId];
+    }
+
+    // Queue a timer to cancel typing.
+    if (typing) {
+      this._rooms[roomId].typing[userId] = this._options.globals.setTimeout(
+          this.setTyping.bind(this, roomId, userId, false, 0), timeout);
+    }
+
+    // Queue an update message right now.
+    let user_ids = [];
+    for (let typingUserId in this._rooms[roomId].typing) {
+      user_ids.push(typingUserId);
+    }
+    user_ids.sort();
+
+    let message = {
+      _internal: TYPE_EPHEMERAL,
+      content: {user_ids},
+      type: 'm.typing',
+      room_id: roomId,
+    };
+    this.commitMessage(message);
   }
 }
