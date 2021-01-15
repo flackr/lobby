@@ -4,6 +4,18 @@ const OFFER_STR = 'offer-';
 const ANSWER_STR = 'answer-';
 const CANDIDATE_STR = 'candidate-';
 
+class MockRTCSessionDescription {
+  constructor(desc) {
+    this.description = desc.description;
+  }
+};
+
+class MockRTCIceCandidate {
+  constructor(cand) {
+    this.candidate = cand.candidate;
+  }
+}
+
 class MockWebRTC {
   constructor(global) {
     this._global = global;
@@ -12,6 +24,8 @@ class MockWebRTC {
     this._originals = {
       RTCPeerConnection: global.RTCPeerConnection,
       RTCDataChannel: global.RTCDataChannel,
+      RTCSessionDescription: global.RTCSessionDescription,
+      RTCIceCandidate: global.RTCIceCandidate,
     };
     // Map of ICE candidates to peers.
     this._peers = {};
@@ -56,13 +70,13 @@ class MockWebRTC {
       }
 
       async createOffer() {
-        let offer = OFFER_STR + (this._nextOffer++);
-        return offer;
+        let offer = OFFER_STR + (self._nextOffer++);
+        return new MockRTCSessionDescription({description: offer});
       }
 
       async createAnswer() {
-        let answer = ANSWER_STR + this.remoteDescription.substring(OFFER_STR.length);
-        return answer;
+        let answer = ANSWER_STR + this.remoteDescription.description.substring(OFFER_STR.length);
+        return new MockRTCSessionDescription({description: answer});
       }
 
       async setLocalDescription(desc) {
@@ -90,7 +104,7 @@ class MockWebRTC {
         this._localCandidates.push(candidate);
         self._peers[candidate] = this;
         let evt = new MockEvent('icecandidate');
-        evt.candidate = candidate;
+        evt.candidate = new MockRTCIceCandidate({candidate});
         this.dispatchEvent(evt);
       }
 
@@ -106,15 +120,17 @@ class MockWebRTC {
           return true;
 
         // Check descriptions.
-        if (this.remoteDescription != peer.localDescription)
+        if (this.remoteDescription.description != peer.localDescription.description)
           return false;
-        if (peer.remoteDescription != this.localDescription)
+        if (peer.remoteDescription.description != this.localDescription.description)
           return false;
 
         // Check for a connectable ice candidate.
         for (let cand of this._remoteCandidates) {
-          if (peer._localCandidates.indexOf(cand) != -1)
-            return true;
+          for (let lcand of peer._localCandidates) {
+            if (cand.candidate == lcand.candidate)
+              return true;
+          }
         }
       }
 
@@ -125,7 +141,7 @@ class MockWebRTC {
         // Find a remote
         let peer = null;
         for (let cand of this._remoteCandidates) {
-          peer = self._peers[cand];
+          peer = self._peers[cand.candidate];
           if (!peer)
             continue;
           if (peer._canConnect(this))
@@ -148,9 +164,10 @@ class MockWebRTC {
             continue;
           let dc = this._dataChannels[channelName];
 
-          // If this data channel doesn't exist in the remote, create it.
+          // TODO: Only re-use channel with matching id.
           let remoteDc = peer._dataChannels[channelName];
           let dispatchEvent = false;
+          // If this data channel doesn't exist in the remote, create it.
           if (!remoteDc) {
             remoteDc = peer._dataChannels[channelName] = new MockRTCDataChannel(peer, channelName, dc._options);
             dispatchEvent = true;
@@ -175,10 +192,14 @@ class MockWebRTC {
     };
 
     this._global.RTCPeerConnection = MockRTCPeerConnection;
+    this._global.RTCSessionDescription = MockRTCSessionDescription;
+    this._global.RTCIceCandidate = MockRTCIceCandidate;
   }
 
   uninstall() {
     this._global.RTCPeerConnection = this._originals.RTCPeerConnection;
+    this._global.RTCSessionDescription = this._originals.RTCSessionDescription;
+    this._global.RTCIceCandidate = this._originals.RTCIceCandidate;
   }
 
 };

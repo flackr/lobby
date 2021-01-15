@@ -14,6 +14,40 @@
 
 'use strict';
 
+const isSafari = globalThis.navigator && /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+
+class SyntheticEventTarget {
+  constructor() {
+    this._handlers = {};
+  }
+
+  addEventListener(type, fn) {
+    this._handlers[type] = this._handlers[type] || [];
+    let handlers = this._handlers[type];
+    if (handlers.indexOf(fn) == -1)
+      handlers.push(fn);
+  }
+
+  removeEventListener(type, fn) {
+    let handlers = this._handlers[type];
+    if (!handlers)
+      return;
+    let index = handlers.indexOf(fn);
+    if (index == -1)
+      return;
+    handlers.splice(index, 1);
+  }
+
+  dispatchEvent(event) {
+    let handlers = this._handlers[event.type];
+    if (!handlers)
+      return;
+    for (let handler of handlers) {
+      handler.apply(null, [event]);
+    }
+  }
+};
+
 export class MatrixError extends Error {
   constructor(json) {
     super(json.errcode + ': ' + json.error);
@@ -56,7 +90,12 @@ class Service {
     this.options_.defaultHost = this.options_.defaultHost || 'https://matrix.org';
     // Set a default app name of the URL.
     this.options_.appName = this.options_.appName || (window.location.origin + window.location.pathname);
-    this.options_.globals = this.options_.globals || {fetch: fetch.bind(globalThis), localStorage};
+    this.options_.globals = this.options_.globals || globalThis;
+    this.options_.webRtcConfig = this.options_.webRtcConfig || {
+      iceServers: [
+          {urls: "stun:stun.l.google.com:19302"},
+      ],
+    };
     this.options_.timeout = this.options_.timeout || 30000;
     this.client_ = null;
   }
@@ -90,6 +129,9 @@ class Service {
       } catch (e) {
         console.error(e);
       }
+    }
+    if (!response) {
+      throw new Error('No response');
     }
     let json = await response.json();
     if (response.status >= 400 && response.status < 500 && json.errcode)
@@ -220,6 +262,7 @@ class Client {
       return null;
     if (!this.lobby_)
       this.lobby_ = await new Lobby(this, this.service_.options_.lobbyRoom);
+    await this.lobby_.join();
     return this.lobby_;
   }
 
@@ -452,6 +495,14 @@ class Room {
     }
     return this.state_;
   }
+
+  async sendTyping() {
+    let response = await this.client_.fetch('/_matrix/client/r0/rooms/' +
+        encodeURI(this.room_id) + '/typing/' + encodeURI(this.client_.user_id), 'PUT', null, {
+          typing: true,
+          timeout: 30000,
+        });
+  }
 };
 
 class RoomState {
@@ -491,23 +542,135 @@ class RoomState {
   }
 };
 
-class RTCRoom extends Room {
+const ANNOUNCE_EVENT = 'com.github.flackr.lobby.Announce';
+const OFFER_EVENT = 'com.github.flackr.lobby.Offer';
+const ANSWER_EVENT = 'com.github.flackr.lobby.Answer';
+const ICE_CANDIDATE_EVENT = 'com.github.flackr.lobby.IceCandidate';
+
+class RTCRoom extends SyntheticEventTarget {
   constructor(client, room_id) {
-    super(client, room_id);
+    super();
+    this._client = client;
+    this._connected = true;
+    this._uid = Math.floor(Math.random() * 10000000) + 1;
+    this._room = new Room(client, room_id);
+    this._peers = {};
+    this._seenSelf = false;
+    // state -> ['connecting', 'loading', ]
+    // track details like connected peers, pings.
   }
 
   async join() {
-    let response = await super.join();
-    this.sendTyping();
+    if (isSafari) {
+      // Awful hack to get access to local ICE candidates.
+      await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    }
+    let response = await this._room.join();
+    // If no one typing, become master:
+    // - Send master message (Just to break ties?)
+    // - Sync history
+    // - Accept connections
+
+    // Otherwise, request connection from master.
+    // - If no one connects, become master
+    // - On connection, connect all peers
+    this._room.sendEvent(ANNOUNCE_EVENT, {
+      uid: this._uid});
+    this._room.sendTyping();
+    this.process();
     return response;
   }
 
-  async sendTyping() {
-    let response = await this.client_.fetch('/_matrix/client/r0/rooms/' +
-        encodeURI(this.room_id) + '/typing/' + encodeURI(this.client_.user_id), 'PUT', null, {
-          typing: true,
-          timeout: 30000,
-        });
+  async process() {
+    while (true) {
+      let events = await this._room.sync();
+      if (!this._connected)
+        return;
+      for (let evt of events.timeline) {
+        if (evt.type == ANNOUNCE_EVENT) {
+          if (evt.content.uid == this._uid) {
+            // Once you see your own announcement, connect to others.
+            this._seenSelf = true;
+          } else if (this._seenSelf) {
+            this.initiateConnection(evt.sender, evt.content.uid);
+          }
+        } else if (evt.type == OFFER_EVENT && evt.content.dest == this._uid) {
+          this.acceptOffer(evt.sender, evt.content.uid, evt);
+        } else if (evt.type == ANSWER_EVENT && evt.content.dest == this._uid) {
+          this.acceptAnswer(evt.sender, evt.content.uid, evt);
+        } else if (evt.type == ICE_CANDIDATE_EVENT && evt.content.dest == this._uid) {
+          this.createPeerConnection(evt.sender, evt.content.uid).peer.addIceCandidate(
+              new this._client.service_.options_.globals.RTCIceCandidate(evt.content.candidate));
+        }
+      }
+    }
+  }
+
+  createPeerConnection(user_id, uid) {
+    let mapStr = user_id + '-' + uid;
+    if (this._peers[mapStr])
+      return this._peers[mapStr];
+    let peer = new this._client.service_.options_.globals.RTCPeerConnection(this._client.service_.options_.webRtcConfig)
+    let reliable = peer.createDataChannel('main', {negotiated: true, id: 0});
+    this._peers[mapStr] = {
+      user_id,
+      peer,
+      reliable,
+      unreliable: null,
+    };
+    
+    const self = this;
+    peer.onicecandidate = (evt) => {
+      if (evt.candidate)
+        self._room.sendEvent(ICE_CANDIDATE_EVENT, {candidate: evt.candidate, uid: self._uid, dest: uid});
+    };
+    // TODO: Sanity check with chat?
+    reliable.addEventListener('open', () => {
+      self.dispatchEvent({type: 'connection', user_id, channel: reliable});
+    });
+
+    reliable.addEventListener('message', (evt) => {
+      self.dispatchEvent({type: 'message', user_id, event: evt, data: evt.data});
+    });
+    return peer;
+  }
+
+  // Initiate a connection with (user_id, uid).
+  async initiateConnection(user_id, uid) {
+    // Initialize webrtc and make connection.
+    let peer = this.createPeerConnection(user_id, uid);
+    let offer = await peer.createOffer();
+    peer.setLocalDescription(offer);
+    this._room.sendEvent(OFFER_EVENT, {offer: offer, uid: this._uid, dest: uid});
+  }
+
+  async acceptOffer(user_id, uid, evt) {
+    let peer = this.createPeerConnection(user_id, uid);
+    peer.setRemoteDescription(new this._client.service_.options_.globals.RTCSessionDescription(evt.content.offer));
+    let answer = await peer.createAnswer();
+    peer.setLocalDescription(answer);
+    this._room.sendEvent(ANSWER_EVENT, {answer: answer, uid: this._uid, dest: uid});
+  }
+
+  async acceptAnswer(user_id, uid, evt) {
+    let mapStr = user_id + '-' + uid;
+    let peer = this._peers[mapStr].peer;
+    peer.setRemoteDescription(new this._client.service_.options_.globals.RTCSessionDescription(evt.content.answer));
+  }
+
+  send(msg) {
+    for (let peerid in this._peers) {
+      if (this._peers[peerid].reliable.readyState != 'open') continue;
+      this._peers[peerid].reliable.send(msg);
+    }
+  }
+
+  quit() {
+    this._conected = false;
+  }
+
+  sync() {
+    return this._room.sync();
   }
 }
 

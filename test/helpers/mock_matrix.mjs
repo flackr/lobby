@@ -92,6 +92,7 @@ export default class MockMatrixServer {
           _internal: TYPE_TIMELINE,
           type: result.groups.type,
           content: details,
+          sender: user_id,
           room_id: result.groups.room};
       this.commitMessage(message);
       return {status: 200, body: JSON.stringify({

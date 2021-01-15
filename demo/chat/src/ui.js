@@ -38,6 +38,10 @@ function onhashchange() {
       loadGame(window.location.hash.substring(6));
       return;
     }
+    if (currentGame) {
+      currentGame.quit();
+      currentGame = null;
+    }
     // If authenticated, default to the listing page if a valid page is not
     // specified.
     if (['#list', '#create'].indexOf(window.location.hash) == -1)
@@ -254,26 +258,32 @@ function stampTemplate(template, details) {
 async function loadGame(room_id) {
   $('#game-log').innerHTML = '';
   showPage('page-game');
-  let game = await client.join(room_id);
+  let game = await client.join(room_id, true);
+  if (currentGame)
+    currentGame.quit();
   currentGame = game;
-  while (true) {
-    let events = await game.fetchEvents();
-    // TODO: Also stop updating if we're not currently viewing the game.
-    if (!game == currentGame)
-      return;
+  game.addEventListener('connection', (evt) => {
+    console.log(evt);
     let wasScolledToBottom = $('#game-log').scrollTop >= $('#game-log').scrollHeight - $('#game-log').clientHeight;
-    for (let evt of events) {
-      if (evt.type != 'm.room.message')
-        continue;
-      let div = stampTemplate('.chat-message', {
-        sender: evt.sender,
-        body: evt.content.body,
-      });
-      $('#game-log').appendChild(div);
-    }
+    let div = stampTemplate('.chat-message', {
+      sender: evt.user_id,
+      body: 'Connection established',
+    });
+    $('#game-log').appendChild(div);
     if (wasScolledToBottom)
       $('#game-log').scrollTop = $('#game-log').scrollHeight - $('#game-log').clientHeight;
-  }
+  });
+  game.addEventListener('message', (evt) => {
+    console.log(evt);
+    let wasScolledToBottom = $('#game-log').scrollTop >= $('#game-log').scrollHeight - $('#game-log').clientHeight;
+    let div = stampTemplate('.chat-message', {
+      sender: evt.user_id,
+      body: evt.data,
+    });
+    $('#game-log').appendChild(div);
+    if (wasScolledToBottom)
+      $('#game-log').scrollTop = $('#game-log').scrollHeight - $('#game-log').clientHeight;
+  });
 }
 
 function gameChatKeypress(evt) {
@@ -282,17 +292,16 @@ function gameChatKeypress(evt) {
   if (evt.keyCode == 13) {
     let msg = evt.target.value;
     evt.target.value = '';
-    currentGame.sendEvent('m.room.message', {
-      msgtype: 'm.text',
-      body: msg,
-    });
+    currentGame.send(msg);
   }
 }
 
 function leaveRoom() {
   if (!currentGame)
     return;
+  currentGame.quit();
   currentGame.leave();
+  currentGame = null;
   window.location.hash = 'list';
 }
 
