@@ -65,7 +65,7 @@ test('exchanges matrix messages', async function(t) {
   t.is(result2.timeline[0].content.body, 'test', 'Expected test message in body');
 });
 
-test('gets typing notifications', async function(t) {
+test('exchanges messages over webrtc', async function(t) {
   const clock = t.context.clock;
   clock.autoAdvance(200000);
   const serviceDetails = {
@@ -93,6 +93,22 @@ test('gets typing notifications', async function(t) {
 
   let con1 = await connected;
   t.is(con1.user_id, '@user2:localhost');
+
+  function getMessage(room) {
+    return new Promise((resolve) => {
+      let result = function(evt) {
+        room.removeEventListener('message', result);
+        resolve(evt);
+      }
+      room.addEventListener('message', result);
+    });
+  }
+
+  room1.send('message1');
+  t.is((await getMessage(room2)).data, 'message1');
+
+  room2.send('message2');
+  t.is((await getMessage(room1)).data, 'message2');
 
   room2.quit();
   room1.quit();

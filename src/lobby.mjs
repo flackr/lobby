@@ -606,46 +606,54 @@ class RTCRoom extends SyntheticEventTarget {
     }
   }
 
-  createPeerConnection(user_id, uid) {
+  createPeerConnection(user_id, uid, initiator) {
     let mapStr = user_id + '-' + uid;
     if (this._peers[mapStr])
       return this._peers[mapStr];
     let peer = new this._client.service_.options_.globals.RTCPeerConnection(this._client.service_.options_.webRtcConfig)
-    let reliable = peer.createDataChannel('main', {negotiated: true, id: 0});
     this._peers[mapStr] = {
       user_id,
       peer,
-      reliable,
+      reliable: null,
       unreliable: null,
     };
-    
     const self = this;
+
+    if (initiator) {
+      let dc = peer.createDataChannel('main');
+      dc.addEventListener('open', connectDataChannel.bind(null, dc));
+    } else {
+      peer.addEventListener('datachannel', (evt) => {
+        connectDataChannel(evt.channel);
+      });
+    }
     peer.onicecandidate = (evt) => {
       if (evt.candidate)
         self._room.sendEvent(ICE_CANDIDATE_EVENT, {candidate: evt.candidate, uid: self._uid, dest: uid});
     };
-    // TODO: Sanity check with chat?
-    reliable.addEventListener('open', () => {
-      self.dispatchEvent({type: 'connection', user_id, channel: reliable});
-    });
 
-    reliable.addEventListener('message', (evt) => {
-      self.dispatchEvent({type: 'message', user_id, event: evt, data: evt.data});
-    });
+    function connectDataChannel(channel) {
+      self._peers[mapStr].reliable = channel;
+      self.dispatchEvent({type: 'connection', user_id, channel});
+      channel.addEventListener('message', (evt) => {
+        self.dispatchEvent({type: 'message', user_id, event: evt, data: evt.data});
+      });
+    }
+
     return peer;
   }
 
   // Initiate a connection with (user_id, uid).
   async initiateConnection(user_id, uid) {
     // Initialize webrtc and make connection.
-    let peer = this.createPeerConnection(user_id, uid);
+    let peer = this.createPeerConnection(user_id, uid, true);
     let offer = await peer.createOffer();
     peer.setLocalDescription(offer);
     this._room.sendEvent(OFFER_EVENT, {offer: offer, uid: this._uid, dest: uid});
   }
 
   async acceptOffer(user_id, uid, evt) {
-    let peer = this.createPeerConnection(user_id, uid);
+    let peer = this.createPeerConnection(user_id, uid, false);
     peer.setRemoteDescription(new this._client.service_.options_.globals.RTCSessionDescription(evt.content.offer));
     let answer = await peer.createAnswer();
     peer.setLocalDescription(answer);
@@ -660,7 +668,9 @@ class RTCRoom extends SyntheticEventTarget {
 
   send(msg) {
     for (let peerid in this._peers) {
-      if (this._peers[peerid].reliable.readyState != 'open') continue;
+      let channel = this._peers[peerid].reliable;
+      if (!channel || channel.readyState != 'open')
+        continue;
       this._peers[peerid].reliable.send(msg);
     }
   }

@@ -37,8 +37,12 @@ class MockWebRTC {
     class MockRTCDataChannel extends MockEventTarget {
       constructor(peerConnection, label, options) {
         super(DATA_CHANNEL_EVENTS);
+        this.readyState = 'connecting';
+        this.id = Math.floor(Math.random() * 65535);
+        if (options && options.id)
+          this.id = options.id;
+        this.label = label;
         this._peerConnection = peerConnection;
-        this._label = label;
         this._options = options;
         this._remote = null;
       }
@@ -95,8 +99,9 @@ class MockWebRTC {
       }
 
       createDataChannel(label, options) {
-        this._dataChannels[label] = new MockRTCDataChannel(this, label, options);
-        return this._dataChannels[label];
+        let dc = new MockRTCDataChannel(this, label, options);
+        this._dataChannels[dc.id] = dc;
+        return dc;
       }
 
       _generateCandidate() {
@@ -159,23 +164,25 @@ class MockWebRTC {
         if (initial)
           peer._connect(this, false);
         
-        for (let channelName in this._dataChannels) {
-          if (this._dataChannels[channelName]._remote)
+        for (let channelId in this._dataChannels) {
+          if (this._dataChannels[channelId]._remote)
             continue;
-          let dc = this._dataChannels[channelName];
+          let dc = this._dataChannels[channelId];
 
           // TODO: Only re-use channel with matching id.
-          let remoteDc = peer._dataChannels[channelName];
+          let remoteDc = peer._dataChannels[channelId];
           let dispatchEvent = false;
           // If this data channel doesn't exist in the remote, create it.
           if (!remoteDc) {
-            remoteDc = peer._dataChannels[channelName] = new MockRTCDataChannel(peer, channelName, dc._options);
+            remoteDc = peer._dataChannels[channelId] = new MockRTCDataChannel(peer, dc.label, {...dc._options, id: channelId});
             dispatchEvent = true;
           }
 
           // Connect the channels.
           remoteDc._remote = dc;
+          remoteDc.readyState = 'open';
           dc._remote = remoteDc;
+          dc.readyState = 'open';
 
           // Dispatch events.
           let evt;

@@ -35,8 +35,21 @@ frequent messages are available when connected directly.
 Fully connected
 Regularly exchange pings, track ping + packet loss.
 Master accepts all connections, facilitates peer connections
-Master uses typing notifications to indicate they are still there?
+Typing notifications to indicate people are still there
 When races occur, origin_server_ts disambiguates
 Netsplits prefer greatest number of players, then origin_server_ts. This means people who end up in the wrong group may lose state.
 Can regularly renegotiate master
 Games can support either offline continuation or not (no matrix side backup)
+
+### To do
+
+* Only sync matrix messages from the point at which user joins.
+* Nominate master to back messages up to matrix.
+* Check log in state by querying turn server config.
+* Use turn server config on RTC connections.
+* Sync entire history.
+* Handle disconnections.
+
+### Optional
+
+* Use master to negotiate peer connections (reduce matrix traffic).
