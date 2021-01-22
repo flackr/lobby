@@ -83,6 +83,25 @@ function keys(dict) {
   return val;
 }
 
+function gatherIceCandidates(peerConnection) {
+  return new Promise((resolve) => {
+    let candidates = [];
+    function addIceCandidate(evt) {
+      if (evt.candidate)
+        candidates.push(evt.candidate);
+    }
+    function gatheringStateChange() {
+      if (peerConnection.iceGatheringState != 'complete')
+        return;
+      peerConnection.removeEventListener('icecandidate', addIceCandidate);
+      peerConnection.removeEventListener('icegatheringstatechange', gatheringStateChange);
+      resolve(candidates);
+    }
+    peerConnection.addEventListener('icecandidate', addIceCandidate);
+    peerConnection.addEventListener('icegatheringstatechange', gatheringStateChange);
+  });
+}
+
 const USER_AUTH_KEY = 'com.github.flackr.lobby.User';
 class Service {
   constructor(options) {
@@ -545,7 +564,6 @@ class RoomState {
 const ANNOUNCE_EVENT = 'com.github.flackr.lobby.Announce';
 const OFFER_EVENT = 'com.github.flackr.lobby.Offer';
 const ANSWER_EVENT = 'com.github.flackr.lobby.Answer';
-const ICE_CANDIDATE_EVENT = 'com.github.flackr.lobby.IceCandidate';
 
 class RTCRoom extends SyntheticEventTarget {
   constructor(client, room_id) {
@@ -600,9 +618,6 @@ class RTCRoom extends SyntheticEventTarget {
           this.acceptOffer(evt.sender, evt.content.uid, evt);
         } else if (evt.type == ANSWER_EVENT && evt.content.dest == this._uid) {
           this.acceptAnswer(evt.sender, evt.content.uid, evt);
-        } else if (evt.type == ICE_CANDIDATE_EVENT && evt.content.dest == this._uid) {
-          this.createPeerConnection(evt.sender, evt.content.uid).peer.addIceCandidate(
-              new this._client.service_.options_.globals.RTCIceCandidate(evt.content.candidate));
         }
       }
     }
@@ -617,10 +632,6 @@ class RTCRoom extends SyntheticEventTarget {
     peer.addEventListener('iceconnectionstatechange', (evt) => {
       let dstrstate = self._peers[mapStr].reliable ? self._peers[mapStr].reliable.readyState : 'N/A';
       console.log('iceconnectionstate for ' + mapStr + ' is ' + peer.iceConnectionState + ' dataChannel readyState is ' + dstrstate);
-      /*if (peer.iceConnectionState == 'disconnected') {
-        delete this._peers[mapStr];
-        self.dispatchEvent({type: 'disconnection', user_id});
-      }*/
     });
     this._peers[mapStr] = {
       user_id,
@@ -637,10 +648,6 @@ class RTCRoom extends SyntheticEventTarget {
         connectDataChannel(evt.channel);
       });
     }
-    peer.onicecandidate = (evt) => {
-      if (evt.candidate)
-        self._room.sendEvent(ICE_CANDIDATE_EVENT, {candidate: evt.candidate, uid: self._uid, dest: uid});
-    };
 
     function connectDataChannel(channel) {
       self._peers[mapStr].reliable = channel;
@@ -665,7 +672,8 @@ class RTCRoom extends SyntheticEventTarget {
     let peer = this.createPeerConnection(user_id, uid, true);
     let offer = await peer.createOffer();
     peer.setLocalDescription(offer);
-    this._room.sendEvent(OFFER_EVENT, {offer: offer, uid: this._uid, dest: uid});
+    let candidates = await gatherIceCandidates(peer);
+    this._room.sendEvent(OFFER_EVENT, {offer, candidates, uid: this._uid, dest: uid});
   }
 
   async acceptOffer(user_id, uid, evt) {
@@ -673,13 +681,20 @@ class RTCRoom extends SyntheticEventTarget {
     peer.setRemoteDescription(new this._client.service_.options_.globals.RTCSessionDescription(evt.content.offer));
     let answer = await peer.createAnswer();
     peer.setLocalDescription(answer);
-    this._room.sendEvent(ANSWER_EVENT, {answer: answer, uid: this._uid, dest: uid});
+    let candidates = await gatherIceCandidates(peer);
+    for (let i = 0; i < evt.content.candidates.length; i++) {
+      peer.addIceCandidate(new this._client.service_.options_.globals.RTCIceCandidate(evt.content.candidates[i]));
+    }
+    this._room.sendEvent(ANSWER_EVENT, {answer, candidates, uid: this._uid, dest: uid});
   }
 
   async acceptAnswer(user_id, uid, evt) {
     let mapStr = user_id + '-' + uid;
     let peer = this._peers[mapStr].peer;
     peer.setRemoteDescription(new this._client.service_.options_.globals.RTCSessionDescription(evt.content.answer));
+    for (let i = 0; i < evt.content.candidates.length; i++) {
+      peer.addIceCandidate(new this._client.service_.options_.globals.RTCIceCandidate(evt.content.candidates[i]));
+    }
   }
 
   send(msg) {
