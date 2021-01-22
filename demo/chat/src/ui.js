@@ -273,8 +273,19 @@ async function loadGame(room_id) {
     if (wasScolledToBottom)
       $('#game-log').scrollTop = $('#game-log').scrollHeight - $('#game-log').clientHeight;
   });
+  game.addEventListener('disconnection', (evt) => {
+    //console.log(evt);
+    let wasScolledToBottom = $('#game-log').scrollTop >= $('#game-log').scrollHeight - $('#game-log').clientHeight;
+    let div = stampTemplate('.chat-message', {
+      sender: evt.user_id,
+      body: 'Connection lost',
+    });
+    $('#game-log').appendChild(div);
+    if (wasScolledToBottom)
+      $('#game-log').scrollTop = $('#game-log').scrollHeight - $('#game-log').clientHeight;
+  });
   game.addEventListener('message', (evt) => {
-    console.log(evt);
+    //console.log(evt);
     let wasScolledToBottom = $('#game-log').scrollTop >= $('#game-log').scrollHeight - $('#game-log').clientHeight;
     let div = stampTemplate('.chat-message', {
       sender: evt.user_id,

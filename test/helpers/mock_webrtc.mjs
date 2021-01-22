@@ -58,13 +58,14 @@ class MockWebRTC {
       }
     };
 
-    const PEER_CHANNEL_EVENTS = ['datachannel', 'icecandidate'];
+    const PEER_CHANNEL_EVENTS = ['datachannel', 'icecandidate', 'icegatheringstatechange'];
     class MockRTCPeerConnection extends MockEventTarget {
       constructor(configuration) {
         super(PEER_CHANNEL_EVENTS);
         this.localDescription = null;
         this.remoteDescription = null;
         this.connectionState = 'new';
+        this.iceGatheringState = 'new';
         this._configuration = configuration;
         this._dataChannels = {};
         this._localCandidates = [];
@@ -105,11 +106,15 @@ class MockWebRTC {
       }
 
       _generateCandidate() {
+        this.iceGatheringState = 'gathering';
         let candidate = CANDIDATE_STR + (self._nextCandidate++);
         this._localCandidates.push(candidate);
         self._peers[candidate] = this;
         let evt = new MockEvent('icecandidate');
         evt.candidate = new MockRTCIceCandidate({candidate});
+        this.dispatchEvent(evt);
+        this.iceGatheringState = 'complete';
+        evt = new MockEvent('icegatheringstatechange');
         this.dispatchEvent(evt);
       }
 

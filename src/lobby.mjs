@@ -554,6 +554,8 @@ class RTCRoom extends SyntheticEventTarget {
     this._connected = true;
     this._uid = Math.floor(Math.random() * 10000000) + 1;
     this._room = new Room(client, room_id);
+    // TODO: Implement a way to sync history later in case we need to.
+    this._room.initialSync_ = false;
     this._peers = {};
     this._seenSelf = false;
     // state -> ['connecting', 'loading', ]
@@ -611,13 +613,21 @@ class RTCRoom extends SyntheticEventTarget {
     if (this._peers[mapStr])
       return this._peers[mapStr];
     let peer = new this._client.service_.options_.globals.RTCPeerConnection(this._client.service_.options_.webRtcConfig)
+    const self = this;
+    peer.addEventListener('iceconnectionstatechange', (evt) => {
+      let dstrstate = self._peers[mapStr].reliable ? self._peers[mapStr].reliable.readyState : 'N/A';
+      console.log('iceconnectionstate for ' + mapStr + ' is ' + peer.iceConnectionState + ' dataChannel readyState is ' + dstrstate);
+      /*if (peer.iceConnectionState == 'disconnected') {
+        delete this._peers[mapStr];
+        self.dispatchEvent({type: 'disconnection', user_id});
+      }*/
+    });
     this._peers[mapStr] = {
       user_id,
       peer,
       reliable: null,
       unreliable: null,
     };
-    const self = this;
 
     if (initiator) {
       let dc = peer.createDataChannel('main');
@@ -637,6 +647,12 @@ class RTCRoom extends SyntheticEventTarget {
       self.dispatchEvent({type: 'connection', user_id, channel});
       channel.addEventListener('message', (evt) => {
         self.dispatchEvent({type: 'message', user_id, event: evt, data: evt.data});
+      });
+      channel.addEventListener('close', () => {
+        console.log('datachannel for ' + mapStr + ' closed.');
+      });
+      channel.addEventListener('error', () => {
+        console.log('datachannel for ' + mapStr + ' errored.');
       });
     }
 
@@ -667,6 +683,7 @@ class RTCRoom extends SyntheticEventTarget {
   }
 
   send(msg) {
+    this.dispatchEvent({type: 'message', user_id: this._room.client_.user_id, event: {data: msg}, data: msg});
     for (let peerid in this._peers) {
       let channel = this._peers[peerid].reliable;
       if (!channel || channel.readyState != 'open')
