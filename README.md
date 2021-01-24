@@ -32,6 +32,24 @@ would benefit from these capabilities it's encouraged to send the minimum
 necessary state to restore the session through matrix even if more rich or
 frequent messages are available when connected directly.
 
+## Establishing a leader
+
+Everyone upon joining sends an announce message. The announce message with
+the earliest server origin timestamp is the leader. However, because a leader
+can disconnect, everyone will assume they are the leader until they receive
+an offer from a user with an earlier announce message.
+
+All matrix messages will be posted with the origin server timestamp of the
+original announce message that started that group. This means, when
+recovering history any messages with a greater origin timestamp can be
+ignored as they were temporary sessions before they established a connection
+to the true leader.
+
+When a current leader receives an offer from an earlier leader, they must
+help all of their connected clients to connect to the new leader, and erase
+all history they committed to the state. They may attempt to replay messages
+on top of the new leader's state except if there is a reset message.
+
 Fully connected
 Regularly exchange pings, track ping + packet loss.
 Master accepts all connections, facilitates peer connections

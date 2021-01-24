@@ -93,6 +93,7 @@ export default class MockMatrixServer {
           type: result.groups.type,
           content: details,
           sender: user_id,
+          origin_server_ts: this._options.globals.performance.now(),
           room_id: result.groups.room};
       this.commitMessage(message);
       return {status: 200, body: JSON.stringify({
@@ -100,7 +101,7 @@ export default class MockMatrixServer {
       })};
     } else if (result = request.match(TYPING_REGEX)) {
       let details = JSON.parse(init.body);
-      this.setTyping(result.groups.room, result.groups.id, details.typing, details.timeout);
+      this.setTyping(decodeURIComponent(result.groups.room), decodeURIComponent(result.groups.id), details.typing, details.timeout);
       return {status: 200, body: JSON.stringify({})};
     } else if (request.startsWith(SYNC_PREFIX)) {
       let params = {};

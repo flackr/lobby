@@ -108,7 +108,7 @@ class MockWebRTC {
       _generateCandidate() {
         this.iceGatheringState = 'gathering';
         let candidate = CANDIDATE_STR + (self._nextCandidate++);
-        this._localCandidates.push(candidate);
+        this._localCandidates.push(new MockRTCIceCandidate({candidate}));
         self._peers[candidate] = this;
         let evt = new MockEvent('icecandidate');
         evt.candidate = new MockRTCIceCandidate({candidate});
@@ -150,16 +150,17 @@ class MockWebRTC {
 
         // Find a remote
         let peer = null;
+        let success = false;
         for (let cand of this._remoteCandidates) {
           peer = self._peers[cand.candidate];
           if (!peer)
             continue;
-          if (peer._canConnect(this))
-            break;
+          if (peer._canConnect(this)) {
+            // Initiate connection.
+            this._connect(peer, true);
+            return;
+          }
         }
-
-        // Initiate connection.
-        this._connect(peer, true);
       }
 
       _connect(peer, initial) {
@@ -194,11 +195,12 @@ class MockWebRTC {
           if (dispatchEvent) {
             evt = new MockEvent('datachannel');
             evt.channel = remoteDc;
-            peer.dispatchEvent(evt);
+            self._global.setTimeout(peer.dispatchEvent.bind(peer, evt), 0);
           }
           evt = new MockEvent('open');
-          dc.dispatchEvent(evt);
-          remoteDc.dispatchEvent(evt);
+          self._global.setTimeout(dc.dispatchEvent.bind(dc, evt), 0);
+          if (!dispatchEvent)
+            self._global.setTimeout(remoteDc.dispatchEvent.bind(remoteDc, evt), 0);
         }
       }
     };

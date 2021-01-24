@@ -255,6 +255,17 @@ function stampTemplate(template, details) {
   return instance;
 }
 
+function addMessage(user, text) {
+  let wasScolledToBottom = $('#game-log').scrollTop >= $('#game-log').scrollHeight - $('#game-log').clientHeight;
+  let div = stampTemplate('.chat-message', {
+    sender: user,
+    body: text,
+  });
+  $('#game-log').appendChild(div);
+  if (wasScolledToBottom)
+    $('#game-log').scrollTop = $('#game-log').scrollHeight - $('#game-log').clientHeight;
+}
+
 async function loadGame(room_id) {
   $('#game-log').innerHTML = '';
   showPage('page-game');
@@ -263,37 +274,18 @@ async function loadGame(room_id) {
     currentGame.quit();
   currentGame = game;
   game.addEventListener('connection', (evt) => {
-    console.log(evt);
-    let wasScolledToBottom = $('#game-log').scrollTop >= $('#game-log').scrollHeight - $('#game-log').clientHeight;
-    let div = stampTemplate('.chat-message', {
-      sender: evt.user_id,
-      body: 'Connection established',
-    });
-    $('#game-log').appendChild(div);
-    if (wasScolledToBottom)
-      $('#game-log').scrollTop = $('#game-log').scrollHeight - $('#game-log').clientHeight;
+    addMessage(evt.user_id, 'Connection established');
   });
   game.addEventListener('disconnection', (evt) => {
-    //console.log(evt);
-    let wasScolledToBottom = $('#game-log').scrollTop >= $('#game-log').scrollHeight - $('#game-log').clientHeight;
-    let div = stampTemplate('.chat-message', {
-      sender: evt.user_id,
-      body: 'Connection lost',
-    });
-    $('#game-log').appendChild(div);
-    if (wasScolledToBottom)
-      $('#game-log').scrollTop = $('#game-log').scrollHeight - $('#game-log').clientHeight;
+    addMessage(evt.user_id, 'Connection lost');
   });
-  game.addEventListener('message', (evt) => {
-    //console.log(evt);
-    let wasScolledToBottom = $('#game-log').scrollTop >= $('#game-log').scrollHeight - $('#game-log').clientHeight;
-    let div = stampTemplate('.chat-message', {
-      sender: evt.user_id,
-      body: evt.data,
-    });
-    $('#game-log').appendChild(div);
-    if (wasScolledToBottom)
-      $('#game-log').scrollTop = $('#game-log').scrollHeight - $('#game-log').clientHeight;
+  game.addEventListener('event', (evt) => {
+    addMessage(evt.data.user_id, evt.data.text);
+  });
+  game.addEventListener('load', (evt) => {
+    for (let i = 0; i < evt.data.length; i++) {
+      addMessage(evt.data[i].user_id, evt.data[i].text);
+    }
   });
 }
 
@@ -303,7 +295,7 @@ function gameChatKeypress(evt) {
   if (evt.keyCode == 13) {
     let msg = evt.target.value;
     evt.target.value = '';
-    currentGame.send(msg);
+    currentGame.send({text: msg});
   }
 }
 

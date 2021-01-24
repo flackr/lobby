@@ -12,7 +12,7 @@
   "scripts": {
     "build": "webpack --mode production",
     "test": "ava",
-    "debug": "ava -T 24h"
+    "debug": "ava -T 24h --verbose"
   },
   "devDependencies": {
     "@babel/cli": "^7.8.4",

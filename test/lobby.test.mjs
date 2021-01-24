@@ -73,7 +73,7 @@ test('exchanges messages over webrtc', async function(t) {
     defaultHost: 'localhost',
     lobbyRoom: 'foobar',
     globals: {...t.context.globals,
-      fetch: t.context.network.connection(0).fetch,
+      fetch: t.context.network.connection(1).fetch,
       localStorage: t.context.localStorage,
     }
   };
@@ -81,15 +81,14 @@ test('exchanges messages over webrtc', async function(t) {
   let client1 = await service1.login('user1', 'password');
   let room_id = await client1.create({name: 'Test'});
   let room1 = await client1.join(room_id, true);
-  let result = await room1.sync();
-
-  let service2 = await lobby.createService(serviceDetails);
-  let client2 = await service2.login('user2', 'password');
-  let room2 = await client2.join(room_id, true);
 
   let connected = new Promise((resolve) => {
     room1.addEventListener('connection', resolve);
   });
+
+  let service2 = await lobby.createService(serviceDetails);
+  let client2 = await service2.login('user2', 'password');
+  let room2 = await client2.join(room_id, true);
 
   let con1 = await connected;
   t.is(con1.user_id, '@user2:localhost');
@@ -97,18 +96,18 @@ test('exchanges messages over webrtc', async function(t) {
   function getMessage(room) {
     return new Promise((resolve) => {
       let result = function(evt) {
-        room.removeEventListener('message', result);
+        room.removeEventListener('event', result);
         resolve(evt);
       }
-      room.addEventListener('message', result);
+      room.addEventListener('event', result);
     });
   }
 
-  room1.send('message1');
-  t.is((await getMessage(room2)).data, 'message1');
+  room1.send({text: 'message1'});
+  t.is((await getMessage(room2)).data.text, 'message1');
 
-  room2.send('message2');
-  t.is((await getMessage(room1)).data, 'message2');
+  room2.send({text: 'message2'});
+  t.is((await getMessage(room1)).data.text, 'message2');
 
   room2.quit();
   room1.quit();

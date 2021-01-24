@@ -515,11 +515,11 @@ class Room {
     return this.state_;
   }
 
-  async sendTyping() {
+  async sendTyping(timeout) {
     let response = await this.client_.fetch('/_matrix/client/r0/rooms/' +
-        encodeURI(this.room_id) + '/typing/' + encodeURI(this.client_.user_id), 'PUT', null, {
+        encodeURIComponent(this.room_id) + '/typing/' + encodeURIComponent(this.client_.user_id), 'PUT', null, {
           typing: true,
-          timeout: 30000,
+          timeout,
         });
   }
 };
@@ -562,20 +562,41 @@ class RoomState {
 };
 
 const ANNOUNCE_EVENT = 'com.github.flackr.lobby.Announce';
-const OFFER_EVENT = 'com.github.flackr.lobby.Offer';
 const ANSWER_EVENT = 'com.github.flackr.lobby.Answer';
+
+// RTC events
+const RTC_LOAD = 'RTC_LOAD';
+const RTC_EVENT = 'RTC_EVENT';
+const RTC_OFFER = 'RTC_OFFER';
+const RTC_ANSWER = 'RTC_ANSWER';
+const RTC_MASTER = 'RTC_MASTER';
+
+const TYPING_TIMEOUT = 30000;
+const TYPING_OVERLAP = 5000;
+
+function getClientId(user_id, uid) {
+  return user_id + ':' + uid;
+}
 
 class RTCRoom extends SyntheticEventTarget {
   constructor(client, room_id) {
     super();
+    this.events = [];
+    this._loaded = false;
     this._client = client;
     this._connected = true;
     this._uid = Math.floor(Math.random() * 10000000) + 1;
+    this._id = getClientId(this._client.user_id, this._uid);
     this._room = new Room(client, room_id);
     // TODO: Implement a way to sync history later in case we need to.
     this._room.initialSync_ = false;
     this._peers = {};
-    this._seenSelf = false;
+    this._typingTimer = null;
+    
+    // Track who the master is.
+    this._isMaster = false;
+    this._master = this._master_user_id = this._master_uid = null;
+    this._masterTimestamp = null;
     // state -> ['connecting', 'loading', ]
     // track details like connected peers, pings.
   }
@@ -594,11 +615,25 @@ class RTCRoom extends SyntheticEventTarget {
     // Otherwise, request connection from master.
     // - If no one connects, become master
     // - On connection, connect all peers
-    this._room.sendEvent(ANNOUNCE_EVENT, {
-      uid: this._uid});
-    this._room.sendTyping();
+    let peer = this.createPeerConnection(null, null, true);
+    let offer = await peer.createOffer();
+    peer.setLocalDescription(offer);
+    let candidates = await gatherIceCandidates(peer);
+
+    // TODO: Start a timer to become master.
+    await this._room.sendEvent(ANNOUNCE_EVENT, {
+        uid: this._uid, offer, candidates});
+    // this.notifyTyping();
     this.process();
     return response;
+  }
+
+  notifyTyping() {
+    if (!this._connected)
+      return;
+    this._room.sendTyping(TYPING_TIMEOUT);
+    this._typingTimer = this._client.service_.options_.globals.setTimeout(
+        this.notifyTyping.bind(this), TYPING_TIMEOUT - TYPING_OVERLAP);
   }
 
   async process() {
@@ -606,39 +641,87 @@ class RTCRoom extends SyntheticEventTarget {
       let events = await this._room.sync();
       if (!this._connected)
         return;
+      let earliestAnswer = null;
+      let connectClients = [];
       for (let evt of events.timeline) {
         if (evt.type == ANNOUNCE_EVENT) {
           if (evt.content.uid == this._uid) {
-            // Once you see your own announcement, connect to others.
-            this._seenSelf = true;
-          } else if (this._seenSelf) {
-            this.initiateConnection(evt.sender, evt.content.uid);
+            this.setMaster(this._client.user_id, this._uid, evt.origin_server_ts);
+          } else if (this._isMaster) {
+            connectClients.push({user_id: evt.sender, uid: evt.content.uid, evt});
           }
-        } else if (evt.type == OFFER_EVENT && evt.content.dest == this._uid) {
-          this.acceptOffer(evt.sender, evt.content.uid, evt);
-        } else if (evt.type == ANSWER_EVENT && evt.content.dest == this._uid) {
-          this.acceptAnswer(evt.sender, evt.content.uid, evt);
+        } else if (evt.type == ANSWER_EVENT && evt.content.dest == this._uid && this._isMaster) {
+          if (!this._masterTimestamp || evt.content.announce_ts < this._masterTimestamp) {
+            if (!earliestAnswer || evt.content.announce_ts < earliestAnswer.content.announce_ts)
+              earliestAnswer = evt;
+          }
+        }
+      }
+
+      if (this._isMaster) {
+        for (let i = 0; i < connectClients.length; ++i) {
+          console.log(this._id + ' : Sending offer to ' + connectClients[i].user_id);
+          this.acceptOffer(connectClients[i].user_id, connectClients[i].uid, connectClients[i].evt);
+        }
+      }
+      if (earliestAnswer) {
+        // Update our description of the master peer.
+        this._peers.master.user_id = earliestAnswer.sender;
+        this._peers.master.uid = earliestAnswer.content.uid;
+        let mapStr = getClientId(earliestAnswer.sender, earliestAnswer.content.uid);
+        this._peers[mapStr] = this._peers.master;
+        delete this._peers['master'];
+        console.log(this._id + ' accepting answer from ' + earliestAnswer.sender);
+        this.acceptAnswer(earliestAnswer.sender, earliestAnswer.content.uid, earliestAnswer.content);
+      }
+    }
+  }
+
+  setMaster(user_id, uid, timestamp) {
+    // TODO: We should never get here with a null user id.
+    if (!user_id) {
+      console.log(this._id +  ' connected null master!');
+      return;
+    }
+    // TODO: If we were the previous master, let all of our connected users know.
+    const wasMaster = this._isMaster;
+    this._master = getClientId(user_id, uid);
+    this._master_user_id = user_id;
+    this._master_uid = uid;
+    this._isMaster = user_id == this._client.user_id && uid == this._uid;
+    this._masterTimestamp = timestamp;
+    console.log('Master is ' + this._master);
+    if (wasMaster) {
+      for (let peerId in this._peers) {
+        if (peerId == this._master)
+          continue;
+        if (this._peers[peerId].reliable && this._peers[peerId].reliable.readyState == 'open') {
+          this._peers[peerId].reliable.send(JSON.stringify({type: RTC_MASTER, master: this._master, user_id, uid, announce_ts: timestamp}));
+        } else {
+          this._peers[peerId].notifyMaster = true;
         }
       }
     }
   }
 
-  createPeerConnection(user_id, uid, initiator) {
-    let mapStr = user_id + '-' + uid;
+  createPeerConnection(user_id, uid, initiator, newMaster) {
+    let mapStr = user_id ? getClientId(user_id, uid) : 'master';
     if (this._peers[mapStr])
       return this._peers[mapStr];
     let peer = new this._client.service_.options_.globals.RTCPeerConnection(this._client.service_.options_.webRtcConfig)
     const self = this;
-    peer.addEventListener('iceconnectionstatechange', (evt) => {
-      let dstrstate = self._peers[mapStr].reliable ? self._peers[mapStr].reliable.readyState : 'N/A';
-      console.log('iceconnectionstate for ' + mapStr + ' is ' + peer.iceConnectionState + ' dataChannel readyState is ' + dstrstate);
-    });
-    this._peers[mapStr] = {
+    let peerDesc = {
       user_id,
+      uid,
       peer,
       reliable: null,
       unreliable: null,
+      notifyMaster: false,
+      announce_ts: newMaster,
     };
+    if (!user_id)
+      newMaster = true;
+    this._peers[mapStr] = peerDesc;
 
     if (initiator) {
       let dc = peer.createDataChannel('main');
@@ -650,16 +733,49 @@ class RTCRoom extends SyntheticEventTarget {
     }
 
     function connectDataChannel(channel) {
-      self._peers[mapStr].reliable = channel;
-      self.dispatchEvent({type: 'connection', user_id, channel});
-      channel.addEventListener('message', (evt) => {
-        self.dispatchEvent({type: 'message', user_id, event: evt, data: evt.data});
-      });
-      channel.addEventListener('close', () => {
-        console.log('datachannel for ' + mapStr + ' closed.');
-      });
-      channel.addEventListener('error', () => {
-        console.log('datachannel for ' + mapStr + ' errored.');
+      mapStr = getClientId(peerDesc.user_id, peerDesc.uid);
+      peerDesc.reliable = channel;
+      if (newMaster)
+        self.setMaster(peerDesc.user_id, peerDesc.uid, peerDesc.anounce_ts);
+      if (peerDesc.notifyMaster)
+        peerDesc.reliable.send(JSON.stringify({type: RTC_MASTER, master: self._master, user_id: self._master_user_id, uid: self._master_uid, announce_ts: self._masterTimestamp}));
+      if (self._isMaster) {
+        channel.send(JSON.stringify({type: RTC_LOAD, data: self.events}));
+      }
+      self.dispatchEvent({type: 'connection', user_id: peerDesc.user_id, uid: peerDesc.uid, channel});
+      channel.addEventListener('message', async (evt) => {
+        let content = JSON.parse(evt.data);
+        if (content.type == RTC_LOAD) {
+          self.events = content.data;
+          self.dispatchEvent({type: 'load', data: self.events});
+        } else if (content.type == RTC_EVENT) {
+          self.handleEvent(content.data);
+        } else if (content.type == RTC_OFFER || content.type == RTC_ANSWER) {
+          // Attempt to forward to targeted user.
+          if (content.to == self._id) {
+            if (content.type == RTC_OFFER) {
+              // Initiate connection
+              let response = await acceptRTCPeer(content.user_id, content.uid, content);
+              channel.send(JSON.stringify({...response, user_id: self._client.user_id, uid: self._uid, type: RTC_ANSWER, to: getClientId(content.user_id, content.uid)}));
+            } else {
+              // Accept answer.
+              self.acceptAnswer(content.user_id, content.uid, content);
+            }
+          } else {
+            let peer = self._peers[content.to];
+            if (peer && peer.reliable && peer.reliable.readyState == 'open') {
+              peer.reliable.send(evt.data);
+            }
+          }
+        } else if (content.type == RTC_MASTER) {
+          if (content.master == self._master)
+            return;
+          if (!self._peers[content.master]) {
+            self.initiateConnection(content.user_id, content.uid, content.announce_ts);
+          } else {
+            self.setMaster(content.user_id, content.uid, content.announce_ts);
+          }
+        }
       });
     }
 
@@ -667,43 +783,72 @@ class RTCRoom extends SyntheticEventTarget {
   }
 
   // Initiate a connection with (user_id, uid).
-  async initiateConnection(user_id, uid) {
+  async initiateConnection(user_id, uid, master_ts) {
     // Initialize webrtc and make connection.
-    let peer = this.createPeerConnection(user_id, uid, true);
+    let peer = this.createPeerConnection(user_id, uid, true, master_ts);
     let offer = await peer.createOffer();
     peer.setLocalDescription(offer);
     let candidates = await gatherIceCandidates(peer);
-    this._room.sendEvent(OFFER_EVENT, {offer, candidates, uid: this._uid, dest: uid});
+    // TODO: Forward RTC_PRIVATE messages in the master RTC device.
+    this._peers[this._master].send(JSON.stringify({
+      type: RTC_OFFER,
+      to: getClientId(user_id, uid),
+      user_id: this._client.user_id,
+      uid: this._uid,
+      offer,
+      candidates,
+    }));
   }
 
-  async acceptOffer(user_id, uid, evt) {
+  async acceptRTCPeer(user_id, uid, content) {
     let peer = this.createPeerConnection(user_id, uid, false);
-    peer.setRemoteDescription(new this._client.service_.options_.globals.RTCSessionDescription(evt.content.offer));
+    peer.setRemoteDescription(new this._client.service_.options_.globals.RTCSessionDescription(content.offer));
     let answer = await peer.createAnswer();
     peer.setLocalDescription(answer);
     let candidates = await gatherIceCandidates(peer);
-    for (let i = 0; i < evt.content.candidates.length; i++) {
-      peer.addIceCandidate(new this._client.service_.options_.globals.RTCIceCandidate(evt.content.candidates[i]));
+    for (let i = 0; i < content.candidates.length; i++) {
+      peer.addIceCandidate(new this._client.service_.options_.globals.RTCIceCandidate(content.candidates[i]));
     }
-    this._room.sendEvent(ANSWER_EVENT, {answer, candidates, uid: this._uid, dest: uid});
+    let announce_ts = this._isMaster ? this._masterTimestamp : null;
+    return {answer, candidates, announce_ts};
   }
 
-  async acceptAnswer(user_id, uid, evt) {
-    let mapStr = user_id + '-' + uid;
+  async acceptOffer(user_id, uid, evt) {
+    let {answer, candidates, announce_ts} = await this.acceptRTCPeer(user_id, uid, evt.content);
+    this._room.sendEvent(ANSWER_EVENT, {answer, candidates, uid: this._uid, dest: uid, announce_ts});
+  }
+
+  async acceptAnswer(user_id, uid, content) {
+    let mapStr = getClientId(user_id, uid);
     let peer = this._peers[mapStr].peer;
-    peer.setRemoteDescription(new this._client.service_.options_.globals.RTCSessionDescription(evt.content.answer));
-    for (let i = 0; i < evt.content.candidates.length; i++) {
-      peer.addIceCandidate(new this._client.service_.options_.globals.RTCIceCandidate(evt.content.candidates[i]));
+    if (content.announce_ts) {
+      this._peers[mapStr].announce_ts = content.announce_ts;
+    }
+    peer.setRemoteDescription(new this._client.service_.options_.globals.RTCSessionDescription(content.answer));
+    for (let i = 0; i < content.candidates.length; i++) {
+      peer.addIceCandidate(new this._client.service_.options_.globals.RTCIceCandidate(content.candidates[i]));
     }
   }
 
-  send(msg) {
-    this.dispatchEvent({type: 'message', user_id: this._room.client_.user_id, event: {data: msg}, data: msg});
-    for (let peerid in this._peers) {
-      let channel = this._peers[peerid].reliable;
-      if (!channel || channel.readyState != 'open')
-        continue;
-      this._peers[peerid].reliable.send(msg);
+  handleEvent(event) {
+    this.dispatchEvent({data: event, type: 'event'});
+    this.events.push(event);
+    if (this._isMaster) {
+      // Forward to all peers
+      for (let peerId in this._peers) {
+        if (!this._peers[peerId].reliable || this._peers[peerId].reliable.readyState != 'open')
+          continue;
+        this._peers[peerId].reliable.send(JSON.stringify({type: RTC_EVENT, data: event}));
+      }
+    }
+  }
+
+  send(event) {
+    let data = {...event, user_id: this._client.user_id};
+    if (this._isMaster) {
+      this.handleEvent(data);
+    } else {
+      this._peers[this._master].reliable.send(JSON.stringify({type: RTC_EVENT, data}));
     }
   }
 
@@ -711,9 +856,6 @@ class RTCRoom extends SyntheticEventTarget {
     this._conected = false;
   }
 
-  sync() {
-    return this._room.sync();
-  }
 }
 
 class Lobby extends Room {
