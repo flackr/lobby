@@ -31,7 +31,10 @@ class MockWebRTC {
     this._peers = {};
   }
 
-  install() {
+  install(global, timeout) {
+    global = global || this._global;
+    timeout = timeout || 0;
+    let connected = true;
     let self = this;
     const DATA_CHANNEL_EVENTS = ['open', 'message'];
     class MockRTCDataChannel extends MockEventTarget {
@@ -48,13 +51,19 @@ class MockWebRTC {
       }
 
       send(data) {
+        if (!connected) return;
+        if (this.readyState != 'open' || this._remote.readyState != 'open')
+          return;
         if (!this._remote) {
           throw new Error('Attempted to send data on disconnected datachannel');
         }
         let evt = new MockEvent('message');
         evt.data = data;
-        // TODO: Make delay configurable.
-        self._global.setTimeout(this._remote.dispatchEvent.bind(this._remote, evt), 0);
+        self._global.setTimeout(this._remote.dispatchEvent.bind(this._remote, evt), timeout);
+      }
+
+      close() {
+        this.readyState = 'closed';
       }
     };
 
@@ -71,7 +80,7 @@ class MockWebRTC {
         this._localCandidates = [];
         this._remoteCandidates = [];
         this._remote = null;
-        self._global.setTimeout(this._generateCandidate.bind(this), 0);
+        self._global.setTimeout(this._generateCandidate.bind(this), timeout);
       }
 
       async createOffer() {
@@ -105,6 +114,12 @@ class MockWebRTC {
         return dc;
       }
 
+      close() {
+        for (let dcid in this._dataChannels) {
+          this._dataChannels[dcid].close();
+        }
+      }
+
       _generateCandidate() {
         this.iceGatheringState = 'gathering';
         let candidate = CANDIDATE_STR + (self._nextCandidate++);
@@ -119,6 +134,8 @@ class MockWebRTC {
       }
 
       _canConnect(peer) {
+        if (!connected) return false;
+
         // Only one connection.
         if (this._remote)
           return false;
@@ -195,19 +212,27 @@ class MockWebRTC {
           if (dispatchEvent) {
             evt = new MockEvent('datachannel');
             evt.channel = remoteDc;
-            self._global.setTimeout(peer.dispatchEvent.bind(peer, evt), 0);
+            self._global.setTimeout(peer.dispatchEvent.bind(peer, evt), timeout);
           }
           evt = new MockEvent('open');
-          self._global.setTimeout(dc.dispatchEvent.bind(dc, evt), 0);
+          self._global.setTimeout(dc.dispatchEvent.bind(dc, evt), timeout);
           if (!dispatchEvent)
-            self._global.setTimeout(remoteDc.dispatchEvent.bind(remoteDc, evt), 0);
+            self._global.setTimeout(remoteDc.dispatchEvent.bind(remoteDc, evt), timeout);
         }
       }
     };
 
-    this._global.RTCPeerConnection = MockRTCPeerConnection;
-    this._global.RTCSessionDescription = MockRTCSessionDescription;
-    this._global.RTCIceCandidate = MockRTCIceCandidate;
+    global.RTCPeerConnection = MockRTCPeerConnection;
+    global.RTCSessionDescription = MockRTCSessionDescription;
+    global.RTCIceCandidate = MockRTCIceCandidate;
+    return {
+      setDelay: function(delay) {
+        timeout = delay;
+      },
+      disconnect: function() {
+        connected = false;
+      }
+    }
   }
 
   uninstall() {

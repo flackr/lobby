@@ -282,10 +282,8 @@ async function loadGame(room_id) {
   game.addEventListener('event', (evt) => {
     addMessage(evt.data.user_id, evt.data.text);
   });
-  game.addEventListener('load', (evt) => {
-    for (let i = 0; i < evt.data.length; i++) {
-      addMessage(evt.data[i].user_id, evt.data[i].text);
-    }
+  game.addEventListener('reset', (evt) => {
+    $('#game-log').innerHTML = '';
   });
 }
 

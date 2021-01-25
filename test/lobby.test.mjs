@@ -14,6 +14,20 @@ function shallowClone(obj) {
   return result;
 }
 
+function getEvents(obj, eventName, count) {
+  return new Promise((resolve) => {
+    let result = [];
+    let observe = function(evt) {
+      result.push(evt);
+      if (--count == 0) {
+        obj.removeEventListener(eventName, observe);
+        resolve(result);
+      }
+    }
+    obj.addEventListener(eventName, observe);
+  })
+}
+
 test.beforeEach(t => {
   t.context.clock = new MockClock(t.context.globals = {});
   t.context.network = new Network(t.context.globals);
@@ -93,24 +107,21 @@ test('exchanges messages over webrtc', async function(t) {
   let con1 = await connected;
   t.is(con1.user_id, '@user2:localhost');
 
-  function getMessage(room) {
-    return new Promise((resolve) => {
-      let result = function(evt) {
-        room.removeEventListener('event', result);
-        resolve(evt);
-      }
-      room.addEventListener('event', result);
-    });
-  }
-
   room1.send({text: 'message1'});
-  t.is((await getMessage(room2)).data.text, 'message1');
+  t.is((await getEvents(room2, 'event', 1))[0].data.text, 'message1');
 
   room2.send({text: 'message2'});
-  t.is((await getMessage(room1)).data.text, 'message2');
+  t.is((await getEvents(room1, 'event', 1))[0].data.text, 'message2');
 
   room2.quit();
   room1.quit();
+
+  // If a user comes later when no one is around, they should still see all of the messages.
+  let service3 = await lobby.createService(serviceDetails);
+  let client3 = await service3.login('user2', 'password');
+  let room3 = await client3.join(room_id, true);
+  await getEvents(room3, 'load', 1);
+  t.is(room3.events.length, 2);
 });
 
 test('times out on no messages', async function(t) {

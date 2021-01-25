@@ -412,6 +412,7 @@ class Room {
     this.timeout_ = this.client_.service_.options_.timeout;
     this.joined = false;
     this.initialSync_ = true;
+    this.prevBatch_ = null;
     this.state_ = new RoomState();
     this.syncParams_ = {
       'filter': {
@@ -461,6 +462,23 @@ class Room {
     this.syncParams_.filter.room.state.types = types;
   }
 
+  async syncBackwards() {
+    let prev_batch = this.prevBatch_;
+    if (!prev_batch)
+      return {chunk: []};
+    // Fetch all events
+    let params = clone(this.syncParams_);
+    params.dir = 'b';
+    params.from = prev_batch;
+    response = await this.client_.fetch('/_matrix/client/r0/rooms/' + encodeURI(this.room_id) + '/messages', 'GET',
+        params);
+    if (response.chunk.length == 0)
+      this.prevBatch_ = null;
+    else
+      this.prevBatch_ = response.end;
+    return response;
+  }
+
   async sync() {
     let response = await this.client_.fetch('/_matrix/client/r0/sync?', 'GET',
         this.syncParams_);
@@ -473,22 +491,10 @@ class Room {
       state: roomDetails ? roomDetails.state.events : [],
       timeline: roomDetails ? roomDetails.timeline.events : [],
     };
-    if (roomDetails && this.initialSync_) {
-      let prev_batch = roomDetails.timeline.prev_batch;
-      // Fetch all events
-      let params = clone(this.syncParams_);
-      params.dir = 'b';
-      while (prev_batch) {
-        params.from = prev_batch;
-        response = await this.client_.fetch('/_matrix/client/r0/rooms/' + encodeURI(this.room_id) + '/messages', 'GET',
-            params);
-        if (response.chunk.length == 0)
-          break;
-        // TODO: There may be a more efficient way to build this array.
-        result.timeline = response.chunk.reverse().concat(result.timeline);
-        prev_batch = response.end;
-      }
-    }
+    // Save the point to fetch previous events from.
+    if (roomDetails && this.initialSync_)
+      this.prevBatch_ = roomDetails.timeline.prev_batch;
+
     this.syncParams_.timeout = this.timeout_;
     this.initialSync_ = false;
     return result;
@@ -563,6 +569,7 @@ class RoomState {
 
 const ANNOUNCE_EVENT = 'com.github.flackr.lobby.Announce';
 const ANSWER_EVENT = 'com.github.flackr.lobby.Answer';
+const GAME_EVENT = 'com.github.flackr.lobby.Event';
 
 // RTC events
 const RTC_LOAD = 'RTC_LOAD';
@@ -582,7 +589,9 @@ class RTCRoom extends SyntheticEventTarget {
   constructor(client, room_id) {
     super();
     this.events = [];
+    this._matrixEvents = [];
     this._loaded = false;
+
     this._client = client;
     this._connected = true;
     this._uid = Math.floor(Math.random() * 10000000) + 1;
@@ -655,6 +664,8 @@ class RTCRoom extends SyntheticEventTarget {
             if (!earliestAnswer || evt.content.announce_ts < earliestAnswer.content.announce_ts)
               earliestAnswer = evt;
           }
+        } else if (evt.type == GAME_EVENT && this._masterTimestamp === null) {
+          this._matrixEvents.push(evt);
         }
       }
 
@@ -691,7 +702,7 @@ class RTCRoom extends SyntheticEventTarget {
     this._isMaster = user_id == this._client.user_id && uid == this._uid;
     this._masterTimestamp = timestamp;
     console.log('Master is ' + this._master);
-    if (wasMaster) {
+    if (wasMaster && !this._isMaster) {
       for (let peerId in this._peers) {
         if (peerId == this._master)
           continue;
@@ -702,6 +713,66 @@ class RTCRoom extends SyntheticEventTarget {
         }
       }
     }
+    if (this._isMaster) {
+      this.syncHistory();
+    }
+  }
+
+  async syncHistory() {
+    let startTime = Infinity;
+    let eventList = [];
+    function addEvent(evt) {
+      if (evt.content.origin > startTime)
+        return false;
+      startTime = evt.content.origin;
+      eventList.push(evt.content);
+      if (evt.content.reset)
+        return true;
+    }
+    let finished = false;
+    for (let i = this._matrixEvents.length - 1; i >= 0; --i) {
+      finished = addEvent(this._matrixEvents[i]);
+      if (finished)
+        break;
+    }
+    this._matrixEvents = null;
+
+    while (this._isMaster && !finished) {
+      let results = await this._room.syncBackwards();
+      if (results.chunk.length == 0)
+        break;
+      let events = [];
+      for (let evt of results.chunk) {
+        finished = addEvent(evt);
+        if (finished)
+          break;
+      }
+    }
+
+    // If it turns out we are not the master anymore, wait for events to be
+    // sent over the connected rtc channel.
+    if (!this._isMaster)
+      return;
+
+    this.events = eventList.reverse();
+    this.signalLoaded();
+  }
+
+  signalLoaded() {
+    this._loaded = true;
+    this.dispatchEvent({type: 'reset'});
+    for (let i = 0; i < this.events.length; i++) {
+      this.dispatchEvent({data: this.events[i], type: 'event', historical: true});
+    }
+    if (this._isMaster) {
+      // Forward to all peers
+      for (let peerId in this._peers) {
+        if (!this._peers[peerId].reliable || this._peers[peerId].reliable.readyState != 'open')
+          continue;
+        this._peers[peerId].reliable.send(JSON.stringify({type: RTC_LOAD, data: this.events}));
+      }
+    }
+    this.dispatchEvent({type: 'load'});
   }
 
   createPeerConnection(user_id, uid, initiator, newMaster) {
@@ -747,7 +818,7 @@ class RTCRoom extends SyntheticEventTarget {
         let content = JSON.parse(evt.data);
         if (content.type == RTC_LOAD) {
           self.events = content.data;
-          self.dispatchEvent({type: 'load', data: self.events});
+          self.signalLoaded();
         } else if (content.type == RTC_EVENT) {
           self.handleEvent(content.data);
         } else if (content.type == RTC_OFFER || content.type == RTC_ANSWER) {
@@ -834,6 +905,9 @@ class RTCRoom extends SyntheticEventTarget {
     this.dispatchEvent({data: event, type: 'event'});
     this.events.push(event);
     if (this._isMaster) {
+      // Post to matrix
+      this._room.sendEvent(GAME_EVENT, {...event, origin: this._masterTimestamp});
+
       // Forward to all peers
       for (let peerId in this._peers) {
         if (!this._peers[peerId].reliable || this._peers[peerId].reliable.readyState != 'open')
@@ -853,7 +927,10 @@ class RTCRoom extends SyntheticEventTarget {
   }
 
   quit() {
-    this._conected = false;
+    this._connected = false;
+    for (let peerId in this._peers) {
+      this._peers[peerId].peer.close();
+    }
   }
 
 }
