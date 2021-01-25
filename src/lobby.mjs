@@ -412,6 +412,7 @@ class Room {
     this.timeout_ = this.client_.service_.options_.timeout;
     this.joined = false;
     this.initialSync_ = true;
+    this.syncHistory_ = true;
     this.prevBatch_ = null;
     this.state_ = new RoomState();
     this.syncParams_ = {
@@ -470,7 +471,7 @@ class Room {
     let params = clone(this.syncParams_);
     params.dir = 'b';
     params.from = prev_batch;
-    response = await this.client_.fetch('/_matrix/client/r0/rooms/' + encodeURI(this.room_id) + '/messages', 'GET',
+    let response = await this.client_.fetch('/_matrix/client/r0/rooms/' + encodeURI(this.room_id) + '/messages', 'GET',
         params);
     if (response.chunk.length == 0)
       this.prevBatch_ = null;
@@ -492,8 +493,17 @@ class Room {
       timeline: roomDetails ? roomDetails.timeline.events : [],
     };
     // Save the point to fetch previous events from.
-    if (roomDetails && this.initialSync_)
+    if (roomDetails && this.initialSync_) {
       this.prevBatch_ = roomDetails.timeline.prev_batch;
+      if (this.syncHistory_) {
+        while (true) {
+          let history = await this.syncBackwards();
+          if (history.chunk.length == 0)
+            break;
+          result.timeline = history.chunk.reverse().concat(result.timeline);
+        }
+      }
+    }
 
     this.syncParams_.timeout = this.timeout_;
     this.initialSync_ = false;
@@ -597,8 +607,7 @@ class RTCRoom extends SyntheticEventTarget {
     this._uid = Math.floor(Math.random() * 10000000) + 1;
     this._id = getClientId(this._client.user_id, this._uid);
     this._room = new Room(client, room_id);
-    // TODO: Implement a way to sync history later in case we need to.
-    this._room.initialSync_ = false;
+    this._room.syncHistory_ = false;
     this._peers = {};
     this._typingTimer = null;
     
