@@ -587,6 +587,7 @@ const RTC_EVENT = 'RTC_EVENT';
 const RTC_OFFER = 'RTC_OFFER';
 const RTC_ANSWER = 'RTC_ANSWER';
 const RTC_MASTER = 'RTC_MASTER';
+const RTC_PEERS = 'RTC_PEERS';
 
 const TYPING_TIMEOUT = 30000;
 const TYPING_OVERLAP = 5000;
@@ -609,6 +610,7 @@ class RTCRoom extends SyntheticEventTarget {
     this._room = new Room(client, room_id);
     this._room.syncHistory_ = false;
     this._peers = {};
+    this.peers = [{user_id: this._client.user_id, uid: this._uid}];
     this._typingTimer = null;
     
     // Track who the master is.
@@ -820,12 +822,24 @@ class RTCRoom extends SyntheticEventTarget {
       if (peerDesc.notifyMaster)
         peerDesc.reliable.send(JSON.stringify({type: RTC_MASTER, master: self._master, user_id: self._master_user_id, uid: self._master_uid, announce_ts: self._masterTimestamp}));
       if (self._isMaster) {
+        self.peers.push({user_id: peerDesc.user_id, uid: peerDesc.uid});
+        channel.send(JSON.stringify({type: RTC_PEERS, peers: self.peers}));
         channel.send(JSON.stringify({type: RTC_LOAD, data: self.events}));
       }
       self.dispatchEvent({type: 'connection', user_id: peerDesc.user_id, uid: peerDesc.uid, channel});
       channel.addEventListener('message', async (evt) => {
         let content = JSON.parse(evt.data);
-        if (content.type == RTC_LOAD) {
+        if (content.type == RTC_PEERS) {
+          self.peers = content.peers;
+          // Initiate connections to everyone we aren't yet connected to.
+          for (let i = 0; i < self.peers.length; ++i) {
+            let peerStr = getClientId(self.peers[i].user_id, self.peers[i].uid);
+            if (peerStr == self._id)
+              continue;
+            if (!self._peers[peerStr])
+              self.initiateConnection(self.peers[i].user_id, self.peers[i].uid);
+          }
+        } else if (content.type == RTC_LOAD) {
           self.events = content.data;
           self.signalLoaded();
         } else if (content.type == RTC_EVENT) {
@@ -835,7 +849,7 @@ class RTCRoom extends SyntheticEventTarget {
           if (content.to == self._id) {
             if (content.type == RTC_OFFER) {
               // Initiate connection
-              let response = await acceptRTCPeer(content.user_id, content.uid, content);
+              let response = await self.acceptRTCPeer(content.user_id, content.uid, content);
               channel.send(JSON.stringify({...response, user_id: self._client.user_id, uid: self._uid, type: RTC_ANSWER, to: getClientId(content.user_id, content.uid)}));
             } else {
               // Accept answer.
@@ -870,7 +884,7 @@ class RTCRoom extends SyntheticEventTarget {
     peer.setLocalDescription(offer);
     let candidates = await gatherIceCandidates(peer);
     // TODO: Forward RTC_PRIVATE messages in the master RTC device.
-    this._peers[this._master].send(JSON.stringify({
+    this._peers[this._master].reliable.send(JSON.stringify({
       type: RTC_OFFER,
       to: getClientId(user_id, uid),
       user_id: this._client.user_id,
