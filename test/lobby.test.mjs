@@ -107,10 +107,10 @@ test('exchanges messages over webrtc', async function(t) {
   let con1 = await connected;
   t.is(con1.user_id, '@user2:localhost');
 
-  room1.send({text: 'message1'});
+  room1.send({text: 'message1', backup: true});
   t.is((await getEvents(room2, 'event', 1))[0].data.text, 'message1');
 
-  room2.send({text: 'message2'});
+  room2.send({text: 'message2', backup: true});
   t.is((await getEvents(room1, 'event', 1))[0].data.text, 'message2');
 
   room2.quit();
@@ -122,6 +122,7 @@ test('exchanges messages over webrtc', async function(t) {
   let room3 = await client3.join(room_id, true);
   await getEvents(room3, 'load', 1);
   t.is(room3.events.length, 2);
+  room3.quit();
 });
 
 test('times out on no messages', async function(t) {

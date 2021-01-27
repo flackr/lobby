@@ -1025,6 +1025,7 @@ class RTCRoom extends SyntheticEventTarget {
 
   quit() {
     this._connected = false;
+    this._client.service_.options_.globals.clearInterval(this._pingInterval);
     for (let peerId in this._peers) {
       this._peers[peerId].peer.close();
     }
