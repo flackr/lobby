@@ -588,9 +588,12 @@ const RTC_OFFER = 'RTC_OFFER';
 const RTC_ANSWER = 'RTC_ANSWER';
 const RTC_MASTER = 'RTC_MASTER';
 const RTC_PEERS = 'RTC_PEERS';
+const RTC_PING = 'RTC_PING';
+const RTC_PONG = 'RTC_PONG';
 
 const TYPING_TIMEOUT = 30000;
 const TYPING_OVERLAP = 5000;
+const RTC_PING_INTERVAL = 10000;
 
 function getClientId(user_id, uid) {
   return user_id + ':' + uid;
@@ -612,6 +615,12 @@ class RTCRoom extends SyntheticEventTarget {
     this._peers = {};
     this.peers = [{user_id: this._client.user_id, uid: this._uid}];
     this._typingTimer = null;
+    this._pingInterval = this._client.service_.options_.globals.setInterval(
+        this.pingPeers.bind(this), RTC_PING_INTERVAL);
+    this._lastPing = null;
+
+    // Pending events to be sent.
+    this._pending = [];
     
     // Track who the master is.
     this._isMaster = false;
@@ -699,7 +708,7 @@ class RTCRoom extends SyntheticEventTarget {
     }
   }
 
-  setMaster(user_id, uid, timestamp) {
+  setMaster(user_id, uid, timestamp, announce) {
     // TODO: We should never get here with a null user id.
     if (!user_id) {
       console.log(this._id +  ' connected null master!');
@@ -713,7 +722,7 @@ class RTCRoom extends SyntheticEventTarget {
     this._isMaster = user_id == this._client.user_id && uid == this._uid;
     this._masterTimestamp = timestamp;
     console.log('Master is ' + this._master);
-    if (wasMaster && !this._isMaster) {
+    if (announce || (wasMaster && !this._isMaster)) {
       for (let peerId in this._peers) {
         if (peerId == this._master)
           continue;
@@ -724,8 +733,15 @@ class RTCRoom extends SyntheticEventTarget {
         }
       }
     }
-    if (this._isMaster) {
+    if (this._isMaster && !this._loaded) {
       this.syncHistory();
+    }
+
+    // Resend all events that we did not receive confirmation of.
+    let resendEvents = this._pending;
+    this._pending = [];
+    for (let i = 0; i < resendEvents.length; i++) {
+      this.send(resendEvents[i]);
     }
   }
 
@@ -786,6 +802,41 @@ class RTCRoom extends SyntheticEventTarget {
     this.dispatchEvent({type: 'load'});
   }
 
+  pingPeers() {
+    let now = this._client.service_.options_.globals.performance.now();
+    for (let peerId in this._peers) {
+      let peer = this._peers[peerId];
+      let dc = peer.reliable;
+      if (!dc || dc.readyState != 'open')
+        continue;
+      // If we sent a ping and didn't hear back within RTC_PING_INTERVAL, assume
+      // the connection is gone.
+      let deletedMaster = false;
+      if (peer.sentPing && peer.ping === null) {
+        for (let i = 0; i < this.peers.length; ++i) {
+          if (this.peers[i].user_id == peer.user_id && this.peers[i].uid == peer.uid) {
+            if (i == 0)
+              deletedMaster = true;
+            this.peers.splice(i, 1);
+            delete this._peers[peerId];
+            break;
+          }
+        }
+        if (deletedMaster) {
+          if (this.peers[0].user_id == this._client.user_id && this.peers[0].uid == this._uid) {
+            // Announce that we are now the master.
+            this.setMaster(this.peers[0].user_id, this.peers[0].uid, this._masterTimestamp, true);
+          }
+        }
+        continue;
+      }
+      this._peers[peerId].ping = null;
+      dc.send(JSON.stringify({type: RTC_PING}));
+      this._peers[peerId].sentPing = true;
+    }
+    this._lastPing = now;
+  }
+
   createPeerConnection(user_id, uid, initiator, newMaster) {
     let mapStr = user_id ? getClientId(user_id, uid) : 'master';
     if (this._peers[mapStr])
@@ -800,6 +851,8 @@ class RTCRoom extends SyntheticEventTarget {
       unreliable: null,
       notifyMaster: false,
       announce_ts: newMaster,
+      sentPing: false,
+      ping: null,
     };
     if (!user_id)
       newMaster = true;
@@ -842,6 +895,10 @@ class RTCRoom extends SyntheticEventTarget {
         } else if (content.type == RTC_LOAD) {
           self.events = content.data;
           self.signalLoaded();
+        } else if (content.type == RTC_PING) {
+          channel.send(JSON.stringify({type: RTC_PONG}));
+        } else if (content.type == RTC_PONG) {
+          peerDesc.ping = self._client.service_.options_.globals.performance.now() - self._lastPing;
         } else if (content.type == RTC_EVENT) {
           self.handleEvent(content.data);
         } else if (content.type == RTC_OFFER || content.type == RTC_ANSWER) {
@@ -937,15 +994,24 @@ class RTCRoom extends SyntheticEventTarget {
           continue;
         this._peers[peerId].reliable.send(JSON.stringify({type: RTC_EVENT, data: event}));
       }
+    } else {
+      // Remove events from pending queue when they show up in event stream.
+      if (event.user_id == this._client.user_id && event.uid == this._uid) {
+        this._pending.splice(0, 1);
+      }
     }
   }
 
   send(event) {
-    let data = {...event, user_id: this._client.user_id};
+    let data = {...event, user_id: this._client.user_id, uid: this._uid};
     if (this._isMaster) {
       this.handleEvent(data);
     } else {
-      this._peers[this._master].reliable.send(JSON.stringify({type: RTC_EVENT, data}));
+      this._pending.push(event);
+      // TODO: Make the transition to a new master smoother than temporarily having
+      // a deleted master.
+      if (this._peers[this._master])
+        this._peers[this._master].reliable.send(JSON.stringify({type: RTC_EVENT, data}));
     }
   }
 
