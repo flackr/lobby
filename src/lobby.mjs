@@ -983,10 +983,17 @@ class RTCRoom extends SyntheticEventTarget {
 
   handleEvent(event) {
     this.dispatchEvent({data: event, type: 'event'});
-    this.events.push(event);
+    if (!event.ephemeral)
+      this.events.push(event);
     if (this._isMaster) {
-      // Post to matrix
-      this._room.sendEvent(GAME_EVENT, {...event, origin: this._masterTimestamp});
+      if (!event.ephemeral && event.backup) {
+        // Post to matrix
+        let matrixEvent = {...event, origin: this._masterTimestamp};
+        // Remove some unnecessary fields to preserve
+        delete matrixEvent['uid'];
+        delete matrixEvent['backup'];
+        this._room.sendEvent(GAME_EVENT, matrixEvent);
+      }
 
       // Forward to all peers
       for (let peerId in this._peers) {
@@ -996,7 +1003,7 @@ class RTCRoom extends SyntheticEventTarget {
       }
     } else {
       // Remove events from pending queue when they show up in event stream.
-      if (event.user_id == this._client.user_id && event.uid == this._uid) {
+      if (!event.ephemeral && event.user_id == this._client.user_id && event.uid == this._uid) {
         this._pending.splice(0, 1);
       }
     }
@@ -1007,7 +1014,8 @@ class RTCRoom extends SyntheticEventTarget {
     if (this._isMaster) {
       this.handleEvent(data);
     } else {
-      this._pending.push(event);
+      if (!event.ephemeral)
+        this._pending.push(event);
       // TODO: Make the transition to a new master smoother than temporarily having
       // a deleted master.
       if (this._peers[this._master])

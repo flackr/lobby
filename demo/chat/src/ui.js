@@ -293,7 +293,7 @@ function gameChatKeypress(evt) {
   if (evt.keyCode == 13) {
     let msg = evt.target.value;
     evt.target.value = '';
-    currentGame.send({text: msg});
+    currentGame.send({text: msg, backup: true});
   }
 }
 
