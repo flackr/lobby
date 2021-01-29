@@ -280,7 +280,7 @@ async function loadGame(room_id) {
     addMessage(evt.user_id, 'Connection lost');
   });
   game.addEventListener('event', (evt) => {
-    addMessage(evt.data.user_id, evt.data.text);
+    addMessage(evt.user_id, evt.detail.text);
   });
   game.addEventListener('reset', (evt) => {
     $('#game-log').innerHTML = '';

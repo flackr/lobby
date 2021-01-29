@@ -749,6 +749,8 @@ class RTCRoom extends SyntheticEventTarget {
     let startTime = Infinity;
     let eventList = [];
     function addEvent(evt) {
+      if (evt.type != GAME_EVENT)
+        return false;
       if (evt.content.origin > startTime)
         return false;
       startTime = evt.content.origin;
@@ -789,7 +791,7 @@ class RTCRoom extends SyntheticEventTarget {
     this._loaded = true;
     this.dispatchEvent({type: 'reset'});
     for (let i = 0; i < this.events.length; i++) {
-      this.dispatchEvent({data: this.events[i], type: 'event', historical: true});
+      this.dispatchEvent({detail: JSON.parse(this.events[i].detail), type: 'event', historical: true, user_id: this.events[i].user_id});
     }
     if (this._isMaster) {
       // Forward to all peers
@@ -982,7 +984,7 @@ class RTCRoom extends SyntheticEventTarget {
   }
 
   handleEvent(event) {
-    this.dispatchEvent({data: event, type: 'event'});
+    this.dispatchEvent({detail: JSON.parse(event.detail), type: 'event', user_id: event.user_id});
     if (!event.ephemeral)
       this.events.push(event);
     if (this._isMaster) {
@@ -1009,8 +1011,8 @@ class RTCRoom extends SyntheticEventTarget {
     }
   }
 
-  send(event) {
-    let data = {...event, user_id: this._client.user_id, uid: this._uid};
+  send(event, options) {
+    let data = {...(options || {}), detail: JSON.stringify(event), user_id: this._client.user_id, uid: this._uid};
     if (this._isMaster) {
       this.handleEvent(data);
     } else {
