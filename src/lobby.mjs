@@ -119,6 +119,13 @@ class Service {
     this.client_ = null;
   }
 
+  async wait(ms) {
+    const settimeout = this.options_.globals.setTimeout;
+    return new Promise((resolve) => {
+      settimeout(resolve, ms);
+    });
+  }
+
   async fetchJson(url, options, params, data) {
     if (params) {
       if (url.indexOf('?') == -1)
@@ -144,6 +151,12 @@ class Service {
       ++tries;
       try {
         response = await this.options_.globals.fetch(url, options);
+        if (response.status == 429) { // rate limited should wait and try again.
+          let json = await response.json();
+          await this.wait(json.retry_after_ms);
+          --tries;
+          continue;
+        }
         success = true;
       } catch (e) {
         console.error(e);
@@ -156,15 +169,20 @@ class Service {
     if (response.status >= 400 && response.status < 500 && json.errcode)
       throw new MatrixError(json);
     return json;
-  }  
+  }
 
   async reauthenticate() {
     let userJson = this.options_.globals.localStorage.getItem(USER_AUTH_KEY);
     if (!userJson)
       return null;
     let user = JSON.parse(userJson);
-    // TODO: Verify access token?
-    return this.client = new Client(this, user, user.type, user.host);
+    let client = new Client(this, user, user.type, user.host);
+    try {
+      await client.fetchTurnConfig();
+    } catch (e) { // If a matrix error is thrown, we have failed auth.
+      return null;
+    }
+    return this.client = client;
   }
 
   async login(user_id, password) {
@@ -182,8 +200,9 @@ class Service {
       'password': password,
       'initial_device_display_name': 'Lobby Client',
     });
-    // TODO: Verify access token?
-    return this.client = new Client(this, user, 'user', parsed.host);
+    let client = new Client(this, user, 'user', parsed.host);
+    await client.fetchTurnConfig();
+    return this.client = client;
   }
 
   async register(user_id, password) {
@@ -224,14 +243,17 @@ class Service {
         type: 'm.login.dummy',
       };
     }
-    // TODO: Verify access token?
-    return this.client = new Client(this, user, 'user');
+    let client = new Client(this, user, 'user');
+    await client.fetchTurnConfig();
+    return this.client = client;
   }
 
   async loginAsGuest(host) {
     let user = await this.fetchJson((host || this.options_.defaultHost) + '/_matrix/client/r0/register', {'method': 'POST'}, {'kind': 'guest'});
     // TODO: Verify access token?
-    return this.client = new Client(this, user, 'guest');
+    let client = new Client(this, user, 'guest');
+    await client.fetchTurnConfig();
+    return this.client = client;
   }
 
   set client(newClient) {
@@ -268,12 +290,25 @@ class Client {
     this.access_token = user.access_token;
     this.user_id = user.user_id;
     this.type = userType;
+    this.webRtcConfig = JSON.parse(JSON.stringify(this.service_.options_.webRtcConfig));
 
     // Set a default app name of the URL.
     this.txnCtr_ = 0;
     let parsed = parse_user_id(this.user_id);
     this.host_ = host || parsed.host;
     this.lobby_ = null;
+  }
+
+  async fetchTurnConfig() {
+    let turnConfig = await this.fetch('/_matrix/client/r0/voip/turnServer', 'GET');
+    if (turnConfig.uris) {
+      this.webRtcConfig.iceServers = this.webRtcConfig.iceServers || [];
+      this.webRtcConfig.iceServers.push({
+        urls: turnConfig.uris,
+        username: turnConfig.username,
+        credential: turnConfig.password,
+      });
+    }
   }
 
   async lobby() {
@@ -352,9 +387,9 @@ class Client {
     return new Room(this, roomId);
   }
 
-  async join(roomIdOrAlias, isExperimental) {
+  async join(roomIdOrAlias, isExperimental, options) {
     let room = isExperimental ?
-        new RTCRoom(this, roomIdOrAlias) :
+        new RTCRoom(this, roomIdOrAlias, options) :
         new Room(this, roomIdOrAlias);
     await room.join();
     return room;
@@ -600,16 +635,18 @@ function getClientId(user_id, uid) {
 }
 
 class RTCRoom extends SyntheticEventTarget {
-  constructor(client, room_id) {
+  constructor(client, room_id, options) {
     super();
     this.events = [];
     this._matrixEvents = [];
-    this._loaded = false;
+    this._stateless = options && options.stateless;
+    this._loaded = !!this._stateless;
 
     this._client = client;
     this._connected = true;
     this._uid = Math.floor(Math.random() * 10000000) + 1;
-    this._id = getClientId(this._client.user_id, this._uid);
+    this.user_id = this._client.user_id;
+    this.client_id = this._id = getClientId(this._client.user_id, this._uid);
     this._room = new Room(client, room_id);
     this._room.syncHistory_ = false;
     this._peers = {};
@@ -791,7 +828,7 @@ class RTCRoom extends SyntheticEventTarget {
     this._loaded = true;
     this.dispatchEvent({type: 'reset'});
     for (let i = 0; i < this.events.length; i++) {
-      this.dispatchEvent({detail: JSON.parse(this.events[i].detail), type: 'event', historical: true, user_id: this.events[i].user_id});
+      this.dispatchEvent({detail: JSON.parse(this.events[i].detail), type: 'event', historical: true, user_id: this.events[i].user_id, client_id: getClientId(this.events[i].user_id, this.events[i].uid)});
     }
     if (this._isMaster) {
       // Forward to all peers
@@ -821,6 +858,7 @@ class RTCRoom extends SyntheticEventTarget {
               deletedMaster = true;
             this.peers.splice(i, 1);
             delete this._peers[peerId];
+            this.dispatchEvent({type: 'disconnection', client_id: peerId});
             break;
           }
         }
@@ -843,7 +881,7 @@ class RTCRoom extends SyntheticEventTarget {
     let mapStr = user_id ? getClientId(user_id, uid) : 'master';
     if (this._peers[mapStr])
       return this._peers[mapStr];
-    let peer = new this._client.service_.options_.globals.RTCPeerConnection(this._client.service_.options_.webRtcConfig)
+    let peer = new this._client.service_.options_.globals.RTCPeerConnection(this._client.webRtcConfig)
     const self = this;
     let peerDesc = {
       user_id,
@@ -881,7 +919,7 @@ class RTCRoom extends SyntheticEventTarget {
         channel.send(JSON.stringify({type: RTC_PEERS, peers: self.peers}));
         channel.send(JSON.stringify({type: RTC_LOAD, data: self.events}));
       }
-      self.dispatchEvent({type: 'connection', user_id: peerDesc.user_id, uid: peerDesc.uid, channel});
+      self.dispatchEvent({type: 'connection', client_id: mapStr, user_id: peerDesc.user_id, uid: peerDesc.uid, channel});
       channel.addEventListener('message', async (evt) => {
         let content = JSON.parse(evt.data);
         if (content.type == RTC_PEERS) {
@@ -984,7 +1022,7 @@ class RTCRoom extends SyntheticEventTarget {
   }
 
   handleEvent(event) {
-    this.dispatchEvent({detail: JSON.parse(event.detail), type: 'event', user_id: event.user_id});
+    this.dispatchEvent({detail: JSON.parse(event.detail), type: 'event', user_id: event.user_id, client_id: getClientId(event.user_id, event.uid)});
     if (!event.ephemeral)
       this.events.push(event);
     if (this._isMaster) {
@@ -997,11 +1035,14 @@ class RTCRoom extends SyntheticEventTarget {
         this._room.sendEvent(GAME_EVENT, matrixEvent);
       }
 
-      // Forward to all peers
-      for (let peerId in this._peers) {
-        if (!this._peers[peerId].reliable || this._peers[peerId].reliable.readyState != 'open')
-          continue;
-        this._peers[peerId].reliable.send(JSON.stringify({type: RTC_EVENT, data: event}));
+      if (event.ephemeral != 'direct') {
+        // Forward to all peers
+        for (let peerId in this._peers) {
+          let dc = this._peers[peerId].reliable;
+          if (!dc || dc.readyState != 'open')
+            continue;
+          this._peers[peerId].reliable.send(JSON.stringify({type: RTC_EVENT, data: event}));
+        }
       }
     } else {
       // Remove events from pending queue when they show up in event stream.
@@ -1012,16 +1053,29 @@ class RTCRoom extends SyntheticEventTarget {
   }
 
   send(event, options) {
-    let data = {...(options || {}), detail: JSON.stringify(event), user_id: this._client.user_id, uid: this._uid};
-    if (this._isMaster) {
+    // TODO: Add options for not repeating to self and/or direct send
+    // to other peers.
+    options = options || {};
+    let data = {...options, detail: JSON.stringify(event), user_id: this._client.user_id, uid: this._uid};
+    if (this._isMaster || options.ephemeral == 'direct') {
       this.handleEvent(data);
     } else {
-      if (!event.ephemeral)
+      if (!options.ephemeral)
         this._pending.push(event);
       // TODO: Make the transition to a new master smoother than temporarily having
       // a deleted master.
       if (this._peers[this._master])
         this._peers[this._master].reliable.send(JSON.stringify({type: RTC_EVENT, data}));
+    }
+    if (options.ephemeral == 'direct') {
+      // Direct ephemeral messages are sent directly to the peers.
+      for (let peerId in this._peers) {
+        let dc = this._peers[peerId].reliable;
+        if (!dc || dc.readyState != 'open')
+          continue;
+        // TODO: Maybe use unreliable channel?
+        this._peers[peerId].reliable.send(JSON.stringify({type: RTC_EVENT, data}));
+      }
     }
   }
 

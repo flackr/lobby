@@ -61,11 +61,4 @@ Games can support either offline continuation or not (no matrix side backup)
 
 ### To do
 
-* Connect a single peer (connect others through master).
-* Batch messages (i.e. icecandidates and offer).
-* Nominate master to back messages up to matrix.
-* Check log in state by querying turn server config.
-* Use turn server config on RTC connections.
-* Sync entire history.
 * Test support for disconnections.
-* Disconnections will have to be detected manually (iceconnectionstate disconnected happens periodically in Firefox, but no further state changes happen in chrome).
