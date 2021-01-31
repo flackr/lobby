@@ -71,7 +71,9 @@ export default class MockMatrixServer {
     }
     
     let result;
-    if (request == 'createRoom') {
+    if (request == 'voip/turnServer') {
+      return {status: 200, body: JSON.stringify({})};
+    } else if (request == 'createRoom') {
       let details = JSON.parse(init.body);
       let room_id = generateRoomId(this._options.host);
       this._rooms[room_id] = {

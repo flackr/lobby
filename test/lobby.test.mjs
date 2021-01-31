@@ -107,11 +107,11 @@ test('exchanges messages over webrtc', async function(t) {
   let con1 = await connected;
   t.is(con1.user_id, '@user2:localhost');
 
-  room1.send({text: 'message1', backup: true});
-  t.is((await getEvents(room2, 'event', 1))[0].data.text, 'message1');
+  room1.send({text: 'message1'}, {backup: true});
+  t.is((await getEvents(room2, 'event', 1))[0].detail.text, 'message1');
 
-  room2.send({text: 'message2', backup: true});
-  t.is((await getEvents(room1, 'event', 1))[0].data.text, 'message2');
+  room2.send({text: 'message2'}, {backup: true});
+  t.is((await getEvents(room1, 'event', 1))[0].detail.text, 'message2');
 
   room2.quit();
   room1.quit();
