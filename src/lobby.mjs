@@ -171,6 +171,40 @@ class Service {
     return json;
   }
 
+  ensureLogin(loginElement, visibleClass) {
+    let self = this;
+    return new Promise(async (resolve) => {
+      let client = await self.reauthenticate();
+      if (client) {
+        resolve(client);
+        return;
+      }
+      loginElement.classList.toggle(visibleClass);
+      let form = loginElement.querySelector('form');
+      let error = form.querySelector('.lobby-error');
+      let tryLogin = async function(username, password) {
+        try {
+          client = await self.login(username, password);
+          error.textContent = '';
+          if (client) {
+            form.onsubmit = undefined;
+            loginElement.classList.toggle(visibleClass);
+            resolve(client);
+            return;
+          }
+        } catch (e) {
+          error.textContent = e.toString();
+        }
+      }
+      form.onsubmit = function(evt) {
+        evt.preventDefault();
+        let username = form.querySelector('input[name="username"]');
+        let password = form.querySelector('input[name="password"]');
+        tryLogin(username.value, password.value);
+      }
+    });
+  }
+
   async reauthenticate() {
     let userJson = this.options_.globals.localStorage.getItem(USER_AUTH_KEY);
     if (!userJson)
