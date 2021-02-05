@@ -102,6 +102,29 @@ function gatherIceCandidates(peerConnection) {
   });
 }
 
+class ListenerTracker {
+  constructor(obj) {
+    this.obj = obj;
+    this.listeners = {};
+  }
+
+  add(event, fn) {
+    this.listeners[event] = this.listeners[event] || [];
+    this.listeners[event].push(fn);
+    this.obj.addEventListener(event, fn);
+  }
+
+  disconnect() {
+    for (let event in this.listeners) {
+      let list = this.listeners[event];
+      for (let i = 0; i < list.length; i++) {
+        this.obj.removeEventListener(event, list[i]);
+      }
+      this.listeners[event] = [];
+    }
+  }
+}
+
 const USER_AUTH_KEY = 'com.github.flackr.lobby.User';
 class Service {
   constructor(options) {
@@ -678,6 +701,9 @@ class RTCRoom extends SyntheticEventTarget {
 
     this._client = client;
     this._connected = true;
+    this.quit = this.quit.bind(this);
+    this._client.service_.options_.globals.addEventListener('beforeunload', this.quit);
+
     this._uid = Math.floor(Math.random() * 10000000) + 1;
     this.user_id = this._client.user_id;
     this.client_id = this._id = getClientId(this._client.user_id, this._uid);
@@ -885,28 +911,12 @@ class RTCRoom extends SyntheticEventTarget {
       // If we sent a ping and didn't hear back within RTC_PING_INTERVAL, assume
       // the connection is gone.
       let deletedMaster = false;
-      if (peer.sentPing && peer.ping === null) {
-        for (let i = 0; i < this.peers.length; ++i) {
-          if (this.peers[i].user_id == peer.user_id && this.peers[i].uid == peer.uid) {
-            if (i == 0)
-              deletedMaster = true;
-            this.peers.splice(i, 1);
-            delete this._peers[peerId];
-            this.dispatchEvent({type: 'disconnection', client_id: peerId});
-            break;
-          }
-        }
-        if (deletedMaster) {
-          if (this.peers[0].user_id == this._client.user_id && this.peers[0].uid == this._uid) {
-            // Announce that we are now the master.
-            this.setMaster(this.peers[0].user_id, this.peers[0].uid, this._masterTimestamp, true);
-          }
-        }
+      if (peer.sentPing!== null && peer.ping === null) {
         continue;
       }
-      this._peers[peerId].ping = null;
+      peer.ping = null;
       dc.send(JSON.stringify({type: RTC_PING}));
-      this._peers[peerId].sentPing = true;
+      peer.sentPing = now;
     }
     this._lastPing = now;
   }
@@ -917,6 +927,9 @@ class RTCRoom extends SyntheticEventTarget {
       return this._peers[mapStr];
     let peer = new this._client.service_.options_.globals.RTCPeerConnection(this._client.webRtcConfig)
     const self = this;
+    let peerListeners = new ListenerTracker(peer);
+    let dcListeners = null;
+
     let peerDesc = {
       user_id,
       uid,
@@ -927,6 +940,11 @@ class RTCRoom extends SyntheticEventTarget {
       announce_ts: newMaster,
       sentPing: false,
       ping: null,
+      disconnect: function() {
+        peerListeners.disconnect();
+        if (dcListeners)
+          dcListeners.disconnect();
+      }
     };
     if (!user_id)
       newMaster = true;
@@ -934,9 +952,11 @@ class RTCRoom extends SyntheticEventTarget {
 
     if (initiator) {
       let dc = peer.createDataChannel('main');
-      dc.addEventListener('open', connectDataChannel.bind(null, dc));
+      dcListeners = new ListenerTracker(dc);
+      dcListeners.add('open', connectDataChannel.bind(null, dc));
     } else {
-      peer.addEventListener('datachannel', (evt) => {
+      peerListeners.add('datachannel', (evt) => {
+        dcListeners = new ListenerTracker(evt.channel);
         connectDataChannel(evt.channel);
       });
     }
@@ -954,57 +974,91 @@ class RTCRoom extends SyntheticEventTarget {
         channel.send(JSON.stringify({type: RTC_LOAD, data: self.events}));
       }
       self.dispatchEvent({type: 'connection', client_id: mapStr, user_id: peerDesc.user_id, uid: peerDesc.uid, channel});
-      channel.addEventListener('message', async (evt) => {
-        let content = JSON.parse(evt.data);
-        if (content.type == RTC_PEERS) {
-          self.peers = content.peers;
-          // Initiate connections to everyone we aren't yet connected to.
-          for (let i = 0; i < self.peers.length; ++i) {
-            let peerStr = getClientId(self.peers[i].user_id, self.peers[i].uid);
-            if (peerStr == self._id)
-              continue;
-            if (!self._peers[peerStr])
-              self.initiateConnection(self.peers[i].user_id, self.peers[i].uid);
-          }
-        } else if (content.type == RTC_LOAD) {
-          self.events = content.data;
-          self.signalLoaded();
-        } else if (content.type == RTC_PING) {
-          channel.send(JSON.stringify({type: RTC_PONG}));
-        } else if (content.type == RTC_PONG) {
-          peerDesc.ping = self._client.service_.options_.globals.performance.now() - self._lastPing;
-        } else if (content.type == RTC_EVENT) {
-          self.handleEvent(content.data);
-        } else if (content.type == RTC_OFFER || content.type == RTC_ANSWER) {
-          // Attempt to forward to targeted user.
-          if (content.to == self._id) {
-            if (content.type == RTC_OFFER) {
-              // Initiate connection
-              let response = await self.acceptRTCPeer(content.user_id, content.uid, content);
-              channel.send(JSON.stringify({...response, user_id: self._client.user_id, uid: self._uid, type: RTC_ANSWER, to: getClientId(content.user_id, content.uid)}));
-            } else {
-              // Accept answer.
-              self.acceptAnswer(content.user_id, content.uid, content);
-            }
-          } else {
-            let peer = self._peers[content.to];
-            if (peer && peer.reliable && peer.reliable.readyState == 'open') {
-              peer.reliable.send(evt.data);
-            }
-          }
-        } else if (content.type == RTC_MASTER) {
-          if (content.master == self._master)
-            return;
-          if (!self._peers[content.master]) {
-            self.initiateConnection(content.user_id, content.uid, content.announce_ts);
-          } else {
-            self.setMaster(content.user_id, content.uid, content.announce_ts);
-          }
-        }
-      });
+      dcListeners.add('message', self.onPeerMessage.bind(self, mapStr));
+      dcListeners.add('close', self.onPeerDisconnection.bind(self, mapStr));
     }
 
+    peerListeners.add('connectionstatechange', (evt) => {
+      // In chrome, a disconnected peer will eventually enter the 'failed' state.
+      // In Firefox, this will automatically close the datachannel (handled above).
+      if (peer.connectionState == 'closed' || peer.connectionState == 'failed')
+        self.onPeerDisconnection(mapStr);
+    });
+
     return peer;
+  }
+
+  async onPeerMessage(peerId, evt) {
+    let peerDesc = this._peers[peerId];
+    let channel = peerDesc.reliable;
+    let content = JSON.parse(evt.data);
+    if (content.type == RTC_PEERS) {
+      this.peers = content.peers;
+      // Initiate connections to everyone we aren't yet connected to.
+      for (let i = 0; i < this.peers.length; ++i) {
+        let peerStr = getClientId(this.peers[i].user_id, this.peers[i].uid);
+        if (peerStr == this._id)
+          continue;
+        if (!this._peers[peerStr])
+          this.initiateConnection(this.peers[i].user_id, this.peers[i].uid);
+      }
+    } else if (content.type == RTC_LOAD) {
+      this.events = content.data;
+      this.signalLoaded();
+    } else if (content.type == RTC_PING) {
+      channel.send(JSON.stringify({type: RTC_PONG}));
+    } else if (content.type == RTC_PONG) {
+      peerDesc.ping = this._client.service_.options_.globals.performance.now() - peerDesc.sentPing;
+    } else if (content.type == RTC_EVENT) {
+      this.handleEvent(content.data);
+    } else if (content.type == RTC_OFFER || content.type == RTC_ANSWER) {
+      // Attempt to forward to targeted user.
+      if (content.to == this._id) {
+        if (content.type == RTC_OFFER) {
+          // Initiate connection
+          let response = await this.acceptRTCPeer(content.user_id, content.uid, content);
+          channel.send(JSON.stringify({...response, user_id: this._client.user_id, uid: this._uid, type: RTC_ANSWER, to: getClientId(content.user_id, content.uid)}));
+        } else {
+          // Accept answer.
+          this.acceptAnswer(content.user_id, content.uid, content);
+        }
+      } else {
+        let peer = this._peers[content.to];
+        if (peer && peer.reliable && peer.reliable.readyState == 'open') {
+          peer.reliable.send(evt.data);
+        }
+      }
+    } else if (content.type == RTC_MASTER) {
+      if (content.master == this._master)
+        return;
+      if (!this._peers[content.master]) {
+        this.initiateConnection(content.user_id, content.uid, content.announce_ts);
+      } else {
+        this.setMaster(content.user_id, content.uid, content.announce_ts);
+      }
+    }
+  }
+
+  onPeerDisconnection(peerId) {
+    let deletedMaster = false;
+    for (let i = 0; i < this.peers.length; ++i) {
+      if (getClientId(this.peers[i].user_id, this.peers[i].uid) == peerId) {
+        if (i == 0)
+          deletedMaster = true;
+        this.peers.splice(i, 1);
+        this._peers[peerId].disconnect();
+        delete this._peers[peerId];
+        break;
+      }
+    }
+    if (deletedMaster) {
+      if (this.peers[0].user_id == this._client.user_id && this.peers[0].uid == this._uid) {
+        // Announce that we are now the master.
+        this.setMaster(this.peers[0].user_id, this.peers[0].uid, this._masterTimestamp, true);
+      }
+    }
+
+    this.dispatchEvent({type: 'disconnection', client_id: peerId});
   }
 
   // Initiate a connection with (user_id, uid).
@@ -1114,11 +1168,17 @@ class RTCRoom extends SyntheticEventTarget {
   }
 
   quit() {
+    this._client.service_.options_.globals.removeEventListener('beforeunload', this.quit);
     this._connected = false;
     this._client.service_.options_.globals.clearInterval(this._pingInterval);
     for (let peerId in this._peers) {
+      let channel = this._peers[peerId].reliable;
+      if (channel)
+        channel.close();
       this._peers[peerId].peer.close();
+      this._peers[peerId].disconnect();
     }
+    this._peers = {};
   }
 
 }

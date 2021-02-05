@@ -35,6 +35,9 @@ test.beforeEach(t => {
   t.context.matrix = new MockMatrixServer({host: 'localhost', globals: t.context.globals});
   t.context.network.install(t.context.matrix.fetch);
   t.context.mockRTC = new MockWebRTC(t.context.globals);
+  // Lobby adds a beforeunload listener in order to disconnect. For now, we won't use it.
+  t.context.globals.addEventListener = () => {};
+  t.context.globals.removeEventListener = () => {};
   t.context.mockRTC.install();
 });
 
