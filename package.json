@@ -26,7 +26,7 @@
     "babel-regenerator-runtime": "^6.5.0",
     "regenerator-runtime": "^0.13.5",
     "webpack": "^4.42.1",
-    "webpack-cli": "^3.3.11",
+    "webpack-cli": "^3.3.12",
     "whatwg-fetch": "^3.0.0"
   },
   "engines": {
