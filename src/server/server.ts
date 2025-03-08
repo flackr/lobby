@@ -30,13 +30,28 @@ export type TransportInterface = {
   sendMail(mailOptions: MailOptions): Promise<SentMessageInfo>;
 };
 
+export type ServerInterface = {
+  listen(port: number, hostname: string, callback: () => void);
+  close(callback: Function);
+};
+export type ServerIncomingMessage = {
+  url: string;
+  method: string;
+};
+export interface ServerResponseInterface {
+  writeHead: (statusCode: number, headers: {[key: string]: string | number}) => void;
+  end: () => void;
+}
+export type ServerCallback = (req: http.IncomingMessage, res: ServerResponseInterface | http.ServerResponse) => void;
+export type createServerInterface = (callback: ServerCallback) => ServerInterface;
+
 interface ServerConfig {
   db: PGInterface;
   transport: TransportInterface;
   port: number;
   hostname?: string;
   basePath?: string;
-  createServer?: typeof http.createServer;
+  createServer?: createServerInterface;
   WebSocketServer?: typeof ws.Server;
 }
 
@@ -45,7 +60,7 @@ export type ServerAddress = string;
 const DEFAULT_PORT = 8000;
 export class Server {
   #config: ServerConfig;
-  #server: http.Server;
+  #server: ServerInterface;
   #serve: serveStatic.RequestHandler<http.ServerResponse<http.IncomingMessage>>;
 
   constructor(config: ServerConfig) {
@@ -73,7 +88,7 @@ export class Server {
     });
   }
 
-  #onRequest = async (req: http.IncomingMessage, res: http.ServerResponse) => {
+  #onRequest = async (req: http.IncomingMessage, res: ServerResponseInterface | http.ServerResponse) => {
     const headers = {
       'Access-Control-Allow-Origin': '*' /* @dev First, read about security */,
       'Access-Control-Allow-Methods': 'OPTIONS, POST, GET',
@@ -114,10 +129,14 @@ export class Server {
           res.end(data || '', 'utf8');
         }
       );
-    } else {
+    } else if (res instanceof http.ServerResponse) {
       // If the request doesn't match any dynamic URL,
       // serve the public folder.
+      // Note this only works with the real server, not the mock interface.
       this.#serve(req, res, finalhandler(req, res));
+    } else {
+      res.writeHead(404, headers);
+      res.end();
     }
   };
 }
