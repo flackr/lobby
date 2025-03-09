@@ -15,10 +15,11 @@ describe('sum module', () => {
     const world = new MockEnvironment();
     const hostname = 'serializer.ca';
     const clientServer = world.createClient({ address: hostname });
-    let server = new Server({ hostname, port: 80, db, transport: transport, createServer: clientServer.createServer });
+    const server = new Server({ hostname, port: 8000, db, transport: transport, createServer: clientServer.createServer });
+    // const server = new Server({ port: 8000, db, transport: transport });
     const address = await server.listen();
     const formData = new FormData();
-    formData.set('username', 'test');
+    formData.set('email', 'test');
     formData.set('password', 'supersecret');
 
     const client = world.createClient();
@@ -29,4 +30,5 @@ describe('sum module', () => {
     console.log(await response.text());
     await server.close();
   });
+
 });

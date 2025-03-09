@@ -108,83 +108,87 @@ class MockClient {
   }
 
   async fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-    return new Promise(async (resolve, reject) => {
-      let url: URL;
-      let method = 'GET';
-      let headers: Headers = new Headers();
-      let body: BodyInit | null = null;
+    let url: URL;
+    let method = 'GET';
+    const headers: Headers = new Headers();
+    let body: BodyInit | null = null;
 
-      if (input instanceof URL || typeof input === 'string') {
-          url = new URL(input.toString());
-      } else if (input instanceof Request) {
-          url = new URL(input.url);
-          method = input.method;
-          input.headers.forEach((value, key) => {
-              headers.set(key, value);
-          });
-          body = await input.blob(); // Or input.text(), input.arrayBuffer() depending on needs
-      } else {
-          return reject(new TypeError('Invalid input type for fetch'));
-      }
+    if (input instanceof URL || typeof input === 'string') {
+        url = new URL(input.toString());
+    } else if (input instanceof Request) {
+        url = new URL(input.url);
+        method = input.method;
+        input.headers.forEach((value, key) => {
+            headers.set(key, value);
+        });
+        body = await input.blob(); // Or input.text(), input.arrayBuffer() depending on needs
+    } else {
+        throw new TypeError('Invalid input type for fetch');
+    }
 
-      if (init) {
-          if (init.method) {
-              method = init.method;
-          }
-          if (init.headers) {
-              const initHeaders = new Headers(init.headers);
-              initHeaders.forEach((value, key) => {
-                  headers.set(key, value);
-              });
-          }
-          if (init.body) {
-              body = init.body;
-          }
-      }
-
-      const mockReq = new Readable() as IncomingMessage;
-      mockReq.method = method;
-      mockReq.url = url.pathname + url.search; // Just path and query, not full URL
-      mockReq.headers = {};
-      headers.forEach((value, key) => {
-          mockReq.headers[key] = value;
-      });
-
-      // Simulate request body if present
-      if (body !== null) {
-        if (typeof body === 'string') {
-            mockReq.push(body);
-        } else if (body instanceof Buffer) {
-            mockReq.push(body);
-        } else if (body instanceof ArrayBuffer) {
-            mockReq.push(Buffer.from(body));
-        } else if (body instanceof Blob) {
-            const arrayBuffer = await body.arrayBuffer();
-            mockReq.push(Buffer.from(arrayBuffer));
-        } else if (body instanceof ReadableStream) {
-            const reader = body.getReader();
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                mockReq.push(value);
-            }
+    if (init) {
+        if (init.method) {
+            method = init.method;
         }
-        // TODO: Form data!!!
+        if (init.headers) {
+            const initHeaders = new Headers(init.headers);
+            initHeaders.forEach((value, key) => {
+                headers.set(key, value);
+            });
+        }
+        if (init.body) {
+            body = init.body;
+        }
+    }
+
+    const mockReq = new Readable() as IncomingMessage;
+    mockReq.method = method;
+    mockReq.url = url.pathname + url.search; // Just path and query, not full URL
+    mockReq.headers = {};
+    headers.forEach((value, key) => {
+        mockReq.headers[key] = value;
+    });
+
+    // Simulate request body if present
+    if (body !== null) {
+      if (typeof body === 'string') {
+          mockReq.push(body);
+      } else if (body instanceof Buffer) {
+          mockReq.push(body);
+      } else if (body instanceof ArrayBuffer) {
+          mockReq.push(Buffer.from(body));
+      } else if (body instanceof Blob) {
+          const arrayBuffer = await body.arrayBuffer();
+          mockReq.push(Buffer.from(arrayBuffer));
+      } else if (body instanceof ReadableStream) {
+          const reader = body.getReader();
+          while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              mockReq.push(value);
+          }
+      } else if (body instanceof FormData) {
+       const response = new Response(body);
+       const formData = await response.text();
+       mockReq.headers['content-type'] = response.headers.get('Content-Type') || '';
+       mockReq.headers['content-length'] = formData.length.toString();
+       mockReq.push(formData);
       }
-      mockReq.push(null);
+    }
+    mockReq.push(null);
+    const serverClient = this.#environment.getClient(url.hostname);
+    if (!serverClient) {
+      throw new Error('No server for hostname ' + url.hostname);
+    }
+    const mockServer = serverClient.connect(parseInt(url.port || '80'));
+    if (!mockServer) {
+      throw new Error(`No server for hostname ${url.hostname}, port ${url.port}.`);
+    }
+    // Calling the requestHandler should invoke mockRes.end which will resolve the promise.
+    return new Promise((resolve) => {
       const mockRes = new MockResponse(resolve);
-      const serverClient = this.#environment.getClient(url.hostname);
-      if (!serverClient) {
-        throw new Error('No server for hostname ' + url.hostname);
-        return;
-      }
-      const mockServer = serverClient.connect(parseInt(url.port || '80'));
-      if (!mockServer) {
-        throw new Error(`No server for hostname ${url.hostname}, port ${url.port}.`);
-      }
-      // Calling the requestHandler should invoke mockRes.end which will resolve the promise.
       mockServer.requestHandler(mockReq, mockRes);
-  });
+    });
   }
 };
 
@@ -198,10 +202,11 @@ class MockServer implements ServerInterface {
     this.#callback = callback;
   }
 
-  close() {
+  close(callback: (value: Error | undefined) => void) {
     if (this.#port !== null)
       this.#client.unlisten(this.#port, this);
     this.#port = null;
+    callback();
   }
 
   listen(port: number, hostname: string, callback: () => void) {

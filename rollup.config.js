@@ -4,7 +4,7 @@ import terser from '@rollup/plugin-terser';
 
 export default [{
     input: './src/server/index.ts',
-    external: ['dotenv/config', 'finalhandler', 'pg', 'node:fs', 'node:http', 'node:process', 'nodemailer', 'serve-static', 'ws'],
+    external: ['dotenv/config', 'finalhandler', 'formidable', 'pg', 'node:fs', 'node:http', 'node:process', 'nodemailer', 'serve-static', 'ws'],
     output: {
       file: './dist/server.min.js',
       format: 'es',
