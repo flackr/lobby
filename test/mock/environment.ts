@@ -206,7 +206,7 @@ class MockServer implements ServerInterface {
     if (this.#port !== null)
       this.#client.unlisten(this.#port, this);
     this.#port = null;
-    callback();
+    callback(undefined);
   }
 
   listen(port: number, hostname: string, callback: () => void) {

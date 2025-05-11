@@ -74,4 +74,26 @@ describe('mock clock', () => {
     expect(calls).toEqual(2);
     expect(api.performance.now()).toEqual(2000);
   });
+
+  test('autoAdvance just works', async () => {
+    const clock = new MockClock();
+    const api = clock.api();
+    clock.autoAdvance = true;
+    let calls = 0;
+    await new Promise((resolve) => {
+      api.setTimeout(async () => {
+        await new Promise((resolve) => {
+          setTimeout(resolve, 0);
+        });
+        api.setTimeout(() => {
+          ++calls;
+          resolve(undefined);
+        }, 1000);
+        ++calls;
+      }, 1000);
+    });
+    expect(calls).toEqual(2);
+    expect(api.performance.now()).toEqual(2000);
+  });
+
 });

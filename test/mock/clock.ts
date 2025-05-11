@@ -113,6 +113,8 @@ export class MockClock {
   #settings: ClockSettings = {
     frameInterval: 1000.0 / 60,
   };
+  autoAdvance = false;
+  #isInAutoAdvanceLoop = false;
   #now = 0;
   #lastTimerId = 0;
   #events = new PriorityQueue<TimedCallback>(TimedCallback.lessThan);
@@ -138,6 +140,7 @@ export class MockClock {
         this.schedule(
           new TimeoutCallback(this.now() + delay, cb, this.#timeoutMap, id)
         );
+        this.maybeAutoAdvance();
         return id;
       },
 
@@ -157,6 +160,7 @@ export class MockClock {
             this
           )
         );
+        this.maybeAutoAdvance();
         return id;
       },
 
@@ -166,7 +170,7 @@ export class MockClock {
 
       requestAnimationFrame: (cb: Function): number => {
         const id = ++this.#lastTimerId;
-        let offset = this.now() % this.#settings.frameInterval;
+        const offset = this.now() % this.#settings.frameInterval;
         this.schedule(
           new TimeoutCallback(
             this.now() + this.#settings.frameInterval - offset,
@@ -175,20 +179,31 @@ export class MockClock {
             id
           )
         );
+        this.maybeAutoAdvance();
         return id;
       },
     };
+  }
+
+  maybeAutoAdvance() {
+    if (!this.autoAdvance || this.#isInAutoAdvanceLoop)
+      return;
+    this.#isInAutoAdvanceLoop = true;
+    Promise.resolve().then(async () => {
+      await this.advanceUntil(() => !this.autoAdvance);
+      this.#isInAutoAdvanceLoop = false;
+    });
   }
 
   advanceBy(ms: number): Promise<void> {
     return this.advanceTo(this.#now + ms);
   }
 
-  async advanceTo(ms: number) {
-    let promises: Set<Promise<any>> = new Set();
+  async advanceUntil(predicate: (nextTask: TimedCallback) => boolean) {
+    const promises: Set<Promise<undefined>> = new Set();
     let next: TimedCallback | undefined;
     while (true) {
-      while ((next = this.#events.peek()) !== undefined && next.when <= ms) {
+      while ((next = this.#events.peek()) !== undefined && !predicate(next)) {
         this.#events.pop();
         this.#now = next.when;
         const promise = Promise.resolve(next.dispatch()).finally(() => {
@@ -198,30 +213,20 @@ export class MockClock {
       }
       if (promises.size == 0) break;
       // Wait until any promise resolves, and then check if we have
-      // move events before the target time.
+      // more events to process.
       await Promise.race(promises);
     }
+  }
+
+  async advanceTo(ms: number) {
+    await this.advanceUntil(next => next.when > ms);
     // Once there are no more events or the next event exceeds the
     // requested time, we just set the clock to this time.
     this.#now = ms;
   }
 
   async advanceUntilIdle() {
-    let promises: Set<Promise<any>> = new Set();
-    let next: TimedCallback | undefined;
-    while (true) {
-      while ((next = this.#events.pop())) {
-        this.#now = next.when;
-        const promise = Promise.resolve(next.dispatch()).finally(() => {
-          promises.delete(promise);
-        });
-        promises.add(promise);
-      }
-      if (promises.size == 0) break;
-      // Wait until any promise resolves, and then check if we have
-      // more events.
-      await Promise.race(promises);
-    }
+    await this.advanceUntil((next) => !next);
   }
 
   now() {
