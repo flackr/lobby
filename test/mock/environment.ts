@@ -14,7 +14,9 @@ export class MockEnvironment {
   #clock: MockClock = new MockClock();
   #clients: Map<string, MockClient> = new Map();
 
-  constructor() {}
+  constructor() {
+    this.#clock.autoAdvance = true;
+  }
 
   get clock(): MockClock {
     return this.#clock;
@@ -85,6 +87,7 @@ class MockClient {
     address: '',
     latency: 0,
   };
+  #latency: Map<MockClient, number> = new Map();
   #listeners: Map<number, any> = new Map();
   constructor(environment: MockEnvironment, options: Partial<ClientOptions>) {
     this.#environment = environment;
@@ -105,6 +108,13 @@ class MockClient {
 
   createServer = (callback: ServerCallback) => {
     return new MockServer(this, callback);
+  }
+
+  latencyTo(client: MockClient): number {
+    return this.#latency.get(client) ||
+        // Each direction assumes half of the client's latency to the internet,
+        // and half to the other client.
+        (this.#options.latency * 0.5 + client.#options.latency * 0.5);
   }
 
   async fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
@@ -186,8 +196,14 @@ class MockClient {
     }
     // Calling the requestHandler should invoke mockRes.end which will resolve the promise.
     return new Promise((resolve) => {
-      const mockRes = new MockResponse(resolve);
-      mockServer.requestHandler(mockReq, mockRes);
+      const mockRes = new MockResponse((response) => {
+        this.#environment.clock.api().setTimeout(() => {
+          resolve(response);
+        }, serverClient.latencyTo(this));
+      });
+      this.#environment.clock.api().setTimeout(() => {
+        mockServer.requestHandler(mockReq, mockRes);
+      }, this.latencyTo(serverClient));
     });
   }
 };
@@ -202,14 +218,14 @@ class MockServer implements ServerInterface {
     this.#callback = callback;
   }
 
-  close(callback: (value: Error | undefined) => void) {
+  close(callback: (value?: Error) => void) {
     if (this.#port !== null)
       this.#client.unlisten(this.#port, this);
     this.#port = null;
     callback(undefined);
   }
 
-  listen(port: number, hostname: string, callback: () => void) {
+  listen(port: number, hostname: string, callback: (value?: unknown) => void) {
     this.#port = port;
     this.#client.listen(this.#port, this);
     callback();
