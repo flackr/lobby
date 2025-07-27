@@ -117,5 +117,6 @@ export class Database {
 
   constructor(client: PGInterface) {
     this.#client = client;
+    initializeDatabase(this.#client);
   }
 }

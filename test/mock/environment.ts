@@ -1,10 +1,7 @@
-import { request } from 'http';
 import { MockClock } from './clock';
-import http, { IncomingMessage, ServerResponse } from 'node:http';
+import { IncomingMessage } from 'node:http';
 import { Readable } from 'node:stream';
-import { env } from 'node:process';
-import type { ServerCallback, ServerInterface, ServerResponseInterface } from '../../src/server/server.ts';
-import { stat } from 'node:fs';
+import type { ServerCallback, ServerInterface, ServerResponseInterface, WebSocketInterface, WebSocketServerInterface } from '../../src/server/server.ts';
 
 /**
  * Simulates a set of clients which can be browsers or servers
@@ -225,7 +222,7 @@ class MockServer implements ServerInterface {
     callback(undefined);
   }
 
-  listen(port: number, hostname: string, callback: (value?: unknown) => void) {
+  listen(port: number, hostname: string, backlog: number, callback: (value?: unknown) => void) {
     this.#port = port;
     this.#client.listen(this.#port, this);
     callback();
@@ -235,4 +232,25 @@ class MockServer implements ServerInterface {
     this.#callback(req, res);
   }
 };
+
+/*
+class MockWebSocketServer implements WebSocketServerInterface {
+  constructor(options: any) {
+
+  }
+  on: ((event: 'connection', listener: (ws: WebSocketInterface) => void) => void) | ((event: 'error', listener: (...args: unknown[]) => void) => void) {
+    return (event, listener) => {
+      // Implementation for handling events
+      if (event === 'connection') {
+        // Simulate a new WebSocket connection
+        const mockWebSocket = new MockWebSocket();
+        listener(mockWebSocket);
+      } else if (event === 'error') {
+        // Handle error event
+        console.error('WebSocket error occurred');
+      }
+    }
+  }
+};
+*/
 

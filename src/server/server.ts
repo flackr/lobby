@@ -6,6 +6,8 @@ import serveStatic from 'serve-static';
 import finalhandler from 'finalhandler';
 import formidable from 'formidable';
 
+const BACKLOG = 511;
+
 // Common interface between official pg PoolClient and PGLite interface used for testing.
 export type PGInterface = {
   query<T>(
@@ -32,8 +34,25 @@ export type TransportInterface = {
 };
 
 export type ServerInterface = {
-  listen(port: number, hostname: string, callback: () => void);
+  listen(port: number, hostname: string, backlog: number, callback: () => void);
   close(callback: (value: Error | undefined) => void);
+};
+export type WebSocketServerOptions = {
+  server?: ServerInterface;
+}
+export type WebSocketServerInterface = {
+  // TODO: Write separate on definition for each event type.
+  on(event: 'connection', listener: (websocket: WebSocketInterface) => void) : void;
+  on(event: 'error', listener: (...args: unknown[]) => void) : void;
+  on(event: 'close', listener: () => void) : void;
+};
+export type EventListenerOptions = undefined | { once?: boolean };
+export type WebSocketInterface = {
+  send(data: string | Buffer) : void;
+  close() : void;
+  addEventListener(event: 'open', listener: () => void, options: EventListenerOptions) : void;
+  addEventListener(event: 'message', listener: (event: { data: string }) => void, options: EventListenerOptions) : void;
+  addEventListener(event: 'close', listener: () => void, options: EventListenerOptions) : void;
 };
 export type ServerIncomingMessage = {
   url: string;
@@ -76,7 +95,7 @@ export class Server {
     return new Promise((resolve) => {
       const port = this.#config.port || DEFAULT_PORT;
       const host = this.#config.hostname || '127.0.0.1';
-      this.#server.listen(port, host, () => {
+      this.#server.listen(port, host, BACKLOG, () => {
         const address = `http://${host}:${port}`;
         resolve(address);
       });

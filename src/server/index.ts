@@ -35,7 +35,7 @@ async function run() {
   const pool = new Pool(dbConfig);
   //await pool.connect();
   console.log('Connected to PostgreSQL database.');
-  let server = new Server({
+  const server = new Server({
     port: parseInt(process.env.PORT),
     db: pool,
     transport: transport,
