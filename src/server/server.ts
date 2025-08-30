@@ -47,12 +47,9 @@ export type WebSocketServerInterface = {
   on(event: 'close', listener: () => void) : void;
 };
 export type EventListenerOptions = undefined | { once?: boolean };
-export type WebSocketInterface = {
+export type WebSocketInterface = EventTarget & {
   send(data: string | Buffer) : void;
   close() : void;
-  addEventListener(event: 'open', listener: () => void, options: EventListenerOptions) : void;
-  addEventListener(event: 'message', listener: (event: { data: string }) => void, options: EventListenerOptions) : void;
-  addEventListener(event: 'close', listener: () => void, options: EventListenerOptions) : void;
 };
 export type ServerIncomingMessage = {
   url: string;

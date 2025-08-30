@@ -41,6 +41,14 @@ type ClientOptions = {
   latency: number;
 };
 
+type MockWebSocketServerInterface = WebSocketServerInterface & {
+  _connect(req: WebSocketInterface): Promise<void>;
+}
+
+type MockWebSocketInterface = WebSocketInterface & {
+  _setOther(ws: MockWebSocketInterface): void;
+}
+
 class MockResponse implements ServerResponseInterface {
   statusCode: number = 200;
   headers: {[key: string]: string | number};
@@ -87,6 +95,88 @@ class MockClient {
   #latency: Map<MockClient, number> = new Map();
   #listeners: Map<number, any> = new Map();
   constructor(environment: MockEnvironment, options: Partial<ClientOptions>) {
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
+    const client = this;
+    class MockWebSocket extends EventTarget implements MockWebSocketInterface {
+      #other: MockWebSocketInterface | null = null;
+
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      constructor(input: string | URL | MockWebSocketInterface, protocols?: string | string[]) {
+        super();
+        let url: URL | null = null;
+        if (typeof input == 'string') {
+          url = new URL(input);
+        } else if (input instanceof URL) {
+          url = input;
+        } else {
+          this.#other = input;
+          input._setOther(this);
+          return;
+        }
+        console.log(`WebSocket constructed to ${url}`);
+
+        const serverClient = client.#environment.getClient(url.hostname);
+        if (!serverClient) {
+          throw new Error('No server for hostname ' + url.hostname);
+        }
+        const mockServer = serverClient.connect(parseInt(url.port || '80'));
+        if (!mockServer) {
+          throw new Error(`No server for hostname ${url.hostname}, port ${url.port}.`);
+        }
+        mockServer.connectSocket(this);
+      }
+
+      _setOther(ws: MockWebSocketInterface): void {
+        this.#other = ws;
+      }
+
+      send(data: string | Buffer) : void {
+        console.log(`send ${data}`);
+      }
+
+      /*
+      addEventListener(type: string, callback: EventListenerOrEventListenerObject | null, options?: AddEventListenerOptions | boolean): void {
+        console.log(`Added listener for ${type} ${options} to invoke ${callback}`);
+      }
+      */
+
+      close(): void {
+
+      }
+    }
+    class MockWebSocketServer implements MockWebSocketServerInterface {
+      #server: MockServer;
+      #listeners: {
+        connection: ((websocket: WebSocketInterface) => void)[],
+        error: ((...args: unknown[]) => void)[],
+        close: (() => void)[]
+      } = {connection: [], error: [], close: []};
+      constructor(wssOptions: { server: MockServer }) {
+        wssOptions.server.setWebSocketServer(this);
+        this.#server = wssOptions.server;
+        console.log('MockWebSocketServer created with server:', this.#server, options);
+        console.log(environment);
+      }
+
+      on(event, listener): void {
+        console.log(`Added listener ${listener} for ${event}`);
+        this.#listeners[event].push(listener);
+      }
+
+      async _connect(req: MockWebSocketInterface) {
+        const socket = new MockWebSocket(req);
+        // TODO: Respect respective clients' latencies.
+        for (const listener of this.#listeners.connection) {
+          listener(socket);
+        }
+        await Promise.resolve();
+        socket.dispatchEvent(new Event('open'));
+        req.dispatchEvent(new Event('open'));
+      }
+    };
+    this.WebSocketServer = MockWebSocketServer;
+    this.WebSocket = MockWebSocket;
+
     this.#environment = environment;
     this.#options = { ...this.#options, ...options };
   }
@@ -95,7 +185,7 @@ class MockClient {
     this.#listeners.set(port, server);
   }
 
-  unlisten(port: number, server: MockServer) {
+  unlisten(port: number, _server: MockServer) {
     this.#listeners.delete(port);
   }
 
@@ -106,6 +196,9 @@ class MockClient {
   createServer = (callback: ServerCallback) => {
     return new MockServer(this, callback);
   }
+
+  WebSocketServer: new (options: { server: MockServer }) => WebSocketServerInterface;
+  WebSocket: new (address: string) => WebSocketInterface;
 
   latencyTo(client: MockClient): number {
     return this.#latency.get(client) ||
@@ -209,10 +302,15 @@ class MockServer implements ServerInterface {
   #client: MockClient;
   #port: number | null = null;
   #callback: ServerCallback;
+  #wss: MockWebSocketServerInterface | null = null;
 
   constructor(client: MockClient, callback: ServerCallback) {
     this.#client = client;
     this.#callback = callback;
+  }
+
+  setWebSocketServer(wss: MockWebSocketServerInterface) {
+    this.#wss = wss;
   }
 
   close(callback: (value?: Error) => void) {
@@ -222,7 +320,7 @@ class MockServer implements ServerInterface {
     callback(undefined);
   }
 
-  listen(port: number, hostname: string, backlog: number, callback: (value?: unknown) => void) {
+  listen(port: number, _hostname: string, _backlog: number, callback: (value?: unknown) => void) {
     this.#port = port;
     this.#client.listen(this.#port, this);
     callback();
@@ -231,26 +329,11 @@ class MockServer implements ServerInterface {
   requestHandler(req: IncomingMessage, res: ServerResponseInterface) {
     this.#callback(req, res);
   }
-};
 
-/*
-class MockWebSocketServer implements WebSocketServerInterface {
-  constructor(options: any) {
-
-  }
-  on: ((event: 'connection', listener: (ws: WebSocketInterface) => void) => void) | ((event: 'error', listener: (...args: unknown[]) => void) => void) {
-    return (event, listener) => {
-      // Implementation for handling events
-      if (event === 'connection') {
-        // Simulate a new WebSocket connection
-        const mockWebSocket = new MockWebSocket();
-        listener(mockWebSocket);
-      } else if (event === 'error') {
-        // Handle error event
-        console.error('WebSocket error occurred');
-      }
+  connectSocket(req: WebSocketInterface) {
+    if (!this.#wss) {
+      throw new Error(`Server ${this} has no WebSocketServer associated`);
     }
+    this.#wss._connect(req);
   }
 };
-*/
-

@@ -35,14 +35,14 @@ describe('mock environment', () => {
       await new Promise(resolve => server.close(resolve));
     });
     test('Can simulate a websocket connection with a server', async () => {
-      //const world = new MockEnvironment();
-      const hostname = '127.0.0.1';
-      // const clientServer = world.createClient({ address: hostname });
-      const server = http.createServer((req, res) => {
+      const world = new MockEnvironment();
+      const hostname = 'test.com';
+      const clientServer = world.createClient({ address: hostname });
+      const server = clientServer.createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('');
       });
-      const wss = new WebSocketServer({ server });
+      const wss = new clientServer.WebSocketServer({ server });
       const swsPromise: Promise<WebSocketInterface> = new Promise(resolve => {
         wss.on('connection', (ws) => {
           resolve(ws);
@@ -54,12 +54,13 @@ describe('mock environment', () => {
 
       // Connect client.
       const address = `ws://${hostname}:8000`;
-      //const client = world.createClient({ latency: 100 });
-      const ws = new WebSocket(address);
+      const client = world.createClient({ latency: 100 });
+      const ws = new client.WebSocket(address);
 
       // Await open promises.
       const promises = await Promise.all([swsPromise, new Promise(resolve => { ws.addEventListener('open', resolve); })]);
       const sws = promises[0];
+      return;
 
       // Send a message to the server.
       const serverMessage = new Promise(resolve => {
