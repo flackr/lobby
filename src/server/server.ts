@@ -48,6 +48,7 @@ export type WebSocketServerInterface = {
 };
 export type EventListenerOptions = undefined | { once?: boolean };
 export type WebSocketInterface = EventTarget & {
+  addEventListener(type: 'message', callback: (event: MessageEvent) => void | null, options?: boolean | AddEventListenerOptions | undefined): void;
   send(data: string | Buffer) : void;
   close() : void;
 };

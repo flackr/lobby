@@ -164,7 +164,7 @@ class MockClient {
         const socket = new MockWebSocket(req);
         // TODO: Respect respective clients' latencies.
         for (const listener of this.#listeners.connection) {
-          listener(socket);
+          listener(socket as WebSocketInterface);
         }
         await Promise.resolve();
         socket.dispatchEvent(new Event('open'));
@@ -172,7 +172,7 @@ class MockClient {
       }
     };
     this.WebSocketServer = MockWebSocketServer;
-    this.WebSocket = MockWebSocket;
+    this.WebSocket = MockWebSocket as new (address: string) => WebSocketInterface;
 
     this.#environment = environment;
     this.#options = { ...this.#options, ...options };
@@ -182,8 +182,9 @@ class MockClient {
     this.#listeners.set(port, server);
   }
 
-  unlisten(port: number, _server: MockServer) {
-    this.#listeners.delete(port);
+  unlisten(port: number, server: MockServer) {
+    if (this.#listeners.get(port) == server)
+      this.#listeners.delete(port);
   }
 
   connect(port: number): MockServer {
