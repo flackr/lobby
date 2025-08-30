@@ -46,7 +46,7 @@ type MockWebSocketServerInterface = WebSocketServerInterface & {
 }
 
 type MockWebSocketInterface = WebSocketInterface & {
-  _setOther(ws: MockWebSocketInterface): void;
+  _setOther(ws: MockWebSocketInterface | null): void;
 }
 
 class MockResponse implements ServerResponseInterface {
@@ -126,26 +126,26 @@ class MockClient {
         mockServer.connectSocket(this);
       }
 
-      _setOther(ws: MockWebSocketInterface): void {
+      _setOther(ws: MockWebSocketInterface | null): void {
         this.#other = ws;
       }
 
       send(data: string | Buffer) : void {
-        console.log(`send ${data}`);
+        // TODO: Delay by appropriate latency.
+        this.#other?.dispatchEvent(new MessageEvent('message', {data}));
       }
-
-      /*
-      addEventListener(type: string, callback: EventListenerOrEventListenerObject | null, options?: AddEventListenerOptions | boolean): void {
-        console.log(`Added listener for ${type} ${options} to invoke ${callback}`);
-      }
-      */
 
       close(): void {
-
+        if (!this.#other)
+          return;
+        // TODO: Delay by appropriate latency.
+        this.#other._setOther(null);
+        this.#other.dispatchEvent(new Event('close'));
+        this.dispatchEvent(new Event('close'));
+        this.#other = null;
       }
     }
     class MockWebSocketServer implements MockWebSocketServerInterface {
-      #server: MockServer;
       #listeners: {
         connection: ((websocket: WebSocketInterface) => void)[],
         error: ((...args: unknown[]) => void)[],
@@ -153,9 +153,6 @@ class MockClient {
       } = {connection: [], error: [], close: []};
       constructor(wssOptions: { server: MockServer }) {
         wssOptions.server.setWebSocketServer(this);
-        this.#server = wssOptions.server;
-        console.log('MockWebSocketServer created with server:', this.#server, options);
-        console.log(environment);
       }
 
       on(event, listener): void {

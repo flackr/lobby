@@ -60,7 +60,6 @@ describe('mock environment', () => {
       // Await open promises.
       const promises = await Promise.all([swsPromise, new Promise(resolve => { ws.addEventListener('open', resolve); })]);
       const sws = promises[0];
-      return;
 
       // Send a message to the server.
       const serverMessage = new Promise(resolve => {
