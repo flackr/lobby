@@ -42,11 +42,11 @@ type ClientOptions = {
 };
 
 type MockWebSocketServerInterface = WebSocketServerInterface & {
-  _connect(req: WebSocketInterface): Promise<void>;
+  _connect(req: MockWebSocketInterface, otherClient: MockClient): void;
 }
 
 type MockWebSocketInterface = WebSocketInterface & {
-  _setOther(ws: MockWebSocketInterface | null): void;
+  _setOther(ws: MockWebSocketInterface, otherClient: MockClient): void;
 }
 
 class MockResponse implements ServerResponseInterface {
@@ -99,9 +99,10 @@ class MockClient {
     const client = this;
     class MockWebSocket extends EventTarget implements MockWebSocketInterface {
       #other: MockWebSocketInterface | null = null;
+      #otherClient: MockClient | null = null;
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      constructor(input: string | URL | MockWebSocketInterface, protocols?: string | string[]) {
+      constructor(input?: string | URL, protocols?: string | string[]) {
         super();
         let url: URL | null = null;
         if (typeof input == 'string') {
@@ -109,8 +110,7 @@ class MockClient {
         } else if (input instanceof URL) {
           url = input;
         } else {
-          this.#other = input;
-          input._setOther(this);
+          // Internal connected construction configured by setOther.
           return;
         }
         console.log(`WebSocket constructed to ${url}`);
@@ -123,26 +123,32 @@ class MockClient {
         if (!mockServer) {
           throw new Error(`No server for hostname ${url.hostname}, port ${url.port}.`);
         }
-        mockServer.connectSocket(this);
+        mockServer.connectSocket(this as MockWebSocketInterface, client);
       }
 
-      _setOther(ws: MockWebSocketInterface | null): void {
+      _setOther(ws: MockWebSocketInterface, otherClient: MockClient): void {
         this.#other = ws;
+        this.#otherClient = otherClient;
       }
 
       send(data: string | Buffer) : void {
-        // TODO: Delay by appropriate latency.
-        this.#other?.dispatchEvent(new MessageEvent('message', {data}));
+        if (!this.#other || !this.#otherClient) {
+          throw new Error('WebSocket not connected');
+        }
+        const other = this.#other;
+        client.#environment.clock.api().setTimeout(() => {
+          other.dispatchEvent(new MessageEvent('message', {data}));
+        }, client.latencyTo(this.#otherClient));
       }
 
       close(): void {
         if (!this.#other)
           return;
         // TODO: Delay by appropriate latency.
-        this.#other._setOther(null);
-        this.#other.dispatchEvent(new Event('close'));
-        this.dispatchEvent(new Event('close'));
+        const other = this.#other;
         this.#other = null;
+        other.close();
+        this.dispatchEvent(new Event('close'));
       }
     }
     class MockWebSocketServer implements MockWebSocketServerInterface {
@@ -160,15 +166,19 @@ class MockClient {
         this.#listeners[event].push(listener);
       }
 
-      async _connect(req: MockWebSocketInterface) {
-        const socket = new MockWebSocket(req);
-        // TODO: Respect respective clients' latencies.
-        for (const listener of this.#listeners.connection) {
-          listener(socket as WebSocketInterface);
-        }
-        await Promise.resolve();
-        socket.dispatchEvent(new Event('open'));
-        req.dispatchEvent(new Event('open'));
+      _connect(req: MockWebSocketInterface, otherClient: MockClient) {
+        client.#environment.clock.api().setTimeout(() => {
+          const socket = new MockWebSocket();
+          socket._setOther(req, otherClient);
+          for (const listener of this.#listeners.connection) {
+            listener(socket as WebSocketInterface);
+          }
+          socket.dispatchEvent(new Event('open'));
+          client.#environment.clock.api().setTimeout(() => {
+            req._setOther(socket as MockWebSocketInterface, client);
+            req.dispatchEvent(new Event('open'));
+          }, client.latencyTo(otherClient));
+        }, otherClient.latencyTo(client));
       }
     };
     this.WebSocketServer = MockWebSocketServer;
@@ -328,10 +338,10 @@ class MockServer implements ServerInterface {
     this.#callback(req, res);
   }
 
-  connectSocket(req: WebSocketInterface) {
+  connectSocket(req: MockWebSocketInterface, client: MockClient) {
     if (!this.#wss) {
       throw new Error(`Server ${this} has no WebSocketServer associated`);
     }
-    this.#wss._connect(req);
+    this.#wss._connect(req, client);
   }
 };
