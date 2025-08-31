@@ -56,10 +56,12 @@ describe('mock environment', () => {
       const address = `ws://${hostname}:8000`;
       const client = world.createClient({ latency: 100 });
       const ws = new client.WebSocket(address);
+      expect(ws.readyState).toBe(WebSocket.CONNECTING);
 
       // Await open promises.
       const promises = await Promise.all([swsPromise, new Promise(resolve => { ws.addEventListener('open', resolve); })]);
       const sws = promises[0];
+      expect(ws.readyState).toBe(WebSocket.OPEN);
       expect(world.clock.now()).toBe(100);
 
       // Send a message to the server.
@@ -82,9 +84,14 @@ describe('mock environment', () => {
       expect(world.clock.now()).toBe(200);
 
       // Close the connection.
-      const closePromise = new Promise(resolve => ws.addEventListener('close', resolve));
+      const closePromises = Promise.all([
+        new Promise(resolve => ws.addEventListener('close', resolve)),
+        new Promise(resolve => sws.addEventListener('close', resolve)),
+      ]);
       ws.close();
-      await closePromise;
+      await closePromises;
+      expect(ws.readyState).toBe(WebSocket.CLOSED);
+      expect(world.clock.now()).toBe(300);
       await new Promise(resolve => server.close(resolve));
     });
   });

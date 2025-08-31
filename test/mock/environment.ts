@@ -100,6 +100,7 @@ class MockClient {
     class MockWebSocket extends EventTarget implements MockWebSocketInterface {
       #other: MockWebSocketInterface | null = null;
       #otherClient: MockClient | null = null;
+      #readyState: 0 | 1 | 2 | 3 = WebSocket.CONNECTING;
 
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       constructor(input?: string | URL, protocols?: string | string[]) {
@@ -113,7 +114,6 @@ class MockClient {
           // Internal connected construction configured by setOther.
           return;
         }
-        console.log(`WebSocket constructed to ${url}`);
 
         const serverClient = client.#environment.getClient(url.hostname);
         if (!serverClient) {
@@ -127,8 +127,13 @@ class MockClient {
       }
 
       _setOther(ws: MockWebSocketInterface, otherClient: MockClient): void {
+        this.#readyState = WebSocket.OPEN;
         this.#other = ws;
         this.#otherClient = otherClient;
+      }
+
+      get readyState(): 0 | 1 | 2 | 3 {
+        return this.#readyState;
       }
 
       send(data: string | Buffer) : void {
@@ -137,19 +142,38 @@ class MockClient {
         }
         const other = this.#other;
         client.#environment.clock.api().setTimeout(() => {
+          if (other.readyState !== WebSocket.OPEN)
+            return;
           other.dispatchEvent(new MessageEvent('message', {data}));
         }, client.latencyTo(this.#otherClient));
       }
 
       close(): void {
-        if (!this.#other)
+        if (!this.#other || !this.#otherClient)
           return;
-        // TODO: Delay by appropriate latency.
         const other = this.#other;
-        this.#other = null;
-        other.close();
-        this.dispatchEvent(new Event('close'));
+        const otherClient = this.#otherClient;
+        if (this.#other.readyState == WebSocket.CONNECTING || this.#other.readyState == WebSocket.OPEN) {
+          // If the other side is not yet closing, we need to notify and wait.
+          this.#readyState = WebSocket.CLOSING;
+        } else {
+          // If the other side is already closing or closed, we can just close immediately.
+          this.#other = null;
+          this.#otherClient = null;
+          this.#readyState = WebSocket.CLOSED;
+          this.dispatchEvent(new Event('close'));
+        }
+
+        // Notify the other side after latency.
+        if (other.readyState != WebSocket.CLOSED) {
+          client.#environment.clock.api().setTimeout(() => {
+            if (other.readyState == WebSocket.CLOSED)
+              return;
+            other.close();
+          }, client.latencyTo(otherClient));
+        }
       }
+
     }
     class MockWebSocketServer implements MockWebSocketServerInterface {
       #listeners: {
