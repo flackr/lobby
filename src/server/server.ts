@@ -46,9 +46,14 @@ export type WebSocketServerInterface = {
   on(event: 'error', listener: (...args: unknown[]) => void) : void;
   on(event: 'close', listener: () => void) : void;
 };
-export type EventListenerOptions = undefined | { once?: boolean };
-export type WebSocketInterface = EventTarget & {
-  addEventListener(type: 'message', callback: (event: MessageEvent) => void | null, options?: boolean | AddEventListenerOptions | undefined): void;
+export type EventListenerOptions = undefined | boolean | { capture?: boolean, once?: boolean };
+export type WebSocketEvents = {
+  open: Event;
+  message: MessageEvent;
+  close: Event;
+};
+export type WebSocketInterface = {
+  addEventListener<K extends keyof WebSocketEvents>(type: K, callback: (event: WebSocketEvents[K]) => void | null, options?: boolean | EventListenerOptions | undefined): void;
   send(data: string | Buffer) : void;
   close() : void;
   get readyState(): 0 | 1 | 2 | 3;

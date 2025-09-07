@@ -1,7 +1,7 @@
 import { MockClock } from './clock';
 import { IncomingMessage } from 'node:http';
 import { Readable } from 'node:stream';
-import type { ServerCallback, ServerInterface, ServerResponseInterface, WebSocketInterface, WebSocketServerInterface } from '../../src/server/server.ts';
+import type { ServerCallback, ServerInterface, ServerResponseInterface, EventListenerOptions, WebSocketEvents, WebSocketInterface, WebSocketServerInterface } from '../../src/server/server.ts';
 
 /**
  * Simulates a set of clients which can be browsers or servers
@@ -86,6 +86,36 @@ class MockResponse implements ServerResponseInterface {
   };
 }
 
+class EventSource<T> {
+  constructor() {}
+  dispatchInternal<K extends keyof T>(type: K, event: T[K]): void {
+    const listeners = this.#listeners[type];
+    if (!listeners) return;
+    for (const listener of listeners) {
+      listener.callback.apply(this, [event]);
+    }
+    this.#listeners[type] = listeners.filter(listener => typeof listener.options == 'boolean' || !listener.options?.once);
+  }
+  addEventListener<K extends keyof T>(type: K, callback: (event: T[K]) => void | null, options?: boolean | EventListenerOptions | undefined): void {
+    if (!this.#listeners[type]) {
+      this.#listeners[type] = [];
+    }
+    this.#listeners[type].push({callback, options});
+  }
+  removeEventListener<K extends keyof T>(type: K, callback: (event: T[K]) => void | null): void {
+    const listeners = this.#listeners[type];
+    if (!listeners) return;
+    const index = listeners.findIndex(listener => listener.callback == callback);
+    if (index !== -1) {
+      listeners.splice(index, 1);
+    }
+    if (listeners.length === 0) {
+      delete this.#listeners[type];
+    }
+  }
+  #listeners: { [K in keyof T]?: ({callback: (event: T[K]) => void; options: EventListenerOptions}[]) } = {};
+}
+
 class MockClient {
   #environment: MockEnvironment;
   #options: ClientOptions = {
@@ -93,11 +123,11 @@ class MockClient {
     latency: 0,
   };
   #latency: Map<MockClient, number> = new Map();
-  #listeners: Map<number, any> = new Map();
+  #listeners: Map<number, MockServer> = new Map();
   constructor(environment: MockEnvironment, options: Partial<ClientOptions>) {
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const client = this;
-    class MockWebSocket extends EventTarget implements MockWebSocketInterface {
+    class MockWebSocket extends EventSource<WebSocketEvents> implements MockWebSocketInterface {
       #other: MockWebSocketInterface | null = null;
       #otherClient: MockClient | null = null;
       #readyState: 0 | 1 | 2 | 3 = WebSocket.CONNECTING;
@@ -144,7 +174,7 @@ class MockClient {
         client.#environment.clock.api().setTimeout(() => {
           if (other.readyState !== WebSocket.OPEN)
             return;
-          other.dispatchEvent(new MessageEvent('message', {data}));
+          (other as MockWebSocket).dispatchInternal('message', new MessageEvent('message', {data}));
         }, client.latencyTo(this.#otherClient));
       }
 
@@ -161,7 +191,7 @@ class MockClient {
           this.#other = null;
           this.#otherClient = null;
           this.#readyState = WebSocket.CLOSED;
-          this.dispatchEvent(new Event('close'));
+          this.dispatchInternal('close', new Event('close'));
         }
 
         // Notify the other side after latency.
@@ -195,12 +225,12 @@ class MockClient {
           const socket = new MockWebSocket();
           socket._setOther(req, otherClient);
           for (const listener of this.#listeners.connection) {
-            listener(socket as WebSocketInterface);
+            listener(socket);
           }
-          socket.dispatchEvent(new Event('open'));
+          socket.dispatchInternal('open', new Event('open'));
           client.#environment.clock.api().setTimeout(() => {
-            req._setOther(socket as MockWebSocketInterface, client);
-            req.dispatchEvent(new Event('open'));
+            req._setOther(socket, client);
+            (req as MockWebSocket).dispatchInternal('open', new Event('open'));
           }, client.latencyTo(otherClient));
         }, otherClient.latencyTo(client));
       }
@@ -222,7 +252,10 @@ class MockClient {
   }
 
   connect(port: number): MockServer {
-    return this.#listeners.get(port);
+    const server = this.#listeners.get(port);
+    if (!server)
+      throw new Error(`No server listening on port ${port} for client ${this.#options.address}`);
+    return server;
   }
 
   createServer = (callback: ServerCallback) => {
