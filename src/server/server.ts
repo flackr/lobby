@@ -5,6 +5,7 @@ import type { Results, QueryOptions } from '@electric-sql/pglite';
 import serveStatic from 'serve-static';
 import finalhandler from 'finalhandler';
 import formidable from 'formidable';
+import type { WebSocketInterface } from '../common/interfaces';
 
 const BACKLOG = 511;
 
@@ -45,18 +46,6 @@ export type WebSocketServerInterface = {
   on(event: 'connection', listener: (websocket: WebSocketInterface) => void) : void;
   on(event: 'error', listener: (...args: unknown[]) => void) : void;
   on(event: 'close', listener: () => void) : void;
-};
-export type EventListenerOptions = undefined | boolean | { capture?: boolean, once?: boolean };
-export type WebSocketEvents = {
-  open: Event;
-  message: MessageEvent;
-  close: Event;
-};
-export type WebSocketInterface = {
-  addEventListener<K extends keyof WebSocketEvents>(type: K, callback: (event: WebSocketEvents[K]) => void | null, options?: boolean | EventListenerOptions | undefined): void;
-  send(data: string | Buffer) : void;
-  close() : void;
-  get readyState(): 0 | 1 | 2 | 3;
 };
 export type ServerIncomingMessage = {
   url: string;
@@ -160,7 +149,7 @@ export class Server {
           const contentType = filePath.endsWith('.js')
             ? 'text/javascript'
             : 'application/json';
-          res.writeHead(200, headers);
+          res.writeHead(200, {...headers, 'Content-Type': contentType});
           res.end(data || '', 'utf8');
         }
       );

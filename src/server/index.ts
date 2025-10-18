@@ -40,6 +40,7 @@ async function run() {
     db: pool,
     transport: transport,
   });
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const cleanup = async (options: { cleanup?: boolean; exit?: boolean }) => {
     console.log('Closing database connection and closing the server');
     await Promise.all([server.close(), pool.end()]);

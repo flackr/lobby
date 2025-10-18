@@ -1,10 +1,9 @@
 import { describe, expect, test } from '@jest/globals';
 
-import { WebSocket, WebSocketServer } from 'ws';
-import http from 'http';
+import { WebSocket } from 'ws';
 
 import { MockEnvironment } from './mock/environment';
-import type { WebSocketInterface } from '../src/server/server';
+import type { WebSocketInterface } from '../src/common/interfaces';
 
 const BACKLOG = 511;
 

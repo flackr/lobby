@@ -1,7 +1,8 @@
 import { MockClock } from './clock';
 import { IncomingMessage } from 'node:http';
 import { Readable } from 'node:stream';
-import type { ServerCallback, ServerInterface, ServerResponseInterface, EventListenerOptions, WebSocketEvents, WebSocketInterface, WebSocketServerInterface } from '../../src/server/server.ts';
+import type { EventListenerOptions, WebSocketEvents, WebSocketInterface } from '../../src/common/interfaces.ts';
+import type { ServerCallback, ServerInterface, ServerResponseInterface, WebSocketServerInterface } from '../../src/server/server.ts';
 
 /**
  * Simulates a set of clients which can be browsers or servers
