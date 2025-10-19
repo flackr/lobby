@@ -32,7 +32,10 @@ export type RTCPeerConnectionInterface = {
 };
 export type RTCDataChannelInterface = {
   addEventListener<K extends keyof WebSocketEvents>(type: K, callback: (event: WebSocketEvents[K]) => void | null, options?: boolean | EventListenerOptions | undefined): void;
-  get readyStaet(): string;
+  removeEventListener<K extends keyof WebSocketEvents>(type: K, callback: (event: WebSocketEvents[K]) => void | null): void;
+  get id(): number;
+  get label(): string;
+  get readyState(): 'connecting' | 'open' | 'closing' | 'closed';
   send(data: string | Buffer) : void;
   close() : void;
 };

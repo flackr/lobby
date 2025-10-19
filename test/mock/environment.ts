@@ -1,7 +1,7 @@
 import { MockClock } from './clock';
 import { IncomingMessage } from 'node:http';
 import { Readable } from 'node:stream';
-import type { EventListenerOptions, RTCPeerConnectionEvents, RTCPeerConnectionInterface, WebSocketEvents, WebSocketInterface } from '../../src/common/interfaces.ts';
+import type { EventListenerOptions, RTCDataChannelInterface, RTCPeerConnectionEvents, RTCPeerConnectionInterface, WebSocketEvents, WebSocketInterface } from '../../src/common/interfaces.ts';
 import type { ServerCallback, ServerInterface, ServerResponseInterface, WebSocketServerInterface } from '../../src/server/server.ts';
 
 /**
@@ -123,6 +123,14 @@ class MockRTCPeerConnectionIceEvent extends Event {
   constructor(type: string, eventInitDict: {candidate: RTCIceCandidate | null}) {
     super(type);
     this.candidate = eventInitDict.candidate;
+  }
+}
+
+class MockRTCDataChannelEvent extends Event {
+  channel: RTCDataChannel;
+  constructor(type: string, eventInitDict: {channel: RTCDataChannel}) {
+    super(type);
+    this.channel = eventInitDict.channel;
   }
 }
 
@@ -286,6 +294,8 @@ class MockClient {
       #remoteDescription: RTCSessionDescriptionInit | null = null;
       #remoteIceCandidates: RTCIceCandidateInit[] = [];
       #remoteConnection: MockRTCPeerConnection | null = null;
+      #dataChannels: MockRTCDataChannel[] = [];
+      #nextDataChannelId: number = 0;
 
       constructor() {
         super();
@@ -322,10 +332,15 @@ class MockClient {
         if (!this.#remoteDescription) {
           throw new Error('No remote description set');
         }
+        this.#nextDataChannelId = 1;
         return Promise.resolve({type: 'answer', sdp: this.#remoteDescription.sdp});
       }
       createDataChannel(label: string, dataChannelDict?: RTCDataChannelInit) : RTCDataChannelInterface {
-        throw new Error('Method not implemented.');
+        const dataChannelId = this.#nextDataChannelId;
+        this.#nextDataChannelId += 2; // Even for one side, odd for the other.
+        const dataChannel = new MockRTCDataChannel(dataChannelId, label, dataChannelDict);
+        this.#dataChannels[dataChannelId] = dataChannel;
+        return dataChannel;
       }
       addIceCandidate(candidate: RTCIceCandidateInit) : Promise<void> {
         this.#remoteIceCandidates.push(candidate);
@@ -350,8 +365,29 @@ class MockClient {
         this.#connectionState = 'closed';
         this.dispatchInternal('connectionstatechange', new Event('connectionstatechange'));
       }
+      _connectAllDataChannels(): void {
+        if (!this.#remoteConnection) {
+          return;
+        }
+        for (const dataChannel of this.#dataChannels) {
+          this.#remoteConnection._connectRemoteDataChannelInternal(dataChannel);
+        }
+      }
+      _connectRemoteDataChannelInternal(remote: MockRTCDataChannel): MockRTCDataChannel {
+        const dataChannel = new MockRTCDataChannel(remote.id, remote.label);
+        this.#dataChannels[remote.id] = dataChannel;
+        dataChannel._setRemoteInternal(remote);
+        remote._setRemoteInternal(dataChannel);
+        remote.dispatchInternal('open', new Event('open'));
+        this.dispatchInternal('datachannel', new MockRTCDataChannelEvent('datachannel', {channel: dataChannel}));
+        return dataChannel;
+      }
       // WebRTC magically connects once both sides have set their descriptions and exchanged ice candidates.
       #maybeConnect() {
+        if (this.#remoteConnection) {
+          // Already connected.
+          return;
+        }
         if (!this.#localDescription || !this.#localDescription.sdp || !this.#remoteDescription || !this.#remoteDescription.sdp) {
           return;
         }
@@ -370,12 +406,87 @@ class MockClient {
               remoteConnection.connectInternal(this);
               this.dispatchInternal('connectionstatechange', new Event('connectionstatechange'));
               remoteConnection.dispatchInternal('connectionstatechange', new Event('connectionstatechange'));
+              this._connectAllDataChannels();
+              remoteConnection._connectAllDataChannels();
               return;
             }
           }
         }
       }
     };
+    class MockRTCDataChannel extends EventSource<WebSocketEvents> implements RTCDataChannelInterface {
+      #id: number;
+      #label: string;
+      #readyState: 'connecting' | 'open' | 'closing' | 'closed' = 'connecting';
+      #options: RTCDataChannelInit = {};
+      #remote: MockRTCDataChannel | null = null;
+
+      constructor(id: number, label: string, options: RTCDataChannelInit = {}) {
+        super();
+        this.#id = id;
+        this.#label = label;
+        this.#options = {...this.#options, ...options};
+      }
+
+      get id(): number {
+        return this.#id;
+      }
+
+      get label(): string {
+        return this.#label;
+      }
+
+      get readyState(): 'connecting' | 'open' | 'closing' | 'closed' {
+        return this.#readyState;
+      }
+
+      send(data: string | Buffer) : void {
+        if (!this.#remote) {
+          throw new Error('DataChannel not connected');
+        }
+        const remote = this.#remote;
+        client.#environment.clock.api().setTimeout(() => {
+          if (remote.readyState !== 'open')
+            return;
+          remote.dispatchInternal('message', new MessageEvent('message', {data}));
+        }, client.latencyTo(remote._clientInternal));
+      }
+
+      close(): void {
+        if (!this.#remote)
+          return;
+        const remote = this.#remote;
+        const remoteClient = remote._clientInternal;
+        if (remote.readyState == 'connecting' || remote.readyState == 'open') {
+          // If the other side is not yet closing, we need to notify and wait.
+          this.#readyState = 'closing';
+        } else {
+          // If the other side is already closing or closed, we can just close immediately.
+          this.#remote = null;
+          this.#readyState = 'closed';
+          this.dispatchInternal('close', new Event('close'));
+        }
+
+        // Notify the other side after latency.
+        if (remote.readyState != 'closed') {
+          client.#environment.clock.api().setTimeout(() => {
+            if (remote.readyState == 'closed')
+              return;
+            remote.close();
+          }, client.latencyTo(remoteClient));
+        }
+      }
+
+      get _clientInternal() {
+        return client;
+      }
+
+      _setRemoteInternal(remote: MockRTCDataChannel): void {
+        this.#readyState = 'open';
+        this.#remote = remote;
+      }
+    };
+
     this.WebSocketServer = MockWebSocketServer;
     this.WebSocket = MockWebSocket as new (address: string) => WebSocketInterface;
     this.RTCPeerConnection = MockRTCPeerConnection;

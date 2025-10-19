@@ -3,7 +3,7 @@ import { describe, expect, test } from '@jest/globals';
 import { WebSocket } from 'ws';
 
 import { MockEnvironment } from './mock/environment';
-import type { WebSocketInterface } from '../src/common/interfaces';
+import type { RTCPeerConnectionInterface, WebSocketInterface } from '../src/common/interfaces';
 import { get } from 'http';
 
 const BACKLOG = 511;
@@ -19,7 +19,7 @@ describe('mock environment', () => {
       const pcA = new clientA.RTCPeerConnection();
       const pcB = new clientB.RTCPeerConnection();
 
-      function getIceCandidates(pc: RTCPeerConnection): Promise<RTCIceCandidateInit[]> {
+      function getIceCandidates(pc: RTCPeerConnectionInterface): Promise<RTCIceCandidateInit[]> {
         return new Promise((resolve) => {
           const candidates: RTCIceCandidateInit[] = [];
           function oncandidate(event: RTCPeerConnectionIceEvent) {
@@ -49,6 +49,17 @@ describe('mock environment', () => {
         checkState();
       });
 
+      // Create offer data channel, receive on other end.
+      const dcA = pcA.createDataChannel('test');
+      function getDataChannelPromise(pc: RTCPeerConnectionInterface): Promise<RTCDataChannel> {
+        return new Promise((resolve) => {
+          pc.addEventListener('datachannel', (event) => {
+            resolve(event.channel);
+          }, { once: true });
+        });
+      }
+      const dcBPromise = getDataChannelPromise(pcB);
+
       // Handle offer/answer exchange.
       const offer = await pcA.createOffer();
       await pcA.setLocalDescription(offer);
@@ -65,6 +76,23 @@ describe('mock environment', () => {
 
       // Await connection.
       await connected;
+      const dcB = await dcBPromise;
+
+      // Test data channel communication.
+      const messageFromAToB = new Promise<string>((resolve) => {
+        dcB.addEventListener('message', (event) => {
+          resolve(event.data as string);
+        }, { once: true });
+      });
+      const messageFromBToA = new Promise<string>((resolve) => {
+        dcA.addEventListener('message', (event) => {
+          resolve(event.data as string);
+        }, { once: true });
+      });
+      dcA.send('hello from A');
+      dcB.send('hello from B');
+      expect(await messageFromAToB).toBe('hello from A');
+      expect(await messageFromBToA).toBe('hello from B');
 
       // Clean up.
       pcA.close();
