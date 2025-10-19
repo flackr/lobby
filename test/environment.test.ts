@@ -36,7 +36,7 @@ describe('mock environment', () => {
       const aCandidates = getIceCandidates(pcA);
       const bCandidates = getIceCandidates(pcB);
 
-      let connected = new Promise<void>((resolve) => {
+      const connected = new Promise<void>((resolve) => {
         function checkState() {
           if (pcA.connectionState === 'connected' && pcB.connectionState === 'connected') {
             pcA.removeEventListener('connectionstatechange', checkState);
