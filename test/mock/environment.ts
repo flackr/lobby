@@ -1,7 +1,7 @@
 import { MockClock } from './clock';
 import { IncomingMessage } from 'node:http';
 import { Readable } from 'node:stream';
-import type { EventListenerOptions, WebSocketEvents, WebSocketInterface } from '../../src/common/interfaces.ts';
+import type { EventListenerOptions, RTCPeerConnectionEvents, RTCPeerConnectionInterface, WebSocketEvents, WebSocketInterface } from '../../src/common/interfaces.ts';
 import type { ServerCallback, ServerInterface, ServerResponseInterface, WebSocketServerInterface } from '../../src/server/server.ts';
 
 /**
@@ -11,6 +11,7 @@ import type { ServerCallback, ServerInterface, ServerResponseInterface, WebSocke
 export class MockEnvironment {
   #clock: MockClock = new MockClock();
   #clients: Map<string, MockClient> = new Map();
+  #nextClientId: number = 1;
 
   constructor() {
     this.#clock.autoAdvance = true;
@@ -25,9 +26,9 @@ export class MockEnvironment {
   }
 
   createClient(options: Partial<ClientOptions> = {}): MockClient {
+    options.address = options.address || `client-${this.#nextClientId++}`;
     const client = new MockClient(this, options);
-    if (options.address)
-      this.#clients.set(options.address, client)
+    this.#clients.set(options.address, client)
     return client;
   }
 }
@@ -117,6 +118,44 @@ class EventSource<T> {
   #listeners: { [K in keyof T]?: ({callback: (event: T[K]) => void; options: EventListenerOptions}[]) } = {};
 }
 
+class MockRTCPeerConnectionIceEvent extends Event {
+  candidate: RTCIceCandidate | null;
+  constructor(type: string, eventInitDict: {candidate: RTCIceCandidate | null}) {
+    super(type);
+    this.candidate = eventInitDict.candidate;
+  }
+}
+
+class MockICECandidate implements RTCIceCandidate {
+  candidate: string;
+  sdpMid: string | null = null;
+  sdpMLineIndex: number | null = null;
+  foundation: string | null = null;
+  component: RTCIceComponent | null = null;
+  priority: number | null = null;
+  protocol: RTCIceProtocol | null = null;
+  address: string;
+  port: number = 0;
+  type: RTCIceCandidateType | null = null;
+  relatedAddress: string | null = null;
+  relatedPort: number | null = null;
+  tcpType: RTCIceTcpCandidateType | null = null;
+  usernameFragment: string | null = null;
+
+  constructor(address: string) {
+    this.address = address;
+    this.candidate = address;
+  }
+
+  toJSON(): RTCIceCandidateInit {
+    return {
+      candidate: this.candidate,
+      sdpMid: this.sdpMid,
+      sdpMLineIndex: this.sdpMLineIndex,
+    };
+  }
+}
+
 class MockClient {
   #environment: MockEnvironment;
   #options: ClientOptions = {
@@ -125,7 +164,11 @@ class MockClient {
   };
   #latency: Map<MockClient, number> = new Map();
   #listeners: Map<number, MockServer> = new Map();
+  #listeningWebRTCConnections: Map<string, RTCPeerConnectionInterface> = new Map();
   constructor(environment: MockEnvironment, options: Partial<ClientOptions>) {
+    this.#environment = environment;
+    this.#options = { ...this.#options, ...options };
+
     // eslint-disable-next-line @typescript-eslint/no-this-alias
     const client = this;
     class MockWebSocket extends EventSource<WebSocketEvents> implements MockWebSocketInterface {
@@ -236,11 +279,106 @@ class MockClient {
         }, otherClient.latencyTo(client));
       }
     };
+    let offerId = 0;
+    class MockRTCPeerConnection extends EventSource<RTCPeerConnectionEvents> implements RTCPeerConnectionInterface {
+      #connectionState: 'new' | 'connecting' | 'connected' | 'disconnected' | 'failed' | 'closed' = 'new';
+      #localDescription: RTCSessionDescriptionInit | null = null;
+      #remoteDescription: RTCSessionDescriptionInit | null = null;
+      #remoteIceCandidates: RTCIceCandidateInit[] = [];
+      #remoteConnection: MockRTCPeerConnection | null = null;
+
+      constructor() {
+        super();
+      }
+      get localDescription() {
+        return this.#localDescription;
+      }
+      get remoteDescription() {
+        return this.#remoteDescription;
+      }
+      setLocalDescription(description: RTCSessionDescriptionInit | null) : Promise<void> {
+        if (this.#localDescription && this.#localDescription.sdp) {
+          client.#listeningWebRTCConnections.delete(this.#localDescription.sdp);
+        }
+        this.#localDescription = description;
+        if (description && description.sdp) {
+          client.#listeningWebRTCConnections.set(description.sdp, this);
+        }
+        this.#maybeConnect();
+        // Generate ice candidates
+        this.dispatchInternal('icecandidate', new MockRTCPeerConnectionIceEvent('icecandidate', {candidate: new MockICECandidate(client.#options.address)}));
+        this.dispatchInternal('icecandidate', new MockRTCPeerConnectionIceEvent('icecandidate', {candidate: null}));
+        return Promise.resolve();
+      }
+      setRemoteDescription(description: RTCSessionDescriptionInit | null) : Promise<void> {
+        this.#remoteDescription = description;
+        this.#maybeConnect();
+        return Promise.resolve();
+      }
+      createOffer() : Promise<RTCSessionDescriptionInit> {
+        return Promise.resolve({type: 'offer', sdp: `${client.#options.address}-offer-${offerId++}`});
+      }
+      createAnswer() : Promise<RTCSessionDescriptionInit> {
+        if (!this.#remoteDescription) {
+          throw new Error('No remote description set');
+        }
+        return Promise.resolve({type: 'answer', sdp: this.#remoteDescription.sdp});
+      }
+      createDataChannel(label: string, dataChannelDict?: RTCDataChannelInit) : RTCDataChannelInterface {
+        throw new Error('Method not implemented.');
+      }
+      addIceCandidate(candidate: RTCIceCandidateInit) : Promise<void> {
+        this.#remoteIceCandidates.push(candidate);
+        this.#maybeConnect();
+        return Promise.resolve();
+      }
+      get connectionState(): 'new' | 'connecting' | 'connected' | 'disconnected' | 'failed' | 'closed' {
+        return this.#connectionState;
+      }
+      connectInternal(remote: MockRTCPeerConnection) {
+        this.#remoteConnection = remote;
+        this.#connectionState = 'connected';
+      }
+      close(): void {
+        const remote = this.#remoteConnection;
+        if (!remote) {
+          return;
+        }
+        this.#remoteConnection = null;
+        // TODO: Delay close by latency.
+        remote.close();
+        this.#connectionState = 'closed';
+        this.dispatchInternal('connectionstatechange', new Event('connectionstatechange'));
+      }
+      // WebRTC magically connects once both sides have set their descriptions and exchanged ice candidates.
+      #maybeConnect() {
+        if (!this.#localDescription || !this.#localDescription.sdp || !this.#remoteDescription || !this.#remoteDescription.sdp) {
+          return;
+        }
+        // Check for a reachable client based on ice candidates.
+        for (const candidate of this.#remoteIceCandidates) {
+          if (candidate.candidate) {
+            const remoteClient = client.#environment.getClient(candidate.candidate);
+            if (!remoteClient) continue;
+            const remoteConnection = remoteClient.#listeningWebRTCConnections.get(this.#localDescription.sdp) as MockRTCPeerConnection | undefined;
+            if (!remoteConnection) continue;
+            // Check that the offers and answers match.
+            if (JSON.stringify(remoteConnection.remoteDescription) == JSON.stringify(this.localDescription)) {
+              // Connected!
+              // TODO: Delay connection by latency.
+              this.connectInternal(remoteConnection);
+              remoteConnection.connectInternal(this);
+              this.dispatchInternal('connectionstatechange', new Event('connectionstatechange'));
+              remoteConnection.dispatchInternal('connectionstatechange', new Event('connectionstatechange'));
+              return;
+            }
+          }
+        }
+      }
+    };
     this.WebSocketServer = MockWebSocketServer;
     this.WebSocket = MockWebSocket as new (address: string) => WebSocketInterface;
-
-    this.#environment = environment;
-    this.#options = { ...this.#options, ...options };
+    this.RTCPeerConnection = MockRTCPeerConnection;
   }
 
   listen(port: number, server: MockServer) {
@@ -265,6 +403,7 @@ class MockClient {
 
   WebSocketServer: new (options: { server: MockServer }) => WebSocketServerInterface;
   WebSocket: new (address: string) => WebSocketInterface;
+  RTCPeerConnection: new () => RTCPeerConnectionInterface;
 
   latencyTo(client: MockClient): number {
     return this.#latency.get(client) ||

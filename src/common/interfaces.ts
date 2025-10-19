@@ -16,14 +16,17 @@ export type RTCPeerConnectionEvents = {
   connectionstatechange: Event;
 }
 export type RTCPeerConnectionInterface = {
+  get remoteDescription(): RTCSessionDescriptionInit | null;
+  get localDescription(): RTCSessionDescriptionInit | null;
   addEventListener<K extends keyof RTCPeerConnectionEvents>(type: K, callback: (event: RTCPeerConnectionEvents[K]) => void | null, options?: boolean | EventListenerOptions | undefined): void;
-  setLocalDescription(description?: RTCSessionDescriptionInit) : Promise<void>;
-  setRemoteDescription(description: RTCSessionDescriptionInit) : Promise<void>;
+  setLocalDescription(description: RTCSessionDescriptionInit | null) : Promise<void>;
+  setRemoteDescription(description: RTCSessionDescriptionInit | null) : Promise<void>;
   createOffer() : Promise<RTCSessionDescriptionInit>;
   createAnswer() : Promise<RTCSessionDescriptionInit>;
   createDataChannel(label: string, dataChannelDict?: RTCDataChannelInit) : RTCDataChannelInterface;
   addIceCandidate(candidate: RTCIceCandidateInit) : Promise<void>;
   get connectionState(): 'new' | 'connecting' | 'connected' | 'disconnected' | 'failed' | 'closed';
+  close(): void;
 };
 export type RTCDataChannelInterface = {
   addEventListener<K extends keyof WebSocketEvents>(type: K, callback: (event: WebSocketEvents[K]) => void | null, options?: boolean | EventListenerOptions | undefined): void;

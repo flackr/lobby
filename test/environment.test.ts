@@ -4,10 +4,73 @@ import { WebSocket } from 'ws';
 
 import { MockEnvironment } from './mock/environment';
 import type { WebSocketInterface } from '../src/common/interfaces';
+import { get } from 'http';
 
 const BACKLOG = 511;
 
 describe('mock environment', () => {
+  describe('client', () => {
+    test('Can connect over WebRTC to another client', async () => {
+      const world = new MockEnvironment();
+      const clientA = world.createClient();
+      const clientB = world.createClient();
+
+      // Create peer connections.
+      const pcA = new clientA.RTCPeerConnection();
+      const pcB = new clientB.RTCPeerConnection();
+
+      function getIceCandidates(pc: RTCPeerConnection): Promise<RTCIceCandidateInit[]> {
+        return new Promise((resolve) => {
+          const candidates: RTCIceCandidateInit[] = [];
+          function oncandidate(event: RTCPeerConnectionIceEvent) {
+            if (event.candidate) {
+              candidates.push(event.candidate);
+            } else {
+              pc.removeEventListener('icecandidate', oncandidate);
+              resolve(candidates);
+            }
+          }
+          pc.addEventListener('icecandidate', oncandidate);
+        });
+      }
+      const aCandidates = getIceCandidates(pcA);
+      const bCandidates = getIceCandidates(pcB);
+
+      let connected = new Promise<void>((resolve) => {
+        function checkState() {
+          if (pcA.connectionState === 'connected' && pcB.connectionState === 'connected') {
+            pcA.removeEventListener('connectionstatechange', checkState);
+            pcB.removeEventListener('connectionstatechange', checkState);
+            resolve();
+          }
+        }
+        pcA.addEventListener('connectionstatechange', checkState);
+        pcB.addEventListener('connectionstatechange', checkState);
+        checkState();
+      });
+
+      // Handle offer/answer exchange.
+      const offer = await pcA.createOffer();
+      await pcA.setLocalDescription(offer);
+      await pcB.setRemoteDescription(offer);
+      const answer = await pcB.createAnswer();
+      await pcB.setLocalDescription(answer);
+      await pcA.setRemoteDescription(answer);
+      for (const candidate of await aCandidates) {
+        await pcB.addIceCandidate(candidate);
+      }
+      for (const candidate of await bCandidates) {
+        await pcA.addIceCandidate(candidate);
+      }
+
+      // Await connection.
+      await connected;
+
+      // Clean up.
+      pcA.close();
+      pcB.close();
+    });
+  });
   describe('server', () => {
     test('Can simulate a fetch from a server with latency', async () => {
       const world = new MockEnvironment();
