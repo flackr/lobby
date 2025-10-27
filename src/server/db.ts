@@ -50,6 +50,7 @@ export async function initializeDatabase(client: PGInterface) {
     // Sessions tracks associated users for each session cookie.
     `CREATE TABLE sessions (
         session_id TEXT PRIMARY KEY,
+        url VARCHAR(255) NULL,
         user_id INTEGER NULL, -- Foreign key to users table, can be NULL if not logged in
         expiry_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
         session_data JSONB NULL, -- To store session specific data, can be NULL if no data to store
@@ -104,7 +105,7 @@ export async function initializeDatabase(client: PGInterface) {
         applied_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         description TEXT NULL -- Optional: description of the migration
     );`,
-    // Insert the initial version (e.g., version 0 or 1) when you first set up the database
+    // Insert the initial version (e.g. 1) when you first set up the database
     `INSERT INTO database_migrations (version_number, description) VALUES (1, 'Initial schema creation');`,
   ];
   for (const sqlCommand of sqlCommands) {
