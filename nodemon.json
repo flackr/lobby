@@ -1,0 +1,9 @@
+{
+  "watch": ["src/**/*.ts"],
+  "ignore": [
+    "src/index.ts",
+    "src/library/**/*.spec.ts",
+    "src/test/**/*.ts"
+  ],
+  "exec": "node --experimental-transform-types src/server/index.ts"
+}

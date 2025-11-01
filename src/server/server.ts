@@ -81,7 +81,7 @@ export class Server {
     this.#server = (this.#config.createServer || http.createServer)(
       this.#onRequest
     );
-    this.#serve = serveStatic('./public');
+    this.#serve = serveStatic('./dist');
   }
 
   listen(): Promise<ServerAddress> {
@@ -134,25 +134,6 @@ export class Server {
       console.log(fields.email, fields.password);
       res.writeHead(200, headers);
       res.end();
-  } else if (['/lobby.min.js', '/lobby.min.js.map'].includes(req.url)) {
-      const filePath = `dist${req.url}`;
-      fs.readFile(
-        filePath,
-        { encoding: 'utf8' },
-        (err: Error | null, data?: string) => {
-          if (err != null) {
-            // Should we log an error? Maybe once?
-            res.writeHead(404, headers);
-            res.end();
-            return;
-          }
-          const contentType = filePath.endsWith('.js')
-            ? 'text/javascript'
-            : 'application/json';
-          res.writeHead(200, {...headers, 'Content-Type': contentType});
-          res.end(data || '', 'utf8');
-        }
-      );
     } else if (res instanceof http.ServerResponse) {
       // If the request doesn't match any dynamic URL,
       // serve the public folder.
