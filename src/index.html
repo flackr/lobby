@@ -1,13 +1,222 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Lobby</title>
-    <link rel="stylesheet" href="css/style.css" />
-    <script src="bundle.min.js" defer></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lobby</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css" />
+  <script src="bundle.min.js" defer></script>
   </head>
-  <body>
-    This is a static page.
+  <body class="min-h-screen flex items-center justify-center p-4">
+
+    <!-- Main Application Container -->
+    <div id="app-container">
+
+      <!-- ==============================
+        1. LOGIN SCREEN
+        ============================== -->
+      <section id="login-screen" class="screen">
+        <div class="card auth-form">
+          <h2 class="text-3xl font-extrabold text-white text-center">Welcome Back</h2>
+          <form class="space-y-4">
+            <div>
+              <label for="login-email">Email Address</label>
+              <input type="email" id="login-email" placeholder="you@example.com" required>
+            </div>
+            <div>
+              <label for="login-password">Password</label>
+              <input type="password" id="login-password" placeholder="********" required>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              Sign In
+            </button>
+          </form>
+          <p class="text-center text-sm text-gray-400" style="margin-top: 1.5rem;">
+            Don't have an account? <a href="#register" class="font-medium">Sign Up</a>
+          </p>
+        </div>
+      </section>
+
+      <!-- ==============================
+        2. REGISTRATION SCREEN
+        ============================== -->
+      <section id="register-screen" class="screen hidden">
+        <div class="card auth-form">
+          <h2 class="text-3xl font-extrabold text-white text-center">Create Account</h2>
+          <form class="space-y-4">
+            <div>
+              <label for="register-name">Full Name</label>
+              <input type="text" id="register-name" placeholder="John Doe" required>
+            </div>
+            <div>
+              <label for="register-email">Email Address</label>
+              <input type="email" id="register-email" placeholder="you@example.com" required>
+            </div>
+            <div>
+              <label for="register-password">Password</label>
+              <input type="password" id="register-password" placeholder="********" required>
+            </div>
+            <button type="submit" class="btn btn-primary">
+              Register Account
+            </button>
+          </form>
+          <p class="text-center text-sm text-gray-400" style="margin-top: 1.5rem;">
+            Already have an account? <a href="#login" class="font-medium">Sign In</a>
+          </p>
+        </div>
+      </section>
+
+      <!-- ==============================
+        3. PROFILE & SESSIONS SCREEN
+        ============================== -->
+      <section id="profile-screen" class="screen hidden" style="width: 100%;">
+        <div style="width: 100%; max-width: 1000px;">
+          <header class="dashboard-header">
+            <h1 class="">User Dashboard</h1>
+            <nav class="dashboard-nav">
+              <button id="show-friends" class="btn btn-small" style="background-color: var(--color-primary); color: var(--text-white);">
+                Friends List
+              </button>
+              <button id="authorize-test" class="btn btn-small" style="background-color: var(--color-secondary); color: var(--text-white);">
+                Simulate OAuth
+              </button>
+              <button id="logout-button" class="btn btn-small btn-secondary">
+                Logout
+              </button>
+            </nav>
+          </header>
+
+          <div class="profile-grid">
+            <!-- Profile Information Card -->
+            <div class="card profile-card" style="max-width: none;">
+              <h2>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-primary mr-2"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                Profile Details
+              </h2>
+              <dl class="detail-list">
+                <div class="detail-item">
+                  <dt>Name</dt>
+                  <dd>Jane Doe</dd>
+                </div>
+                <div class="detail-item">
+                  <dt>Email</dt>
+                  <dd>jane.doe@example.com</dd>
+                </div>
+                <div class="detail-item">
+                  <dt>User ID</dt>
+                  <dd>u-1A2b3C4d5E6f</dd>
+                </div>
+              </dl>
+            </div>
+
+            <!-- Active Sessions Card -->
+            <div class="card profile-card" style="max-width: none;">
+              <h2>
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-5 h-5 text-primary mr-2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="2" y1="21" x2="22" y2="21"/><line x1="6" y1="17" x2="6" y2="21"/><line x1="18" y1="17" x2="18" y2="21"/></svg>
+                Authenticated Sessions
+              </h2>
+              <ul class="session-list">
+                <!-- Session 1 -->
+                <li class="session-item">
+                  <div class="session-content">
+                    <div>
+                      <p class="title">Current Session (Windows)</p>
+                      <p class="subtitle">New York, USA - Last Active: Just now</p>
+                    </div>
+                    <button class="session-revoke">Revoke</button>
+                  </div>
+                </li>
+                <!-- Session 2 -->
+                <li class="session-item">
+                  <div class="session-content">
+                    <div>
+                      <p class="title">Mobile Session (iOS)</p>
+                      <p class="subtitle">London, UK - Last Active: 4 hours ago</p>
+                    </div>
+                    <button class="session-revoke">Revoke</button>
+                  </div>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ==============================
+        FRIENDS LIST SCREEN
+        ============================== -->
+      <section id="friends-screen" class="screen hidden" style="width: 100%;">
+        <div style="width: 100%; max-width: 600px;">
+          <header class="dashboard-header">
+            <h1 style="font-size: 2.25rem; font-weight: 700; color: var(--text-white);">My Friends</h1>
+            <nav class="dashboard-nav">
+              <button id="show-profile" class="btn btn-small btn-secondary">
+              Back to Dashboard
+              </button>
+            </nav>
+          </header>
+
+          <div class="card" style="max-width: none;">
+            <h2 class="profile-card-title">Add New Friend</h2>
+            <div class="add-friend-container">
+              <input type="text" id="new-friend-name" placeholder="Enter friend's user ID" required>
+              <button class="btn btn-primary btn-small add-friend-btn">
+                Add Friend
+              </button>
+            </div>
+
+            <h2 class="profile-card-title" style="margin-top: 2rem;">Current Friends</h2>
+            <ul id="friends-list" class="friends-list-container">
+            <!-- Friends will be rendered here by JavaScript -->
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- ==============================
+        OAUTH AUTHORIZATION SCREEN
+        ============================== -->
+      <section id="authorize-screen" class="screen hidden">
+        <div class="card" style="max-width: 576px; text-align: center;">
+          <div style="display: flex; flex-direction: column; align-items: center;">
+            <div class="auth-logo">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#2c3e50" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-zap"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
+            <h2 class="text-3xl font-bold text-white" style="font-size: 1.875rem; font-weight: 700; color: var(--text-white);">Authorize "Test App or Game"</h2>
+            <p class="text-gray-400" style="color: #9ca3af; margin-top: 0.5rem;">Test App or Game is requesting access to your account.</p>
+          </div>
+
+          <div class="permissions-box" style="margin-top: 1.5rem;">
+            <h3>Permissions Requested:</h3>
+            <ul>
+              <li>
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 permission-granted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Read your basic profile (name)
+              </li>
+              <li>
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 permission-granted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                Create or join associated rooms
+              </li>
+              <li>
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 permission-warning" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 12.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 0 1h-4a.5.5 0 0 1-.5-.5z"/><rect x="1" y="5" width="22" height="14" rx="5" ry="5"/><path d="M8 10h.01"/><path d="M16 10h.01"/></svg>
+                View your friends list (Read-only)
+              </li>
+            </ul>
+          </div>
+
+          <div class="auth-actions">
+            <button id="authorize-button" class="btn btn-primary">
+              Authorize Access
+            </button>
+            <button id="deny-button" class="btn btn-secondary">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </section>
+
+    </div>
   </body>
 </html>
