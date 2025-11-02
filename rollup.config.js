@@ -1,6 +1,6 @@
 import typescript from '@rollup/plugin-typescript';
 import terser from '@rollup/plugin-terser';
-import copy from 'rollup-plugin-copy-watch';
+import copy from 'rollup-plugin-copy';
 
 export default [{
     input: './src/server/index.ts',
@@ -32,8 +32,6 @@ export default [{
       targets: [
         { src: 'src/public/index.html', dest: 'dist' },
         { src: 'src/public/css/style.css', dest: 'dist/css' }
-      ],
-      watch: 'src/public',
-      verbose: true,
+      ]
     })]
   }];
