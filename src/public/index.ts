@@ -1,4 +1,4 @@
-import { initializeDatabase } from "./server/db";
+import { initializeDatabase } from "../server/db";
 
 /**
  * Hides all screens and shows only the specified one.
