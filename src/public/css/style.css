@@ -404,12 +404,19 @@ a:hover {
   }
 }
 
+.auth-form form > div {
+  /* Inputs sized to available space: */
+  position: relative;
+}
+.auth-form input {
+  box-sizing: border-box;
+}
+
 /* Utility classes updated to use new variables */
 .auth-form .text-center { text-align: center; }
 .auth-form .text-white { color: var(--color-text-header); }
 .auth-form .text-3xl { font-size: 1.875rem; } /* text-3xl */
 .auth-form .font-extrabold { font-weight: 800; }
 .auth-form .space-y-4 > * + * { margin-top: 1rem; }
-.auth-form .space-y-6 > * + * { margin-top: 1.5rem; }
 .auth-form .text-sm { font-size: 0.875rem; }
 .auth-form .text-gray-400 { color: var(--color-secondary-text); }
