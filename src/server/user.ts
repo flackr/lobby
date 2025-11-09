@@ -1,4 +1,5 @@
 import bcrypt from 'bcrypt';
+import type { ClockAPI } from '../common/interfaces.js';
 import type { PGInterface } from './types';
 
 export type RegistrationData = {
@@ -7,13 +8,18 @@ export type RegistrationData = {
   password: string;
 };
 
+export type AuthenticationHandlerConfig = {
+  db: PGInterface;
+  clock: ClockAPI;
+}
+
 const SALT_ROUNDS = 12;
 
 export class AuthenticationHandler {
-  #db: PGInterface;
+  #config: AuthenticationHandlerConfig;
 
-  constructor(db: PGInterface) {
-    this.#db = db;
+  constructor(config: AuthenticationHandlerConfig) {
+    this.#config = config;
   }
 
   async registerUser(address: string, data: RegistrationData): Promise<void> {

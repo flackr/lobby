@@ -182,6 +182,10 @@ export class MockClock {
         this.maybeAutoAdvance();
         return id;
       },
+
+      cancelAnimationFrame: (id: number) => {
+        this.#rafMap.get(id)?.cancel();
+      },
     };
   }
 

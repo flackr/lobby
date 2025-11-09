@@ -39,8 +39,8 @@ export async function initializeDatabase(client: PGInterface) {
         is_guest BOOLEAN NOT NULL DEFAULT FALSE,
         email_verification_code TEXT NULL,
         email_verification_code_expiry TIMESTAMP WITH TIME ZONE NULL,
-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+        active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
     );`,
     `CREATE UNIQUE INDEX unique_email_not_null ON users (email) WHERE email IS NOT NULL;`,
     `CREATE INDEX idx_users_is_active ON users (is_active);`,
@@ -54,8 +54,8 @@ export async function initializeDatabase(client: PGInterface) {
         user_id INTEGER NULL, -- Foreign key to users table, can be NULL if not logged in
         expiry_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
         session_data JSONB NULL, -- To store session specific data, can be NULL if no data to store
-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
     );`,
     `CREATE INDEX idx_sessions_expiry ON sessions (expiry_timestamp);`,
@@ -70,8 +70,8 @@ export async function initializeDatabase(client: PGInterface) {
         base_url TEXT NULL,
         description TEXT NULL,
         visibility VISIBILITY NOT NULL DEFAULT 'public',
-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         FOREIGN KEY (creator_user_id) REFERENCES users(id) ON DELETE CASCADE
     );`,
     `CREATE INDEX idx_rooms_base_url ON rooms (base_url);`,
@@ -83,9 +83,9 @@ export async function initializeDatabase(client: PGInterface) {
         user_id INTEGER NULL,
         event_type VARCHAR(255) NOT NULL, -- Type of event (e.g., 'user_joined', 'message', 'action')
         event_data JSONB NULL,      -- JSON data specific to the event
-        event_timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP, -- Timestamp of when event occurred (for ordering)
-        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        event_timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), -- Timestamp of when event occurred (for ordering)
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+        updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE, -- If room is deleted, delete room events
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL   -- If user is deleted, set user_id in event to NULL (keep event history)
     );`,
@@ -93,7 +93,7 @@ export async function initializeDatabase(client: PGInterface) {
     `CREATE TABLE room_users (
         room_id INTEGER NOT NULL,
         user_id INTEGER NOT NULL,
-        joined_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        joined_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         PRIMARY KEY (room_id, user_id),
         FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -102,7 +102,7 @@ export async function initializeDatabase(client: PGInterface) {
     // Track applied migrations of the database.
     `CREATE TABLE database_migrations (
         version_number INTEGER PRIMARY KEY,
-        applied_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        applied_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         description TEXT NULL -- Optional: description of the migration
     );`,
     // Insert the initial version (e.g. 1) when you first set up the database

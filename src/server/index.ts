@@ -1,7 +1,9 @@
-import { Server } from './server.ts';
 import pg from 'pg';
 import nodemailer from 'nodemailer';
 import 'dotenv/config';
+
+import { Server } from './server.ts';
+import { defaultClockAPI } from '../common/interfaces.ts';
 const { Pool } = pg;
 
 const dbConfig = {
@@ -39,6 +41,7 @@ async function run() {
     port: parseInt(process.env.PORT),
     db: pool,
     transport: transport,
+    clock: defaultClockAPI,
   });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const cleanup = async (options: { cleanup?: boolean; exit?: boolean }) => {

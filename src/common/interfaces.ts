@@ -39,3 +39,26 @@ export type RTCDataChannelInterface = {
   send(data: string | Buffer) : void;
   close() : void;
 };
+export type ClockAPI = {
+  performance: {
+    now(): number;
+  };
+  setTimeout(callback: () => void, delay: number): number;
+  clearTimeout(id: number): void;
+  setInterval(callback: () => void, interval: number): number;
+  clearInterval(id: number): void;
+  requestAnimationFrame(callback: (time: number) => void): number;
+  cancelAnimationFrame(id: number): void;
+};
+
+export const defaultClockAPI: ClockAPI = {
+  performance: {
+    now: performance.now,
+  },
+  setTimeout: self.setTimeout,
+  clearTimeout: self.clearTimeout,
+  setInterval: self.setInterval,
+  clearInterval: self.clearInterval,
+  requestAnimationFrame: self.requestAnimationFrame || self.setTimeout,
+  cancelAnimationFrame: self.cancelAnimationFrame || self.clearTimeout,
+}

@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import serveStatic from 'serve-static';
 import finalhandler from 'finalhandler';
 import formidable from 'formidable';
-import type { WebSocketInterface } from '../common/interfaces';
+import type { WebSocketInterface, ClockAPI } from '../common/interfaces';
 import type { PGInterface } from './types.ts';
 
 import { AuthenticationHandler }  from './user.ts';
@@ -56,6 +56,7 @@ export type createServerInterface = (callback: ServerCallback) => ServerInterfac
 interface ServerConfig {
   db: PGInterface;
   transport: TransportInterface;
+  clock: ClockAPI;
   port: number;
   hostname?: string;
   basePath?: string;
@@ -78,7 +79,10 @@ export class Server {
       this.#onRequest
     );
     this.#serve = serveStatic('./dist');
-    this.#authHandler = new AuthenticationHandler(this.#config.db);
+    this.#authHandler = new AuthenticationHandler({
+      db: this.#config.db,
+      clock: this.#config.clock
+    });
   }
 
   listen(): Promise<ServerAddress> {
@@ -99,11 +103,10 @@ export class Server {
   }
 
   #onRequest = async (req: http.IncomingMessage, res: ServerResponseInterface | http.ServerResponse) => {
-    const headers = {
-      'Access-Control-Allow-Origin': '*' /* @dev First, read about security */,
+    const headers: {[key: string]: number | string} = {
+      'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'OPTIONS, POST, GET',
       'Access-Control-Max-Age': 2592000, // 30 days
-      /** add other headers as per requirement */
     };
     if (req.method === 'OPTIONS') {
       res.writeHead(204, headers);
@@ -111,7 +114,7 @@ export class Server {
       return;
     }
     if (!['POST', 'GET'].includes(req.method)) {
-      res.writeHead(405, headers);
+      res.writeHead(405, {...headers, 'Content-Type': 'text/plain'});
       res.end(`${req.method} is not allowed for the request.`);
       return;
     }
@@ -119,7 +122,7 @@ export class Server {
     if (req.url == '/api/register') {
       const form = formidable({});
       // TODO: Maybe use first address from x-forwarded-for header?
-      const ip = req.headers['x-real-ip'] || req.socket.remoteAddress;
+      const ip: string = (req.headers['x-real-ip'] as string) || req.socket.remoteAddress;
       try {
         const fields = (await form.parse(req))[0];
 
@@ -128,11 +131,11 @@ export class Server {
           email: fields.email[0],
           password: fields.password[0],
         });
-        res.writeHead(200, headers);
+        res.writeHead(200, { ...headers, 'Content-Type': 'text/plain' });
 
       } catch (err) {
         console.error(err);
-        res.writeHead(err.httpCode || 400, { 'Content-Type': 'text/plain' });
+        res.writeHead(err.httpCode || 400, { ...headers, 'Content-Type': 'text/plain' });
         res.end(String(err));
         return;
       }
