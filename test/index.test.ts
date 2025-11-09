@@ -21,9 +21,10 @@ describe('sum module', () => {
     const formData = new FormData();
     formData.set('email', 'test');
     formData.set('password', 'supersecret');
+    formData.set('alias', 'tester');
 
     const client = world.createClient();
-    const response = await client.fetch(`${address}/register`, {
+    const response = await client.fetch(`${address}/api/register`, {
       method: 'POST',
       body: formData,
     });

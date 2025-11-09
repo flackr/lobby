@@ -60,9 +60,32 @@ function initializeUI() {
     event.preventDefault();
     window.location.hash = '#profile';
   });
-  document.querySelector('#register-screen form').addEventListener('submit', async (event) => {
+  const registerForm = document.querySelector('#register-screen form') as HTMLFormElement;
+  registerForm.addEventListener('submit', async (event) => {
     event.preventDefault();
-    window.location.hash = '#profile';
+    const messageElement = document.getElementById('register-message');
+    messageElement.textContent = '';
+    messageElement.classList.remove('error');
+    const alias = registerForm.elements['alias'].value.trim();
+    const email = registerForm.elements['email'].value.trim();
+    const password = registerForm.elements['password'].value;
+    registerForm.classList.add('loading');
+    const response = await fetch('/api/register', {
+      method: 'POST',
+      body: new FormData(registerForm)
+    });
+
+    if (response.ok) {
+        messageElement.textContent = `Registration successful for ${email}! Redirecting to login...`;
+        //await new Promise(resolve => setTimeout(resolve, 1500));
+        //showView('login-screen');
+    } else {
+        const errorData = await response.json();
+        messageElement.classList.add('error');
+        messageElement.textContent = `Registration failed: ${errorData.message || 'Server error.'}`;
+    }
+
+    // window.location.hash = '#profile';
   });
   document.querySelector('#show-profile').addEventListener('click', (event) => {
     event.preventDefault();

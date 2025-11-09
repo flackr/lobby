@@ -44,26 +44,28 @@
       <section id="register-screen" class="screen hidden">
         <div class="card auth-form">
           <h2 class="text-3xl font-extrabold text-white text-center">Create Account</h2>
-          <form class="space-y-4">
+          <form id="registration-form" class="space-y-4">
             <div>
-              <label for="register-name">Full Name</label>
-              <input type="text" id="register-name" placeholder="John Doe" required>
+              <label for="register-name">Alias</label>
+              <input type="text" name="alias" autocomplete="nickname" placeholder="Jane" required>
             </div>
             <div>
               <label for="register-email">Email Address</label>
-              <input type="email" id="register-email" placeholder="your@example.com" required>
+              <input type="email" name="email" autocomplete="email" placeholder="you@example.com" required>
             </div>
             <div>
               <label for="register-password">Password</label>
-              <input type="password" id="register-password" placeholder="********" required>
+              <input type="password" name="password" autocomplete="password" placeholder="p4ssw0rd" required>
             </div>
-            <button type="submit" class="btn btn-primary">
-              Register Account
+            <button type="submit" class="btn btn-primary" id="register-btn">
+              <span class="btn-text">Register Account</span>
+              <div class="loader"></div>
             </button>
           </form>
           <p class="text-center text-sm text-gray-400" style="margin-top: 1.5rem;">
             Already have an account? <a href="#login" class="font-medium">Sign In</a>
           </p>
+          <p id="register-message" class="text-center text-sm message" style="margin-top: 1rem;"></p>
         </div>
       </section>
 

@@ -1,4 +1,4 @@
-import type { PGInterface } from './server.ts';
+import type { PGInterface } from './types.ts';
 
 export async function cleanupDatabase(client: PGInterface) {
   const sqlTables = [
@@ -33,11 +33,11 @@ export async function initializeDatabase(client: PGInterface) {
     `CREATE TABLE users (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE NULL,
-        hashed_password VARCHAR(255) NULL,
+        hashed_password TEXT NULL,
         alias VARCHAR(100) NOT NULL,
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
         is_guest BOOLEAN NOT NULL DEFAULT FALSE,
-        email_verification_code VARCHAR(100) NULL,
+        email_verification_code TEXT NULL,
         email_verification_code_expiry TIMESTAMP WITH TIME ZONE NULL,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
         active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -50,7 +50,7 @@ export async function initializeDatabase(client: PGInterface) {
     // Sessions tracks associated users for each session cookie.
     `CREATE TABLE sessions (
         session_id TEXT PRIMARY KEY,
-        url VARCHAR(255) NULL,
+        url TEXT NULL,
         user_id INTEGER NULL, -- Foreign key to users table, can be NULL if not logged in
         expiry_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
         session_data JSONB NULL, -- To store session specific data, can be NULL if no data to store
@@ -66,8 +66,8 @@ export async function initializeDatabase(client: PGInterface) {
         id SERIAL PRIMARY KEY,
         creator_user_id INTEGER NOT NULL,
         name VARCHAR(255) NOT NULL,
-        url VARCHAR(255) NOT NULL,
-        base_url VARCHAR(255) NULL,
+        url TEXT NOT NULL,
+        base_url TEXT NULL,
         description TEXT NULL,
         visibility VISIBILITY NOT NULL DEFAULT 'public',
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,

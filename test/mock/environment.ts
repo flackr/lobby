@@ -4,6 +4,24 @@ import { Readable } from 'node:stream';
 import type { EventListenerOptions, RTCDataChannelInterface, RTCPeerConnectionEvents, RTCPeerConnectionInterface, WebSocketEvents, WebSocketInterface } from '../../src/common/interfaces.ts';
 import type { ServerCallback, ServerInterface, ServerResponseInterface, WebSocketServerInterface } from '../../src/server/server.ts';
 
+// Given a non-zero id, generate a pseudo-random internal IP address.
+function generateIp(id: number): string {
+  let minVal = 0;
+  const maxVal = 254;
+  const iprange = () => maxVal - minVal + 1;
+  let parts = [];
+  parts.push((id % iprange()) + minVal);
+  id = Math.floor(id / iprange());
+  parts.push((id % iprange()) + minVal);
+  id = Math.floor(id / iprange());
+  parts.push((id % iprange()) + minVal);
+  id = Math.floor(id / iprange());
+  // Start with internal network range 10.x.x.x
+  minVal = 10;
+  parts.push((id % iprange()) + minVal);
+  return parts.reverse().join('.');
+}
+
 /**
  * Simulates a set of clients which can be browsers or servers
  * which can communicate with each other.
@@ -26,6 +44,7 @@ export class MockEnvironment {
   }
 
   createClient(options: Partial<ClientOptions> = {}): MockClient {
+    options.ip = options.ip || generateIp(this.#nextClientId);
     options.address = options.address || `client-${this.#nextClientId++}`;
     const client = new MockClient(this, options);
     this.#clients.set(options.address, client)
@@ -34,6 +53,7 @@ export class MockEnvironment {
 }
 
 type ClientOptions = {
+  ip: string;
   address: string;
 
   // Time taken anytime data is sent to or from this client.
@@ -53,7 +73,7 @@ type MockWebSocketInterface = WebSocketInterface & {
 
 class MockResponse implements ServerResponseInterface {
   statusCode: number = 200;
-  headers: {[key: string]: string | number};
+  headers: {[key: string]: string | number} = {};
   bodyChunks: Buffer<ArrayBuffer>[] = [];
   resolve: (response: Response) => void;
 
@@ -560,7 +580,7 @@ class MockClient {
     const mockReq = new Readable() as IncomingMessage;
     mockReq.method = method;
     mockReq.url = url.pathname + url.search; // Just path and query, not full URL
-    mockReq.headers = {};
+    mockReq.headers = {'x-real-ip': this.#options.ip};
     headers.forEach((value, key) => {
         mockReq.headers[key] = value;
     });

@@ -1,23 +1,18 @@
 import fs from 'node:fs';
 import http from 'node:http';
 import ws from 'ws';
-import type { Results, QueryOptions } from '@electric-sql/pglite';
+import crypto from 'node:crypto';
 import serveStatic from 'serve-static';
 import finalhandler from 'finalhandler';
 import formidable from 'formidable';
 import type { WebSocketInterface } from '../common/interfaces';
+import type { PGInterface } from './types.ts';
 
+import { AuthenticationHandler }  from './user.ts';
+// import type { User } from './user';
+
+// Default backlog size for http server listen calls.
 const BACKLOG = 511;
-
-// Common interface between official pg PoolClient and PGLite interface used for testing.
-export type PGInterface = {
-  query<T>(
-    query: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    params?: any[],
-    options?: QueryOptions
-  ): Promise<Results<T>>;
-};
 
 type MailOptions = {
   from: string;
@@ -75,6 +70,7 @@ export class Server {
   #config: ServerConfig;
   #server: ServerInterface;
   #serve: serveStatic.RequestHandler<http.ServerResponse<http.IncomingMessage>>;
+  #authHandler: AuthenticationHandler;
 
   constructor(config: ServerConfig) {
     this.#config = config;
@@ -82,6 +78,7 @@ export class Server {
       this.#onRequest
     );
     this.#serve = serveStatic('./dist');
+    this.#authHandler = new AuthenticationHandler(this.#config.db);
   }
 
   listen(): Promise<ServerAddress> {
@@ -119,20 +116,26 @@ export class Server {
       return;
     }
     console.log(`Request for ${req.url}`);
-    if (req.url == '/register') {
+    if (req.url == '/api/register') {
       const form = formidable({});
-      let fields;
+      // TODO: Maybe use first address from x-forwarded-for header?
+      const ip = req.headers['x-real-ip'] || req.socket.remoteAddress;
       try {
+        const fields = (await form.parse(req))[0];
 
-        fields = (await form.parse(req))[0];
+        await this.#authHandler.registerUser(ip, {
+          alias: fields.alias[0],
+          email: fields.email[0],
+          password: fields.password[0],
+        });
+        res.writeHead(200, headers);
+
       } catch (err) {
         console.error(err);
         res.writeHead(err.httpCode || 400, { 'Content-Type': 'text/plain' });
         res.end(String(err));
         return;
       }
-      console.log(fields.email, fields.password);
-      res.writeHead(200, headers);
       res.end();
     } else if (res instanceof http.ServerResponse) {
       // If the request doesn't match any dynamic URL,

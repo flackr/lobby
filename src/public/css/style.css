@@ -392,6 +392,13 @@ a:hover {
   gap: 1rem;
   padding-top: 1rem;
 }
+
+.message {
+  color: var(--color-primary);
+}
+.error {
+  color: var(--color-danger);
+}
 /* Desktop layout for auth buttons */
 @media (min-width: 640px) {
   .auth-actions {
