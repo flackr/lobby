@@ -26,6 +26,15 @@ export async function cleanupDatabase(client: PGInterface) {
 
 export async function initializeDatabase(client: PGInterface) {
   const sqlCommands = [
+    // Verification emails that have been sent out.
+    `CREATE TABLE verification_emails (
+        email VARCHAR(255) PRIMARY KEY,
+        verification_code TEXT NOT NULL,
+        expiry_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+    );`,
+    `CREATE INDEX idx_verification_emails_expiry ON verification_emails (expiry_timestamp);`,
+
     // Users table.
     // * Guest users have NULL email.
     // * On registration, email_verification_code and expiry are set.
@@ -37,9 +46,10 @@ export async function initializeDatabase(client: PGInterface) {
         alias VARCHAR(100) NOT NULL,
         is_active BOOLEAN NOT NULL DEFAULT TRUE,
         is_guest BOOLEAN NOT NULL DEFAULT FALSE,
-        email_verification_code TEXT NULL,
-        email_verification_code_expiry TIMESTAMP WITH TIME ZONE NULL,
+        verification_email VARCHAR(255) NULL,
+        created_ip_address INET NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+        active_ip_address INET NOT NULL,
         active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
     );`,
     `CREATE UNIQUE INDEX unique_email_not_null ON users (email) WHERE email IS NOT NULL;`,

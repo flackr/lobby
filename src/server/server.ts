@@ -80,8 +80,9 @@ export class Server {
     );
     this.#serve = serveStatic('./dist');
     this.#authHandler = new AuthenticationHandler({
+      clock: this.#config.clock,
       db: this.#config.db,
-      clock: this.#config.clock
+      transport: this.#config.transport,
     });
   }
 

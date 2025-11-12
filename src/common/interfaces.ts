@@ -55,10 +55,10 @@ export const defaultClockAPI: ClockAPI = {
   performance: {
     now: performance.now,
   },
-  setTimeout: self.setTimeout,
-  clearTimeout: self.clearTimeout,
-  setInterval: self.setInterval,
-  clearInterval: self.clearInterval,
-  requestAnimationFrame: self.requestAnimationFrame || self.setTimeout,
-  cancelAnimationFrame: self.cancelAnimationFrame || self.clearTimeout,
+  setTimeout: global.setTimeout,
+  clearTimeout: global.clearTimeout,
+  setInterval: global.setInterval,
+  clearInterval: global.clearInterval,
+  requestAnimationFrame: global.requestAnimationFrame || global.setTimeout,
+  cancelAnimationFrame: global.cancelAnimationFrame || global.clearTimeout,
 }

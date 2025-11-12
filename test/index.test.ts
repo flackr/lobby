@@ -20,7 +20,7 @@ describe('sum module', () => {
     // const server = new Server({ port: 8000, db, transport: transport });
     const address = await server.listen();
     const formData = new FormData();
-    formData.set('email', 'test');
+    formData.set('email', 'test@test.com');
     formData.set('password', 'supersecret');
     formData.set('alias', 'tester');
 
@@ -30,6 +30,17 @@ describe('sum module', () => {
       body: formData,
     });
     console.log(await response.text());
+    let lastMail = transport.getLastMail();
+    if (!lastMail) {
+      throw new Error('No e-mails sent');
+    }
+    expect(lastMail.to).toBe('test@test.com');
+    let codeMatch = lastMail.text.match(/please enter.*:\s*([a-z0-9]{6})\s*/m);
+    expect(codeMatch).not.toBeNull();
+    let code = codeMatch && codeMatch[1] || '';
+    console.log('Code match:', code);
+    expect(code).not.toBe('');
+
     await server.close();
   });
 
