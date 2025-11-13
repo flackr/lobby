@@ -1,7 +1,25 @@
 import type { PGInterface } from './types.ts';
 
+export interface User {
+  id: number;
+}
+export interface VerificationEmail {
+  email: string;
+  verification_code: string;
+  created_at: Date;
+}
+export interface Session {
+  session_id: string;
+  url?: string;
+  user_id: number;
+  created_at: Date;
+  active_ip_address: string;
+  updated_at: Date;
+}
+
 export async function cleanupDatabase(client: PGInterface) {
   const sqlTables = [
+    'verification_emails',
     'users',
     'sessions',
     'rooms',
@@ -30,10 +48,9 @@ export async function initializeDatabase(client: PGInterface) {
     `CREATE TABLE verification_emails (
         email VARCHAR(255) PRIMARY KEY,
         verification_code TEXT NOT NULL,
-        expiry_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
     );`,
-    `CREATE INDEX idx_verification_emails_expiry ON verification_emails (expiry_timestamp);`,
+    `CREATE INDEX idx_verification_emails_created ON verification_emails (created_at);`,
 
     // Users table.
     // * Guest users have NULL email.
@@ -49,7 +66,6 @@ export async function initializeDatabase(client: PGInterface) {
         verification_email VARCHAR(255) NULL,
         created_ip_address INET NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-        active_ip_address INET NOT NULL,
         active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
     );`,
     `CREATE UNIQUE INDEX unique_email_not_null ON users (email) WHERE email IS NOT NULL;`,
@@ -61,14 +77,13 @@ export async function initializeDatabase(client: PGInterface) {
     `CREATE TABLE sessions (
         session_id TEXT PRIMARY KEY,
         url TEXT NULL,
-        user_id INTEGER NULL, -- Foreign key to users table, can be NULL if not logged in
-        expiry_timestamp TIMESTAMP WITH TIME ZONE NOT NULL,
-        session_data JSONB NULL, -- To store session specific data, can be NULL if no data to store
+        user_id INTEGER,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+        active_ip_address INET NOT NULL,
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );`,
-    `CREATE INDEX idx_sessions_expiry ON sessions (expiry_timestamp);`,
+    `CREATE INDEX idx_sessions_updated ON sessions (updated_at);`,
     `CREATE INDEX idx_sessions_user_id ON sessions (user_id);`,
 
     `CREATE TYPE VISIBILITY AS ENUM('public', 'friends', 'private')`,

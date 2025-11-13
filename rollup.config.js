@@ -4,7 +4,7 @@ import copy from 'rollup-plugin-copy';
 
 export default [{
     input: './src/server/index.ts',
-    external: ['dotenv/config', 'finalhandler', 'formidable', 'pg', 'node:fs', 'node:http', 'node:process', 'nodemailer', 'serve-static', 'ws'],
+    external: ['bcrypt', 'crypto', 'dotenv/config', 'finalhandler', 'formidable', 'pg', 'node:crypto', 'node:fs', 'node:http', 'node:process', 'nodemailer', 'serve-static', 'ws'],
     output: {
       file: './dist/server.min.js',
       format: 'es',

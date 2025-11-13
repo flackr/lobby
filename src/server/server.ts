@@ -1,14 +1,12 @@
-import fs from 'node:fs';
 import http from 'node:http';
 import ws from 'ws';
-import crypto from 'node:crypto';
 import serveStatic from 'serve-static';
 import finalhandler from 'finalhandler';
 import formidable from 'formidable';
 import type { WebSocketInterface, ClockAPI } from '../common/interfaces';
 import type { PGInterface } from './types.ts';
 
-import { AuthenticationHandler }  from './user.ts';
+import { AuthenticationHandler, type RegistrationData }  from './user.ts';
 // import type { User } from './user';
 
 // Default backlog size for http server listen calls.
@@ -58,6 +56,7 @@ interface ServerConfig {
   transport: TransportInterface;
   clock: ClockAPI;
   port: number;
+  emailFrom: string;
   hostname?: string;
   basePath?: string;
   createServer?: createServerInterface;
@@ -124,22 +123,25 @@ export class Server {
       const form = formidable({});
       // TODO: Maybe use first address from x-forwarded-for header?
       const ip: string = (req.headers['x-real-ip'] as string) || req.socket.remoteAddress;
+      let data : RegistrationData = {
+        alias: '',
+        email: '',
+        password: '',
+      }
       try {
         const fields = (await form.parse(req))[0];
-
-        await this.#authHandler.registerUser(ip, {
-          alias: fields.alias[0],
-          email: fields.email[0],
-          password: fields.password[0],
-        });
-        res.writeHead(200, { ...headers, 'Content-Type': 'text/plain' });
-
+        data = {alias: fields.alias[0], email: fields.email[0], password: fields.password[0]};
       } catch (err) {
         console.error(err);
         res.writeHead(err.httpCode || 400, { ...headers, 'Content-Type': 'text/plain' });
         res.end(String(err));
         return;
       }
+      const sessionId = await this.#authHandler.registerUser(ip, data);
+      res.writeHead(200, { ...headers,
+        'Content-Type': 'text/plain',
+        'Set-Cookie': `sessionid=${sessionId}; HttpOnly; Secure; Path=/; SameSite=Strict`,
+      });
       res.end();
     } else if (res instanceof http.ServerResponse) {
       // If the request doesn't match any dynamic URL,

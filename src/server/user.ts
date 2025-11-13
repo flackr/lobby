@@ -2,6 +2,8 @@ import bcrypt from 'bcrypt';
 import type { ClockAPI } from '../common/interfaces.ts';
 import type { PGInterface } from './types';
 import type { TransportInterface } from './server.ts';
+import { randomBytes } from 'crypto';
+import type { User, VerificationEmail, Session } from './db.ts';
 
 export type RegistrationData = {
   alias: string;
@@ -17,6 +19,10 @@ export type AuthenticationHandlerConfig = {
 
 const SALT_ROUNDS = 12;
 
+function generateSessionId() {
+  return randomBytes(32).toString('hex');
+}
+
 export class AuthenticationHandler {
   #config: AuthenticationHandlerConfig;
 
@@ -24,16 +30,43 @@ export class AuthenticationHandler {
     this.#config = config;
   }
 
-  async registerUser(address: string, data: RegistrationData): Promise<void> {
+  async registerUser(address: string, data: RegistrationData): Promise<string> {
     const { alias, email, password } = data;
 
     // TODO: Check if the ip address has exceeded registration limits.
     // TODO: Input validation?
 
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
-    // TODO: Store user registration.
+    let user = await this.#config.db.query<User>(
+      `INSERT INTO users (verification_email, hashed_password, alias, is_guest, created_ip_address)
+       VALUES ($1, $2, $3, FALSE, $4) RETURNING *;`,
+      [
+        email,
+        hash,
+        alias,
+        address,
+      ]
+    );
+    if (user.affectedRows == 0) {
+      throw new Error('Failed to create session for new user');
+    }
+    const userId = user.rows[0].id;
+    console.log(userId);
+    const sessionId = generateSessionId();
+    let session = await this.#config.db.query<Session>(
+      `INSERT INTO sessions (session_id, user_id, created_at, active_ip_address, updated_at)
+       VALUES ($1, $2, now(), $3, now());`,
+      [
+        sessionId,
+        userId,
+        address,
+      ]
+    );
+    if (session.affectedRows == 0) {
+      throw new Error('Failed to create session for new user');
+    }
     await this.sendVerificationEmail(email, alias);
-    console.log(`Registering user: ${alias}, ${email} for ${address}`);
+    return sessionId;
   }
 
   async sendVerificationEmail(email: string, alias: string): Promise<void> {
@@ -59,19 +92,17 @@ This code will expire in ${expiryMinutes} minutes.
 If you didn’t request this, you can safely ignore this message — no action is needed.
 
 Enjoy!`;
-    /*
     await this.#config.db.query(
-      `INSERT INTO verification_emails (email, verification_code, expiry_timestamp)
-       VALUES ($1, $2, now() + INTERVAL ${expiryMinutes} MINUTE)
+      `INSERT INTO verification_emails (email, verification_code)
+       VALUES ($1, $2)
        ON CONFLICT (email) DO UPDATE
        SET verification_code = EXCLUDED.verification_code,
-           expiry_timestamp = EXCLUDED.expiry_timestamp,
            created_at = now();`,
       [
         email,
         verificationCode,
       ]
-    );*/
+    );
     await this.#config.transport.sendMail({
       to: email,
       subject: 'Verify your email for Lobby',

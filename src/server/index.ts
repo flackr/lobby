@@ -39,6 +39,7 @@ async function run() {
   console.log('Connected to PostgreSQL database.');
   const server = new Server({
     port: parseInt(process.env.PORT),
+    emailFrom: process.env.EMAIL_FROM,
     db: pool,
     transport: transport,
     clock: defaultClockAPI,
