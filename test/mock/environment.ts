@@ -194,6 +194,7 @@ class MockClient {
   #latency: Map<MockClient, number> = new Map();
   #listeners: Map<number, MockServer> = new Map();
   #listeningWebRTCConnections: Map<string, RTCPeerConnectionInterface> = new Map();
+  #cookies: {[key: string]: {[key: string]: string}} = {};
   constructor(environment: MockEnvironment, options: Partial<ClientOptions>) {
     this.#environment = environment;
     this.#options = { ...this.#options, ...options };
@@ -582,6 +583,10 @@ class MockClient {
     mockReq.method = method;
     mockReq.url = url.pathname + url.search; // Just path and query, not full URL
     mockReq.headers = {'x-real-ip': this.#options.ip};
+    if (this.#cookies[url.hostname]) {
+      const cookieHeader = Object.entries(this.#cookies[url.hostname]).map(([name, value]) => `${name}=${value}`).join('; ');
+      mockReq.headers['cookie'] = cookieHeader;
+    }
     headers.forEach((value, key) => {
         mockReq.headers[key] = value;
     });
@@ -625,6 +630,15 @@ class MockClient {
     return new Promise((resolve) => {
       const mockRes = new MockResponse((response) => {
         this.#environment.clock.api().setTimeout(() => {
+          const setCookies = response.headers.getSetCookie();
+          for (const cookie of setCookies) {
+            const [cookiePair, ...attributes] = cookie.split(';').map(part => part.trim());
+            const [cookieName, cookieValue] = cookiePair.split('=');
+            if (!this.#cookies[url.hostname]) {
+              this.#cookies[url.hostname] = {};
+            }
+            this.#cookies[url.hostname][cookieName] = cookieValue;
+          }
           resolve(response);
         }, serverClient.latencyTo(this));
       });

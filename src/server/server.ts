@@ -6,7 +6,7 @@ import formidable from 'formidable';
 import type { WebSocketInterface, ClockAPI } from '../common/interfaces';
 import type { PGInterface } from './types.ts';
 
-import { AuthenticationHandler, type RegistrationData }  from './user.ts';
+import { AuthenticationHandler, type RegistrationData, type VerificationData }  from './user.ts';
 // import type { User } from './user';
 
 // Default backlog size for http server listen calls.
@@ -66,6 +66,11 @@ interface ServerConfig {
 export type ServerAddress = string;
 
 const DEFAULT_PORT = 8000;
+
+function requestIp(req: http.IncomingMessage): string {
+  // TODO: Maybe use first address from x-forwarded-for header?
+  return (req.headers['x-real-ip'] as string) || req.socket.remoteAddress;
+}
 export class Server {
   #config: ServerConfig;
   #server: ServerInterface;
@@ -119,10 +124,8 @@ export class Server {
       return;
     }
     console.log(`Request for ${req.url}`);
-    if (req.url == '/api/register') {
+    if (req.url == '/api/register' && req.method == 'POST') {
       const form = formidable({});
-      // TODO: Maybe use first address from x-forwarded-for header?
-      const ip: string = (req.headers['x-real-ip'] as string) || req.socket.remoteAddress;
       let data : RegistrationData = {
         alias: '',
         email: '',
@@ -137,10 +140,49 @@ export class Server {
         res.end(String(err));
         return;
       }
-      const sessionId = await this.#authHandler.registerUser(ip, data);
+      const sessionId = await this.#authHandler.registerUser(requestIp(req), data);
       res.writeHead(200, { ...headers,
         'Content-Type': 'text/plain',
         'Set-Cookie': `sessionid=${sessionId}; HttpOnly; Secure; Path=/; SameSite=Strict`,
+      });
+      res.end();
+    } else if (req.url.startsWith('/api/')) {
+      // These remaining API endpoints require that the user is logged in.
+      const rawCookie = req.headers.cookie || "";
+      const cookies = Object.fromEntries(
+          rawCookie
+            .split(";")
+            .map(c => c.trim().split("="))
+      );
+      const session = await this.#authHandler.getSession(requestIp(req), cookies.sessionid);
+      if (!session) {
+        res.writeHead(401, { ...headers,
+          'Content-Type': 'text/plain',
+        });
+        res.end('Unauthorized: No valid session');
+        return;
+      }
+      if (req.url == '/api/verify' && req.method == 'POST') {
+        const form = formidable({});
+        let data : VerificationData = {
+          code: '',
+          email: '',
+        }
+        try {
+          const fields = (await form.parse(req))[0];
+          data = {code: fields.code[0], email: fields.email[0]};
+        } catch (err) {
+          console.error(err);
+          res.writeHead(err.httpCode || 400, { ...headers, 'Content-Type': 'text/plain' });
+          res.end(String(err));
+          return;
+        }
+        const success = await this.#authHandler.verifyEmail(session, data);
+        console.log('Verification success:', success);
+      }
+      console.log(session);
+      res.writeHead(200, { ...headers,
+        'Content-Type': 'text/plain',
       });
       res.end();
     } else if (res instanceof http.ServerResponse) {

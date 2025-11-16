@@ -11,6 +11,11 @@ export type RegistrationData = {
   password: string;
 };
 
+export type VerificationData = {
+  code: string;
+  email: string;
+};
+
 export type AuthenticationHandlerConfig = {
   db: PGInterface;
   clock: ClockAPI;
@@ -110,5 +115,44 @@ Enjoy!`;
       from: 'no-reply@example.com',
       html: emailBody.replace(/\n/g, '<br>'),
     });
+  }
+
+  async verifyEmail(session: Session, data: VerificationData): Promise<boolean> {
+    const { code, email } = data;
+    const record = await this.#config.db.query<VerificationEmail>(
+      `SELECT * FROM verification_emails
+       WHERE email = $1 AND verification_code = $2
+         AND created_at >= now() - INTERVAL '15 minutes';`,
+      [email, code]
+    );
+    if (record.rows.length == 0) {
+      return false;
+    }
+    let user = await this.#config.db.query<User>(
+      `UPDATE users
+       SET email = $1, is_guest = FALSE, verification_email = NULL
+       WHERE id = $2 AND verification_email = $1
+       RETURNING id;`,
+      [email, session.user_id]
+    );
+    return user.affectedRows > 0;
+  }
+
+
+  async getSession(address: string, sessionId?: string): Promise<Session | null> {
+    if (!sessionId) {
+      return null;
+    }
+    const session = await this.#config.db.query<Session>(
+      `UPDATE sessions
+       SET updated_at = now(), active_ip_address = $2
+       WHERE session_id = $1 AND updated_at >= now() - INTERVAL '7 days'
+       RETURNING *;`,
+      [sessionId, address]
+    );
+    if (session.affectedRows == 0) {
+      return null;
+    }
+    return session.rows[0];
   }
 };

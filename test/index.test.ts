@@ -22,13 +22,13 @@ describe('lobby server', () => {
     const server = new Server({ hostname, port: 8000, emailFrom: sender, db, clock: world.clock.api(), transport: transport, createServer: clientServer.createServer });
     // const server = new Server({ port: 8000, db, transport: transport });
     const address = await server.listen();
-    const formData = new FormData();
+    let formData = new FormData();
     formData.set('email', 'test@test.com');
     formData.set('password', 'supersecret');
     formData.set('alias', 'tester');
 
     const client = world.createClient();
-    const response = await client.fetch(`${address}/api/register`, {
+    let response = await client.fetch(`${address}/api/register`, {
       method: 'POST',
       body: formData,
     });
@@ -43,6 +43,14 @@ describe('lobby server', () => {
     let code = codeMatch && codeMatch[1] || '';
     console.log('Code match:', code);
     expect(code).not.toBe('');
+
+    formData = new FormData();
+    formData.set('email', 'test@test.com');
+    formData.set('code', code);
+    response = await client.fetch(`${address}/api/verify`, {
+      method: 'POST',
+      body: formData,
+    });
 
     await server.close();
   });

@@ -53,9 +53,8 @@ export async function initializeDatabase(client: PGInterface) {
     `CREATE INDEX idx_verification_emails_created ON verification_emails (created_at);`,
 
     // Users table.
-    // * Guest users have NULL email.
-    // * On registration, email_verification_code and expiry are set.
-    // * is_guest remains set until the email is verified.
+    // * Guest users and users who have not yet verified have NULL email.
+    // * On registration, verification_email is set, and email remains NULL until verified.
     `CREATE TABLE users (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE NULL,
