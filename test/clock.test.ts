@@ -76,9 +76,8 @@ describe('mock clock', () => {
   });
 
   test('autoAdvance just works', async () => {
-    const clock = new MockClock();
+    const clock = new MockClock({autoAdvance: true});
     const api = clock.api();
-    clock.autoAdvance = true;
     let calls = 0;
     await new Promise((resolve) => {
       api.setTimeout(async () => {

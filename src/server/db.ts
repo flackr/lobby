@@ -1,3 +1,4 @@
+import { readFileSync } from 'fs';
 import type { PGInterface } from './types.ts';
 
 export interface User {
@@ -20,14 +21,16 @@ export interface Session {
 export async function cleanupDatabase(client: PGInterface) {
   const sqlTables = [
     'verification_emails',
+    'safe_names',
     'users',
     'sessions',
     'rooms',
     'room_events',
     'room_users',
     'database_migrations',
+    'daily_statistics',
   ];
-  const sqlTypes = ['VISIBILITY'];
+  const sqlTypes = ['VISIBILITY', 'EVENT_TYPE'];
   let sqlCommands = [];
   sqlCommands = sqlCommands.concat(
     sqlTables.map(
@@ -52,24 +55,31 @@ export async function initializeDatabase(client: PGInterface) {
     );`,
     `CREATE INDEX idx_verification_emails_created ON verification_emails (created_at);`,
 
+    `CREATE TABLE safe_names (
+        name TEXT PRIMARY KEY
+    );`,
+
     // Users table.
     // * Guest users and users who have not yet verified have NULL email.
     // * On registration, verification_email is set, and email remains NULL until verified.
     `CREATE TABLE users (
         id SERIAL PRIMARY KEY,
-        email VARCHAR(255) UNIQUE NULL,
+        email VARCHAR(255) NULL,
+        username VARCHAR(100) UNIQUE NOT NULL DEFAULT CONCAT('user-', currval('users_id_seq')::TEXT),
         hashed_password TEXT NULL,
         alias VARCHAR(100) NOT NULL,
-        is_active BOOLEAN NOT NULL DEFAULT TRUE,
-        is_guest BOOLEAN NOT NULL DEFAULT FALSE,
         verification_email VARCHAR(255) NULL,
         created_ip_address INET NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-        active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+        active_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+        CONSTRAINT check_username
+        CHECK (
+            NOT (username LIKE 'user-%')
+            OR username = CONCAT('user-', id::TEXT)
+        )
     );`,
-    `CREATE UNIQUE INDEX unique_email_not_null ON users (email) WHERE email IS NOT NULL;`,
-    `CREATE INDEX idx_users_is_active ON users (is_active);`,
-    `CREATE INDEX idx_users_is_guest ON users (is_guest);`,
+    `CREATE UNIQUE INDEX unique_username ON users (username);`,
+    `CREATE INDEX idx_users_email ON users (email);`,
     `CREATE INDEX idx_users_active_at ON users (active_at);`,
 
     // Sessions tracks associated users for each session cookie.
@@ -85,42 +95,67 @@ export async function initializeDatabase(client: PGInterface) {
     `CREATE INDEX idx_sessions_updated ON sessions (updated_at);`,
     `CREATE INDEX idx_sessions_user_id ON sessions (user_id);`,
 
-    `CREATE TYPE VISIBILITY AS ENUM('public', 'friends', 'private')`,
+    `CREATE TYPE VISIBILITY AS ENUM('public', 'friends', 'private');`,
     `CREATE TABLE rooms (
         id SERIAL PRIMARY KEY,
+        code VARCHAR(100) NULL,
         creator_user_id INTEGER NOT NULL,
-        name VARCHAR(255) NOT NULL,
         url TEXT NOT NULL,
         base_url TEXT NULL,
+        name VARCHAR(255) NOT NULL,
         description TEXT NULL,
         visibility VISIBILITY NOT NULL DEFAULT 'public',
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
-        FOREIGN KEY (creator_user_id) REFERENCES users(id) ON DELETE CASCADE
+        FOREIGN KEY (creator_user_id) REFERENCES users(id) ON DELETE RESTRICT
     );`,
-    `CREATE INDEX idx_rooms_base_url ON rooms (base_url);`,
-    `CREATE INDEX idx_rooms_visibility ON rooms (visibility);`,
+    `CREATE UNIQUE INDEX idx_rooms_code ON rooms (base_url, code);`,
+    `CREATE INDEX idx_rooms_base_url ON rooms (base_url, updated_at);`,
+    `CREATE INDEX idx_rooms_visibility ON rooms (base_url, visibility, updated_at);`,
 
+    `CREATE TYPE EVENT_TYPE AS ENUM('joined', 'left', 'snapshot', 'action', 'message');`,
     `CREATE TABLE room_events (
         id BIGSERIAL PRIMARY KEY,
         room_id INTEGER NOT NULL,
         user_id INTEGER NULL,
-        event_type VARCHAR(255) NOT NULL, -- Type of event (e.g., 'user_joined', 'message', 'action')
+        event_type EVENT_TYPE NOT NULL DEFAULT 'action',
         event_data JSONB NULL,      -- JSON data specific to the event
         event_timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(), -- Timestamp of when event occurred (for ordering)
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE, -- If room is deleted, delete room events
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL   -- If user is deleted, set user_id in event to NULL (keep event history)
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT -- Users with active room events cannot be deleted
     );`,
+    `CREATE INDEX idx_room_events_event_type ON room_events (room_id, event_type, id);`,
 
     `CREATE TABLE room_users (
         room_id INTEGER NOT NULL,
         user_id INTEGER NOT NULL,
         joined_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+        left_at TIMESTAMP WITH TIME ZONE NULL, -- NULL if user is currently in the room,
+        alias VARCHAR(100) NOT NULL, -- Alias at time user joined the room
         PRIMARY KEY (room_id, user_id),
         FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+    );`,
+    `CREATE INDEX idx_room_users_joined_at ON room_users (room_id, joined_at);`,
+    `CREATE INDEX idx_room_users_left_at ON room_users (room_id, left_at);`,
+
+    `CREATE TABLE daily_statistics (
+        time TIMESTAMP WITH TIME ZONE PRIMARY KEY,
+        total_users INTEGER NOT NULL,
+        daily_active_users INTEGER NOT NULL,
+        daily_active_rooms INTEGER NOT NULL,
+        weekly_active_users INTEGER NOT NULL,
+        weekly_active_rooms INTEGER NOT NULL,
+        monthly_active_users INTEGER NOT NULL,
+        monthly_active_rooms INTEGER NOT NULL,
+        created_rooms INTEGER NOT NULL,
+        removed_users INTEGER NOT NULL,
+        removed_rooms INTEGER NOT NULL,
+        verification_emails INTEGER NOT NULL,
+        recovery_emails INTEGER NOT NULL,
+        log TEXT NOT NULL
     );`,
 
     // Track applied migrations of the database.

@@ -14,48 +14,56 @@
     <div id="app-container">
 
       <!-- ==============================
-        1. LOGIN SCREEN
+        LOGIN SCREEN
         ============================== -->
       <section id="login-screen" class="screen">
         <div class="card auth-form">
           <h2 class="text-3xl font-extrabold text-white text-center">Welcome Back</h2>
           <form class="space-y-4">
             <div>
-              <label for="login-email">Email Address</label>
-              <input type="email" id="login-email" placeholder="you@example.com" required>
+              <label for="login-username">Username</label>
+              <input type="text" autocomplete="username" name="username" id="login-username" placeholder="user" required>
             </div>
             <div>
               <label for="login-password">Password</label>
-              <input type="password" id="login-password" placeholder="********" required>
+              <input type="password" id="login-password" name="password" autocomplete="current-password" placeholder="********" required>
             </div>
             <button type="submit" class="btn btn-primary">
               Sign In
             </button>
           </form>
           <p class="text-center text-sm text-gray-400" style="margin-top: 1.5rem;">
-            Don't have an account? <a href="#register" class="font-medium">Sign Up</a>
+            Don't have an account? <a href="#register" class="font-medium">Sign Up</a> or <a href="#guest" class="font-medium">Continue as Guest</a>
           </p>
         </div>
       </section>
 
       <!-- ==============================
-        2. REGISTRATION SCREEN
+        REGISTRATION SCREEN
         ============================== -->
       <section id="register-screen" class="screen hidden">
         <div class="card auth-form">
           <h2 class="text-3xl font-extrabold text-white text-center">Create Account</h2>
           <form id="registration-form" class="space-y-4">
             <div>
-              <label for="register-name">Alias</label>
-              <input type="text" name="alias" autocomplete="nickname" placeholder="Jane" required>
-            </div>
-            <div>
-              <label for="register-email">Email Address</label>
-              <input type="email" name="email" autocomplete="email" placeholder="you@example.com" required>
+              <label for="register-username">Username</label>
+              <input type="text" id="register-username" name="username" autocomplete="username" placeholder="jane" required>
             </div>
             <div>
               <label for="register-password">Password</label>
-              <input type="password" name="password" autocomplete="password" placeholder="p4ssw0rd" required>
+              <input type="password" id="register-password" name="password" autocomplete="new-password" placeholder="********" required>
+            </div>
+            <div>
+              <label for="repeat-password">Repeat password</label>
+              <input type="password" id="repeat-password" name="repeat-password" autocomplete="new-password" placeholder="********" required>
+            </div>
+            <div>
+              <label for="register-alias">Alias</label>
+              <input type="text" id="register-alias" name="alias" autocomplete="given-name" placeholder="Jane" required>
+            </div>
+            <div>
+              <label for="register-email">Email Address (optional)</label>
+              <input type="email" id="register-email" name="email" autocomplete="email" placeholder="you@example.com">
             </div>
             <button type="submit" class="btn btn-primary" id="register-btn">
               <span class="btn-text">Register Account</span>
@@ -70,7 +78,30 @@
       </section>
 
       <!-- ==============================
-        3. PROFILE & SESSIONS SCREEN
+        GUEST SCREEN
+        ============================== -->
+      <section id="guest-screen" class="screen hidden">
+        <div class="card auth-form">
+          <h2 class="text-3xl font-extrabold text-white text-center">Guest sign in</h2>
+          <form id="guest-form" class="space-y-4">
+            <div>
+              <label for="guest-alias">Alias</label>
+              <input type="text" id="guest-alias" name="alias" autocomplete="given-name" placeholder="Jane" required>
+            </div>
+            <button type="submit" class="btn btn-primary" id="register-btn">
+              <span class="btn-text">Confirm alias</span>
+              <div class="loader"></div>
+            </button>
+          </form>
+          <p class="text-center text-sm text-gray-400" style="margin-top: 1.5rem;">
+            Already have an account? <a href="#login" class="font-medium">Sign In</a>
+          </p>
+          <p id="register-message" class="text-center text-sm message" style="margin-top: 1rem;"></p>
+        </div>
+      </section>
+
+      <!-- ==============================
+        PROFILE & SESSIONS SCREEN
         ============================== -->
       <section id="profile-screen" class="screen hidden" style="width: 100%;">
         <div style="width: 100%; max-width: 1000px;">

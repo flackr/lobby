@@ -1,31 +1,26 @@
 import { beforeAll, describe, expect, test } from '@jest/globals';
 
-import { initializeDatabase } from '../src/server/db';
 import { MockTransport } from './mock/transport';
 import { Server } from '../src/server/server';
 import { MockEnvironment } from './mock/environment';
-import { MockDB } from './mock/db';
+import { clock, lobbyDb } from './mock/lobby.ts';
 
 describe('lobby server', () => {
-  const transport = new MockTransport();
-  const world = new MockEnvironment();
-  const db = new MockDB(world.clock);
-  beforeAll(async () => {
-    // Initializing the database takes some time, so only do it once for all tests.
-    await db.initialize();
-    await initializeDatabase(db);
-  })
-  test('Registers a new user', async () => {
+  test('Registers a new user and logs in', async () => {
+    await lobbyDb.initialized;
+    const transport = new MockTransport();
+    const world = new MockEnvironment(clock);
     const hostname = 'example.com';
-    const sender = 'no-replay@example.com';
+    const sender = 'no-reply@example.com';
     const clientServer = world.createClient({ address: hostname });
-    const server = new Server({ hostname, port: 8000, emailFrom: sender, db, clock: world.clock.api(), transport: transport, createServer: clientServer.createServer });
+    const server = new Server({ hostname, port: 8000, emailFrom: sender, db: lobbyDb, clock: world.clock.api(), transport: transport, createServer: clientServer.createServer });
     // const server = new Server({ port: 8000, db, transport: transport });
     const address = await server.listen();
     let formData = new FormData();
     formData.set('email', 'test@test.com');
     formData.set('password', 'supersecret');
-    formData.set('alias', 'tester');
+    formData.set('username', 'tester');
+    formData.set('alias', 'Bob');
 
     const client = world.createClient();
     let response = await client.fetch(`${address}/api/register`, {
@@ -51,8 +46,9 @@ describe('lobby server', () => {
       method: 'POST',
       body: formData,
     });
-
+    expect(response.status).toBe(200);
     await server.close();
   });
+
 
 });

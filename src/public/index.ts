@@ -44,6 +44,9 @@ function hashChangeHandler() {
     case 'authorize':
       showView('authorize-screen');
       break;
+    case 'guest':
+      showView('guest-screen');
+      break;
     case 'login':
     default:
       showView('login-screen');

@@ -27,12 +27,12 @@ function generateIp(id: number): string {
  * which can communicate with each other.
  **/
 export class MockEnvironment {
-  #clock: MockClock = new MockClock();
+  #clock: MockClock;
   #clients: Map<string, MockClient> = new Map();
   #nextClientId: number = 1;
 
-  constructor() {
-    this.#clock.autoAdvance = true;
+  constructor(clock: MockClock = new MockClock({autoAdvance: true})) {
+    this.#clock = clock;
   }
 
   get clock(): MockClock {

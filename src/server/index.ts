@@ -3,7 +3,6 @@ import nodemailer from 'nodemailer';
 import 'dotenv/config';
 
 import { Server } from './server.ts';
-import { defaultClockAPI } from '../common/interfaces.ts';
 const { Pool } = pg;
 
 const dbConfig = {
@@ -42,7 +41,19 @@ async function run() {
     emailFrom: process.env.EMAIL_FROM,
     db: pool,
     transport: transport,
-    clock: defaultClockAPI,
+    safeNames: process.env.SAFE_NAMES == 'yes',
+    limits: {
+      verificationCodeMinutes: parseInt(process.env.VERIFICATION_CODE_MINUTES, 10) || undefined,
+      maxVerificationEmailsPerHour: parseInt(process.env.MAX_VERIFICATION_EMAILS_PER_HOUR, 10) || undefined,
+      maxUnverifiedUsersPerIPPerHour: parseInt(process.env.MAX_UNVERIFIED_USERS_PER_IP_PER_HOUR, 10) || undefined,
+      maxCreatedUsersPerIPPerHour: parseInt(process.env.MAX_CREATED_USERS_PER_IP_PER_HOUR, 10) || undefined,
+    },
+    cleanupDelays: {
+      unverifiedUserDays: parseInt(process.env.CLEANUP_UNVERIFIED_USERS_DAYS, 10) || undefined,
+      inactiveSessionDays: parseInt(process.env.CLEANUP_INACTIVE_SESSIONS_DAYS, 10) || undefined,
+      inactiveUserDays: parseInt(process.env.CLEANUP_INACTIVE_USERS_DAYS, 10) || undefined,
+      inactiveRoomDays: parseInt(process.env.CLEANUP_INACTIVE_ROOMS_DAYS, 10) || undefined,
+    }
   });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const cleanup = async (options: { cleanup?: boolean; exit?: boolean }) => {

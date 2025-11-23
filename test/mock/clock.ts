@@ -107,13 +107,14 @@ class IntervalCallback extends TimeoutCallback {
 
 type ClockSettings = {
   frameInterval: number;
+  autoAdvance: boolean;
 };
 
 export class MockClock {
   #settings: ClockSettings = {
     frameInterval: 1000.0 / 60,
+    autoAdvance: false,
   };
-  autoAdvance = false;
   #isInAutoAdvanceLoop = false;
   #now = 0;
   #lastTimerId = 0;
@@ -190,11 +191,11 @@ export class MockClock {
   }
 
   maybeAutoAdvance() {
-    if (!this.autoAdvance || this.#isInAutoAdvanceLoop)
+    if (!this.#settings.autoAdvance || this.#isInAutoAdvanceLoop)
       return;
     this.#isInAutoAdvanceLoop = true;
     Promise.resolve().then(async () => {
-      await this.advanceUntil(() => !this.autoAdvance);
+      await this.advanceUntil(() => !this.#settings.autoAdvance);
       this.#isInAutoAdvanceLoop = false;
     });
   }

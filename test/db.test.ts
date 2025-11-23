@@ -8,8 +8,7 @@ import { MockClock } from './mock/clock';
 describe('database', () => {
   test('Overrides now() function correctly', async () => {
     const clock = new MockClock();
-    const db = new MockDB(clock);
-    await db.initialize();
+    const db = new MockDB({clock});
     const results1 = await db.query<{ now: string }>(`SELECT now();`);
     const time1 = new Date(results1.rows[0].now);
 
@@ -62,6 +61,7 @@ describe('database', () => {
     // No tables or types initially
     expect(tables.length).toEqual(0);
 
+    // This is a destructive test, so use a separate db instance.
     await initializeDatabase(db);
     tables = (await db.query<IName>(tableQuery)).rows.map((row) => row.name);
     // Initializing the data should have created some tables.

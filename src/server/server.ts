@@ -3,7 +3,8 @@ import ws from 'ws';
 import serveStatic from 'serve-static';
 import finalhandler from 'finalhandler';
 import formidable from 'formidable';
-import type { WebSocketInterface, ClockAPI } from '../common/interfaces';
+import { defaultClockAPI } from '../common/interfaces.ts';
+import type { WebSocketInterface, ClockAPI } from '../common/interfaces.ts';
 import type { PGInterface } from './types.ts';
 
 import { AuthenticationHandler, type RegistrationData, type VerificationData }  from './user.ts';
@@ -57,10 +58,45 @@ interface ServerConfig {
   clock: ClockAPI;
   port: number;
   emailFrom: string;
+  safeNames: boolean;
+  limits: LimitsConfig;
+  cleanupDelays: CleanupConfig;
   hostname?: string;
   basePath?: string;
   createServer?: createServerInterface;
   WebSocketServer?: typeof ws.Server;
+}
+
+const requiredConfig = ['db', 'transport', 'port', 'emailFrom'];
+const defaultConfig: Partial<ServerConfig> = {
+  clock: defaultClockAPI,
+  safeNames: false,
+  limits: {
+    verificationCodeMinutes: 30,
+    maxVerificationEmailsPerHour: 50,
+    maxUnverifiedUsersPerIPPerHour: 10,
+    maxCreatedUsersPerIPPerHour: 20,
+  },
+  cleanupDelays: {
+    unverifiedUserDays: 7,
+    inactiveSessionDays: 30,
+    inactiveUserDays: 365,
+    inactiveRoomDays: 60,
+  }
+};
+
+export interface LimitsConfig {
+  verificationCodeMinutes: number;
+  maxVerificationEmailsPerHour: number;
+  maxUnverifiedUsersPerIPPerHour: number;
+  maxCreatedUsersPerIPPerHour: number;
+}
+
+interface CleanupConfig {
+  unverifiedUserDays: number;
+  inactiveSessionDays: number;
+  inactiveUserDays: number;
+  inactiveRoomDays: number;
 }
 
 export type ServerAddress = string;
@@ -77,8 +113,17 @@ export class Server {
   #serve: serveStatic.RequestHandler<http.ServerResponse<http.IncomingMessage>>;
   #authHandler: AuthenticationHandler;
 
-  constructor(config: ServerConfig) {
-    this.#config = config;
+  constructor(config: Partial<ServerConfig>) {
+    for (const key of requiredConfig) {
+      if (config[key] === undefined) {
+        throw new Error(`Missing required server config: ${key}`);
+      }
+    }
+    this.#config = {
+      ...defaultConfig,
+      ...config,
+      limits: {...defaultConfig.limits, ...config.limits},
+      cleanupDelays: {...defaultConfig.cleanupDelays, ...config.cleanupDelays}} as ServerConfig;
     this.#server = (this.#config.createServer || http.createServer)(
       this.#onRequest
     );
@@ -87,6 +132,8 @@ export class Server {
       clock: this.#config.clock,
       db: this.#config.db,
       transport: this.#config.transport,
+      emailFrom: this.#config.emailFrom,
+      limits: this.#config.limits,
     });
   }
 
@@ -128,23 +175,25 @@ export class Server {
       const form = formidable({});
       let data : RegistrationData = {
         alias: '',
+        username: '',
         email: '',
         password: '',
       }
       try {
         const fields = (await form.parse(req))[0];
-        data = {alias: fields.alias[0], email: fields.email[0], password: fields.password[0]};
+        data = {username: fields.username[0], password: fields.password[0], email: fields.email[0], alias: fields.alias[0]};
       } catch (err) {
         console.error(err);
         res.writeHead(err.httpCode || 400, { ...headers, 'Content-Type': 'text/plain' });
         res.end(String(err));
         return;
       }
-      const sessionId = await this.#authHandler.registerUser(requestIp(req), data);
-      res.writeHead(200, { ...headers,
-        'Content-Type': 'text/plain',
-        'Set-Cookie': `sessionid=${sessionId}; HttpOnly; Secure; Path=/; SameSite=Strict`,
-      });
+      const result = await this.#authHandler.registerUser(requestIp(req), data);
+      if (result.sessionId) {
+        headers['Set-Cookie'] = `sessionid=${result.sessionId}; HttpOnly; Secure; Path=/; SameSite=Strict`;
+      }
+      res.writeHead(result.resultCode, { ...headers, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ message: result.message }));
       res.end();
     } else if (req.url.startsWith('/api/')) {
       // These remaining API endpoints require that the user is logged in.
@@ -178,12 +227,15 @@ export class Server {
           return;
         }
         const success = await this.#authHandler.verifyEmail(session, data);
-        console.log('Verification success:', success);
+        res.writeHead(200, { ...headers,
+          'Content-Type': 'application/json',
+        });
+        res.end(JSON.stringify({
+          result: success ? 'ok' : 'failed'
+        }));
+        return;
       }
-      console.log(session);
-      res.writeHead(200, { ...headers,
-        'Content-Type': 'text/plain',
-      });
+      res.writeHead(404, headers);
       res.end();
     } else if (res instanceof http.ServerResponse) {
       // If the request doesn't match any dynamic URL,

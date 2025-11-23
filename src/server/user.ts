@@ -1,15 +1,22 @@
 import bcrypt from 'bcrypt';
 import type { ClockAPI } from '../common/interfaces.ts';
-import type { PGInterface } from './types';
-import type { TransportInterface } from './server.ts';
+import type { PGInterface } from './types.ts';
+import type { TransportInterface, LimitsConfig } from './server.ts';
 import { randomBytes } from 'crypto';
 import type { User, VerificationEmail, Session } from './db.ts';
+import { availableParallelism } from 'os';
 
 export type RegistrationData = {
+  username: string;
+  password: string;
   alias: string;
   email: string;
-  password: string;
 };
+export type RegistrationResult = {
+  resultCode: number;
+  message: string;
+  sessionId?: string;
+}
 
 export type VerificationData = {
   code: string;
@@ -20,6 +27,8 @@ export type AuthenticationHandlerConfig = {
   db: PGInterface;
   clock: ClockAPI;
   transport: TransportInterface;
+  emailFrom: string;
+  limits: LimitsConfig;
 }
 
 const SALT_ROUNDS = 12;
@@ -35,25 +44,29 @@ export class AuthenticationHandler {
     this.#config = config;
   }
 
-  async registerUser(address: string, data: RegistrationData): Promise<string> {
-    const { alias, email, password } = data;
+  async registerUser(address: string, data: RegistrationData): Promise<RegistrationResult> {
+    const { username, password, email, alias } = data;
 
     // TODO: Check if the ip address has exceeded registration limits.
     // TODO: Input validation?
 
     const hash = await bcrypt.hash(password, SALT_ROUNDS);
     let user = await this.#config.db.query<User>(
-      `INSERT INTO users (verification_email, hashed_password, alias, is_guest, created_ip_address)
-       VALUES ($1, $2, $3, FALSE, $4) RETURNING *;`,
+      `INSERT INTO users (verification_email, hashed_password, username, alias, created_ip_address)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *;`,
       [
-        email,
+        email || null,
         hash,
+        username,
         alias,
         address,
       ]
     );
     if (user.affectedRows == 0) {
-      throw new Error('Failed to create session for new user');
+      return {
+        resultCode: 500,
+        message: 'Failed to create user',
+      };
     }
     const userId = user.rows[0].id;
     console.log(userId);
@@ -68,23 +81,32 @@ export class AuthenticationHandler {
       ]
     );
     if (session.affectedRows == 0) {
-      throw new Error('Failed to create session for new user');
+      return {
+        resultCode: 500,
+        message: 'Failed to initialize session',
+      };
     }
-    await this.sendVerificationEmail(email, alias);
-    return sessionId;
+    if (email) {
+      await this.sendVerificationEmail(email, username);
+    }
+    return {
+      resultCode: 200,
+      message: 'Registration successful.',
+      sessionId: sessionId
+    };
   }
 
-  async sendVerificationEmail(email: string, alias: string): Promise<void> {
+  async sendVerificationEmail(email: string, username: string): Promise<void> {
     // TODO: Verify that no e-mail has been sent recently.
     const codeChars = 'abcdefghijklmnopqrstuvwxyz0123456789';
     const codeLength = 6;
-    const expiryMinutes = 15;
+    const expiryMinutes = this.#config.limits.verificationCodeMinutes;
     let verificationCode = '';
     for (let i = 0; i < codeLength; i++) {
       const randIndex = Math.floor(Math.random() * codeChars.length);
       verificationCode += codeChars[randIndex];
     }
-    let emailBody = `Hi ${alias},
+    let emailBody = `Hi ${username},
 
 Thanks for signing up to Lobby!
 
@@ -130,7 +152,7 @@ Enjoy!`;
     }
     let user = await this.#config.db.query<User>(
       `UPDATE users
-       SET email = $1, is_guest = FALSE, verification_email = NULL
+       SET email = $1, verification_email = NULL
        WHERE id = $2 AND verification_email = $1
        RETURNING id;`,
       [email, session.user_id]
