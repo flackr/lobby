@@ -18,8 +18,6 @@ export class MockTransport implements TransportInterface {
   }
 
   async sendMail(mailOptions: MailOptions): Promise<{ messageId: string }> {
-    console.log(`Mock e-mail sent to ${mailOptions.to}`);
-
     this.#lastMail = mailOptions;
     return new Promise((resolve) => {
       resolve({ messageId: '<1234@localhost>' });

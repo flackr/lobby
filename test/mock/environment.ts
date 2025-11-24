@@ -184,7 +184,7 @@ class MockICECandidate implements RTCIceCandidate {
   }
 }
 
-class MockClient {
+export class MockClient {
   #environment: MockEnvironment;
   #options: ClientOptions = {
     ip: '',

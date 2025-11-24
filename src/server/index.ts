@@ -45,7 +45,7 @@ async function run() {
     limits: {
       verificationCodeMinutes: parseInt(process.env.VERIFICATION_CODE_MINUTES, 10) || undefined,
       maxVerificationEmailsPerHour: parseInt(process.env.MAX_VERIFICATION_EMAILS_PER_HOUR, 10) || undefined,
-      maxUnverifiedUsersPerIPPerHour: parseInt(process.env.MAX_UNVERIFIED_USERS_PER_IP_PER_HOUR, 10) || undefined,
+      maxVerificationEmailsPerIPPerHour: parseInt(process.env.MAX_VERIFICATION_EMAILS_PER_IP_PER_HOUR, 10) || undefined,
       maxCreatedUsersPerIPPerHour: parseInt(process.env.MAX_CREATED_USERS_PER_IP_PER_HOUR, 10) || undefined,
     },
     cleanupDelays: {

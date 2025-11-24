@@ -4,20 +4,18 @@ import type { PGInterface } from './types.ts';
 import type { TransportInterface, LimitsConfig } from './server.ts';
 import { randomBytes } from 'crypto';
 import type { User, VerificationEmail, Session } from './db.ts';
-import { availableParallelism } from 'os';
 
 export type RegistrationData = {
   username: string;
-  password: string;
+  password: string | null;
   alias: string;
-  email: string;
+  email: string | null;
 };
 export type RegistrationResult = {
   resultCode: number;
   message: string;
   sessionId?: string;
 }
-
 export type VerificationData = {
   code: string;
   email: string;
@@ -47,20 +45,32 @@ export class AuthenticationHandler {
   async registerUser(address: string, data: RegistrationData): Promise<RegistrationResult> {
     const { username, password, email, alias } = data;
 
-    // TODO: Check if the ip address has exceeded registration limits.
     // TODO: Input validation?
+    let result = await this.#config.db.query<{created: number}>(
+      `SELECT COUNT(id) AS created FROM users
+       WHERE created_at >= now() - INTERVAL '60 minutes' AND created_ip_address = $1`,
+      [address]
+    );
+    if (result.rows.length > 0 &&
+        result.rows[0].created >= this.#config.limits.maxCreatedUsersPerIPPerHour) {
+      return {
+        resultCode: 429,
+        message: 'Too many requests',
+      };
+    }
 
-    const hash = await bcrypt.hash(password, SALT_ROUNDS);
+    const hash = password ? await bcrypt.hash(password, SALT_ROUNDS) : null;
+    const fields = [
+      ['verification_email', email],
+      ['hashed_password', hash],
+      ['username', username],
+      ['alias', alias],
+      ['created_ip_address', address]
+    ].filter(pair => pair[1] != null);
     let user = await this.#config.db.query<User>(
-      `INSERT INTO users (verification_email, hashed_password, username, alias, created_ip_address)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *;`,
-      [
-        email || null,
-        hash,
-        username,
-        alias,
-        address,
-      ]
+      `INSERT INTO users (${fields.map(pair => pair[0]).join(', ')})
+       VALUES (${fields.map((pair, index) => `\$${index + 1}`).join(', ')}) RETURNING *;`,
+      fields.map(pair => pair[1])
     );
     if (user.affectedRows == 0) {
       return {
@@ -69,7 +79,6 @@ export class AuthenticationHandler {
       };
     }
     const userId = user.rows[0].id;
-    console.log(userId);
     const sessionId = generateSessionId();
     let session = await this.#config.db.query<Session>(
       `INSERT INTO sessions (session_id, user_id, created_at, active_ip_address, updated_at)

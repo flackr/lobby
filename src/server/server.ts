@@ -73,8 +73,8 @@ const defaultConfig: Partial<ServerConfig> = {
   safeNames: false,
   limits: {
     verificationCodeMinutes: 30,
-    maxVerificationEmailsPerHour: 50,
-    maxUnverifiedUsersPerIPPerHour: 10,
+    maxVerificationEmailsPerHour: 100,
+    maxVerificationEmailsPerIPPerHour: 40,
     maxCreatedUsersPerIPPerHour: 20,
   },
   cleanupDelays: {
@@ -88,7 +88,7 @@ const defaultConfig: Partial<ServerConfig> = {
 export interface LimitsConfig {
   verificationCodeMinutes: number;
   maxVerificationEmailsPerHour: number;
-  maxUnverifiedUsersPerIPPerHour: number;
+  maxVerificationEmailsPerIPPerHour: number;
   maxCreatedUsersPerIPPerHour: number;
 }
 
@@ -170,7 +170,6 @@ export class Server {
       res.end(`${req.method} is not allowed for the request.`);
       return;
     }
-    console.log(`Request for ${req.url}`);
     if (req.url == '/api/register' && req.method == 'POST') {
       const form = formidable({});
       let data : RegistrationData = {
@@ -181,7 +180,12 @@ export class Server {
       }
       try {
         const fields = (await form.parse(req))[0];
-        data = {username: fields.username[0], password: fields.password[0], email: fields.email[0], alias: fields.alias[0]};
+        let optfield = (name: string) => {
+          if (!fields[name])
+            return null;
+          return fields[name][0];
+        }
+        data = {username: fields.username[0], password: optfield('password'), email: optfield('email'), alias: fields.alias[0]};
       } catch (err) {
         console.error(err);
         res.writeHead(err.httpCode || 400, { ...headers, 'Content-Type': 'text/plain' });
