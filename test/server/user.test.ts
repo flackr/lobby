@@ -1,9 +1,9 @@
-import { beforeAll, describe, expect, test } from '@jest/globals';
+import { describe, expect, test } from '@jest/globals';
 
-import { MockTransport } from './mock/transport';
-import { Server } from '../src/server/server';
-import { MockEnvironment } from './mock/environment';
-import { clock, lobbyDb } from './mock/lobby.ts';
+import { MockTransport } from '../mock/transport.ts';
+import { Server } from '../../src/server/server.ts';
+import { MockEnvironment } from '../mock/environment.ts';
+import { clock, lobbyDb } from '../mock/lobby.ts';
 
 describe('lobby server', () => {
   test('Registers a new user and logs in', async () => {

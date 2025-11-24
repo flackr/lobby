@@ -2,8 +2,8 @@ import { describe, expect, test } from '@jest/globals';
 
 import { WebSocket } from 'ws';
 
-import { MockEnvironment } from './mock/environment';
-import type { RTCPeerConnectionInterface, WebSocketInterface } from '../src/common/interfaces';
+import { MockEnvironment } from './environment.ts';
+import type { RTCPeerConnectionInterface, WebSocketInterface } from '../../src/common/interfaces';
 import { get } from 'http';
 
 const BACKLOG = 511;

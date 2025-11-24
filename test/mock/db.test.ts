@@ -1,9 +1,9 @@
 import { describe, expect, test } from '@jest/globals';
 import { PGlite } from '@electric-sql/pglite';
 
-import { cleanupDatabase, initializeDatabase } from '../src/server/db';
-import { MockDB } from './mock/db';
-import { MockClock } from './mock/clock';
+import { cleanupDatabase, initializeDatabase } from '../../src/server/db';
+import { MockDB } from './db.ts';
+import { MockClock } from './clock.ts';
 
 describe('database', () => {
   test('Overrides now() function correctly', async () => {

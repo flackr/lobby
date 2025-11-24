@@ -1,4 +1,4 @@
-import { MockClock } from './mock/clock.ts';
+import { MockClock } from './clock.ts';
 import { describe, expect, test } from '@jest/globals';
 
 describe('mock clock', () => {
