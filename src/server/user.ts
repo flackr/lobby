@@ -6,7 +6,7 @@ import { randomBytes } from 'crypto';
 import type { User, VerificationEmail, Session } from './db.ts';
 
 export type RegistrationData = {
-  username: string;
+  username: string | null;
   password: string | null;
   alias: string;
   email: string | null;

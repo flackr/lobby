@@ -185,7 +185,7 @@ export class Server {
             return null;
           return fields[name][0];
         }
-        data = {username: fields.username[0], password: optfield('password'), email: optfield('email'), alias: fields.alias[0]};
+        data = {username: optfield('username'), password: optfield('password'), email: optfield('email'), alias: fields.alias[0]};
       } catch (err) {
         console.error(err);
         res.writeHead(err.httpCode || 400, { ...headers, 'Content-Type': 'text/plain' });
