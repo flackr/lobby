@@ -11,6 +11,10 @@ export type RegistrationData = {
   alias: string;
   email: string | null;
 };
+export type LoginData = {
+  username: string;
+  password: string;
+}
 export type RegistrationResult = {
   resultCode: number;
   message: string;
@@ -27,6 +31,11 @@ export type AuthenticationHandlerConfig = {
   transport: TransportInterface;
   emailFrom: string;
   limits: LimitsConfig;
+}
+
+export type UserInfo = {
+  user: User;
+  sessions: Session[];
 }
 
 const SALT_ROUNDS = 12;
@@ -81,7 +90,7 @@ export class AuthenticationHandler {
     const userId = user.rows[0].id;
     const sessionId = generateSessionId();
     let session = await this.#config.db.query<Session>(
-      `INSERT INTO sessions (session_id, user_id, created_at, active_ip_address, updated_at)
+      `INSERT INTO sessions (session_key, user_id, created_at, active_ip_address, updated_at)
        VALUES ($1, $2, now(), $3, now());`,
       [
         sessionId,
@@ -169,7 +178,6 @@ Enjoy!`;
     return user.affectedRows > 0;
   }
 
-
   async getSession(address: string, sessionId?: string): Promise<Session | null> {
     if (!sessionId) {
       return null;
@@ -177,7 +185,7 @@ Enjoy!`;
     const session = await this.#config.db.query<Session>(
       `UPDATE sessions
        SET updated_at = now(), active_ip_address = $2
-       WHERE session_id = $1 AND updated_at >= now() - INTERVAL '7 days'
+       WHERE session_key = $1 AND updated_at >= now() - INTERVAL '7 days'
        RETURNING *;`,
       [sessionId, address]
     );
@@ -186,4 +194,74 @@ Enjoy!`;
     }
     return session.rows[0];
   }
+
+  async loginUser(address: string, data: LoginData): Promise<RegistrationResult> {
+    const { username, password } = data;
+    const userResult = await this.#config.db.query<User>(
+      `SELECT * FROM users WHERE username = $1;`,
+      [username]
+    );
+    if (userResult.rows.length == 0 || !userResult.rows[0].hashed_password ||
+        !await bcrypt.compare(password, userResult.rows[0].hashed_password)) {
+      return {
+        resultCode: 401,
+        message: 'Invalid username or password',
+      };
+    }
+    const user = userResult.rows[0];
+    const sessionId = generateSessionId();
+    let session = await this.#config.db.query<Session>(
+      `INSERT INTO sessions (session_key, user_id, created_at, active_ip_address, updated_at)
+       VALUES ($1, $2, now(), $3, now());`,
+      [
+        sessionId,
+        user.id,
+        address,
+      ]
+    );
+    if (session.affectedRows == 0) {
+      return {
+        resultCode: 500,
+        message: 'Failed to initialize session',
+      };
+    }
+    return {
+      resultCode: 200,
+      message: 'Login successful.',
+      sessionId: sessionId
+    };
+  }
+
+  async logoutSession(session: Session, id: number): Promise<void> {
+    await this.#config.db.query(
+      `DELETE FROM sessions WHERE id = $1 AND user_id = $2;`,
+      [id, session.user_id]
+    );
+  }
+
+  async getUserInfo(session: Session): Promise<UserInfo> {
+    const userData = await this.#config.db.query<User>(
+      `SELECT id, email, username, alias, verification_email, created_ip_address, created_at, active_at
+      FROM users WHERE id = $1;`,
+      [session.user_id]
+    );
+    if (userData.rows.length == 0) {
+      throw new Error('User not found');
+    }
+
+    // Don't include session_key for security reasons.
+    const sessions = await this.#config.db.query<Session>(
+      `SELECT id, url, user_id, created_at, active_ip_address, updated_at FROM sessions
+       WHERE user_id = $1
+       ORDER BY updated_at DESC;`,
+      [session.user_id]
+    );
+
+    return {
+      user: userData.rows[0],
+      sessions: sessions.rows,
+    };
+  }
+
+
 };

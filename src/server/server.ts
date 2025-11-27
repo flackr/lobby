@@ -199,6 +199,28 @@ export class Server {
       res.writeHead(result.resultCode, { ...headers, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ message: result.message }));
       res.end();
+    } if (req.url == '/api/login' && req.method == 'POST') {
+      const form = formidable({});
+      let data : {username: string; password: string;} = {
+        username: '',
+        password: '',
+      }
+      try {
+        const fields = (await form.parse(req))[0];
+        data = {username: fields.username[0], password: fields.password[0]};
+      } catch (err) {
+        console.error(err);
+        res.writeHead(err.httpCode || 400, { ...headers, 'Content-Type': 'text/plain' });
+        res.end(String(err));
+        return;
+      }
+      const result = await this.#authHandler.loginUser(requestIp(req), data);
+      if (result.sessionId) {
+        headers['Set-Cookie'] = `sessionid=${result.sessionId}; HttpOnly; Secure; Path=/; SameSite=Strict`;
+      }
+      res.writeHead(result.resultCode, { ...headers, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ message: result.message }));
+      res.end();
     } else if (req.url.startsWith('/api/')) {
       // These remaining API endpoints require that the user is logged in.
       const rawCookie = req.headers.cookie || "";
@@ -237,6 +259,34 @@ export class Server {
         res.end(JSON.stringify({
           result: success ? 'ok' : 'failed'
         }));
+        return;
+      } else if (req.url == '/api/userinfo') {
+        const userInfo = await this.#authHandler.getUserInfo(session);
+        res.writeHead(200, { ...headers,
+          'Content-Type': 'application/json',
+        });
+        res.end(JSON.stringify(userInfo));
+        return;
+      } else if (req.url == '/api/logout' && req.method == 'POST') {
+        // Check if a session id was provided to log out instead of the current session.
+        const form = formidable({});
+        let logoutSessionId: number = session.id;
+        try {
+          const fields = (await form.parse(req))[0];
+          if (fields.sessionid) {
+            logoutSessionId = parseInt(fields.sessionid[0]);
+          }
+        } catch (err) {
+          console.error(err);
+          res.writeHead(err.httpCode || 400, { ...headers, 'Content-Type': 'text/plain' });
+          res.end(String(err));
+          return;
+        }
+        await this.#authHandler.logoutSession(session, logoutSessionId);
+        res.writeHead(200, { ...headers,
+          'Content-Type': 'application/json',
+        });
+        res.end(JSON.stringify({ result: 'ok' }));
         return;
       }
       res.writeHead(404, headers);

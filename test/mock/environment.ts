@@ -195,6 +195,11 @@ export class MockClient {
   #listeners: Map<number, MockServer> = new Map();
   #listeningWebRTCConnections: Map<string, RTCPeerConnectionInterface> = new Map();
   #cookies: {[key: string]: {[key: string]: string}} = {};
+
+  get ip(): string {
+    return this.#options.ip;
+  }
+
   constructor(environment: MockEnvironment, options: Partial<ClientOptions>) {
     this.#environment = environment;
     this.#options = { ...this.#options, ...options };

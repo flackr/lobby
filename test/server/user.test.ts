@@ -2,9 +2,9 @@ import { describe, expect, test } from '@jest/globals';
 
 import { MockEnvironment, MockClient } from '../mock/environment.ts';
 import { clock, lobbyDb, createLobbyServer } from '../mock/lobby.ts';
-import type { RegistrationData } from '../../src/server/user.ts';
+import type { RegistrationData, UserInfo } from '../../src/server/user.ts';
 
-describe('lobby server', () => {
+describe('user management', () => {
   const tryCreate = async (client: MockClient, address: string, fields: Partial<RegistrationData>) => {
     const data: RegistrationData = {
       username: 'user',
@@ -26,7 +26,7 @@ describe('lobby server', () => {
     return response;
   }
 
-  test('Registers a new user and verifies email', async () => {
+  test('Registers a new user, verifies email and tests login', async () => {
     await lobbyDb.initialized;
     const world = new MockEnvironment(clock);
     const { server, transport } = createLobbyServer(world);
@@ -55,6 +55,47 @@ describe('lobby server', () => {
       body: formData,
     });
     expect(response.status).toBe(200);
+
+    // Verify session
+    response = await client.fetch(`${address}/api/userinfo`);
+    expect(response.status).toBe(200);
+    let userInfo = await response.json() as UserInfo;
+    expect(userInfo.user.username).toBe('verify-test');
+    expect(userInfo.user.email).toBe('test@test.com');
+    expect(userInfo.sessions[0].active_ip_address).toBe(client.ip);
+
+    const client2 = world.createClient();
+    formData = new FormData();
+    formData.set('username', 'verify-test');
+    formData.set('password', 'supersecret');
+    response = await client2.fetch(`${address}/api/login`, {
+      method: 'POST',
+      body: formData,
+    });
+    expect(response.status).toBe(200);
+
+    response = await client2.fetch(`${address}/api/userinfo`);
+    expect(response.status).toBe(200);
+    userInfo = await response.json() as UserInfo;
+    expect(userInfo.sessions.length).toBe(2);
+    expect(userInfo.sessions[1].active_ip_address).toBe(client2.ip);
+
+    // Logout client2
+    response = await client2.fetch(`${address}/api/logout`, {
+      method: 'POST',
+    });
+    expect(response.status).toBe(200);
+
+    // Expect userinfo to fail now
+    response = await client2.fetch(`${address}/api/userinfo`);
+    expect(response.status).toBe(401);
+
+    // Ensure session was removed.
+    response = await client.fetch(`${address}/api/userinfo`);
+    expect(response.status).toBe(200);
+    userInfo = await response.json() as UserInfo;
+    expect(userInfo.sessions.length).toBe(1);
+
     await server.close();
   });
 

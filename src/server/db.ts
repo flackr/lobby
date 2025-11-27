@@ -3,20 +3,29 @@ import type { PGInterface } from './types.ts';
 
 export interface User {
   id: number;
-}
+  email: string | null;
+  username: string;
+  hashed_password: string | null;
+  alias: string;
+  verification_email: string | null;
+  created_ip_address: string;
+  created_at: Date;
+  active_at: Date;
+};
 export interface VerificationEmail {
   email: string;
   verification_code: string;
   created_at: Date;
-}
+};
 export interface Session {
-  session_id: string;
+  id: number;
+  session_key?: string;
   url?: string;
   user_id: number;
   created_at: Date;
   active_ip_address: string;
   updated_at: Date;
-}
+};
 
 export async function cleanupDatabase(client: PGInterface) {
   const sqlTables = [
@@ -65,9 +74,9 @@ export async function initializeDatabase(client: PGInterface) {
     `CREATE TABLE users (
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) NULL,
-        username VARCHAR(100) UNIQUE NOT NULL DEFAULT CONCAT('user-', currval('users_id_seq')::TEXT),
+        username VARCHAR(50) UNIQUE NOT NULL DEFAULT CONCAT('user-', currval('users_id_seq')::TEXT),
         hashed_password TEXT NULL,
-        alias VARCHAR(100) NOT NULL,
+        alias VARCHAR(50) NOT NULL,
         verification_email VARCHAR(255) NULL,
         created_ip_address INET NOT NULL,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -84,7 +93,8 @@ export async function initializeDatabase(client: PGInterface) {
 
     // Sessions tracks associated users for each session cookie.
     `CREATE TABLE sessions (
-        session_id TEXT PRIMARY KEY,
+        id SERIAL PRIMARY KEY,
+        session_key TEXT UNIQUE NOT NULL,
         url TEXT NULL,
         user_id INTEGER,
         created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
@@ -92,6 +102,7 @@ export async function initializeDatabase(client: PGInterface) {
         updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );`,
+    `CREATE UNIQUE INDEX unique_session_key ON sessions (session_key);`,
     `CREATE INDEX idx_sessions_updated ON sessions (updated_at);`,
     `CREATE INDEX idx_sessions_user_id ON sessions (user_id);`,
 
