@@ -11,7 +11,7 @@ const lobbyDb = new MockDB({ clock,
   setup: async (db: PGInterface) => {
     await initializeDatabase(db);
     // Add a few safe names for testing.
-    await db.query(`INSERT INTO safe_names VALUES ('Alice'), ('Bob'), ('Cathy'), ('Donald')`);
+    await db.query(`INSERT INTO safe_names VALUES ('alice'), ('bob'), ('cathy'), ('donald')`);
   }
 });
 const createLobbyServer = (environment: MockEnvironment) => {
@@ -24,6 +24,7 @@ const createLobbyServer = (environment: MockEnvironment) => {
         hostname,
         port: 8000,
         emailFrom: sender,
+        safeNames: true,
         db: lobbyDb,
         clock: environment.clock.api(),
         transport: transport,

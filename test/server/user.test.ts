@@ -111,6 +111,21 @@ describe('user management', () => {
     await server.close();
   });
 
+  test('Rejects unsafe aliases', async () => {
+    await lobbyDb.initialized;
+    const world = new MockEnvironment(clock);
+    const { server } = createLobbyServer(world);
+    const address = await server.listen();
+
+    const client = world.createClient();
+    let result = await tryCreate(client, address, {alias: 'b4dn4m3'});
+    expect(result.status).toBe(400);
+    result = await tryCreate(client, address, {alias: 'alice'});
+    expect(result.status).toBe(200);
+
+    await server.close();
+  });
+
   test('Registration of users is limited', async () => {
     await lobbyDb.initialized;
     const world = new MockEnvironment(clock);

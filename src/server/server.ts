@@ -133,6 +133,7 @@ export class Server {
       db: this.#config.db,
       transport: this.#config.transport,
       emailFrom: this.#config.emailFrom,
+      safeNames: this.#config.safeNames,
       limits: this.#config.limits,
     });
   }

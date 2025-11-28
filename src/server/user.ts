@@ -30,6 +30,7 @@ export type AuthenticationHandlerConfig = {
   clock: ClockAPI;
   transport: TransportInterface;
   emailFrom: string;
+  safeNames: boolean;
   limits: LimitsConfig;
 }
 
@@ -54,7 +55,6 @@ export class AuthenticationHandler {
   async registerUser(address: string, data: RegistrationData): Promise<RegistrationResult> {
     const { username, password, email, alias } = data;
 
-    // TODO: Input validation?
     let result = await this.#config.db.query<{created: number}>(
       `SELECT COUNT(id) AS created FROM users
        WHERE created_at >= now() - INTERVAL '60 minutes' AND created_ip_address = $1`,
@@ -66,6 +66,47 @@ export class AuthenticationHandler {
         resultCode: 429,
         message: 'Too many requests',
       };
+    }
+
+    // Input validation
+    if (username && (username.length < 3 || username.length > 50 ||
+        !/^[a-zA-Z0-9_-]+$/.test(username))) {
+      return {
+        resultCode: 400,
+        message: 'Invalid username',
+      };
+    }
+    if (password && (password.length < 6 || password.length > 128)) {
+      return {
+        resultCode: 400,
+        message: 'Invalid password',
+      };
+    }
+    if (email && (email.length > 255 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+      return {
+        resultCode: 400,
+        message: 'Invalid email address',
+      };
+    }
+    if (alias.length < 2 || alias.length > 50) {
+      return {
+        resultCode: 400,
+        message: 'Invalid alias',
+      };
+    }
+
+    // Check for safe name if enabled.
+    if (this.#config.safeNames) {
+      const safeNameCheck = await this.#config.db.query(
+        `SELECT 1 FROM safe_names WHERE name = $1;`,
+        [alias.toLowerCase()]
+      );
+      if (safeNameCheck.rows.length == 0) {
+        return {
+          resultCode: 400,
+          message: 'Alias is not allowed',
+        };
+      }
     }
 
     const hash = password ? await bcrypt.hash(password, SALT_ROUNDS) : null;
