@@ -1,30 +1,11 @@
 import { readFileSync } from 'fs';
 import type { PGInterface } from './types.ts';
+import type { User, Session } from '../common/types.ts';
 
-export interface User {
-  id: number;
-  email: string | null;
-  username: string;
-  hashed_password: string | null;
-  alias: string;
-  verification_email: string | null;
-  created_ip_address: string;
-  created_at: Date;
-  active_at: Date;
-};
 export interface VerificationEmail {
   email: string;
   verification_code: string;
   created_at: Date;
-};
-export interface Session {
-  id: number;
-  session_key?: string;
-  url?: string;
-  user_id: number;
-  created_at: Date;
-  active_ip_address: string;
-  updated_at: Date;
 };
 
 export async function cleanupDatabase(client: PGInterface) {

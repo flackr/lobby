@@ -1,4 +1,4 @@
-import { initializeDatabase } from "../server/db";
+import type { UserInfo } from "../common/types.ts";
 
 /**
  * Hides all screens and shows only the specified one.
@@ -69,17 +69,19 @@ function initializeUI() {
     const messageElement = document.getElementById('register-message');
     messageElement.textContent = '';
     messageElement.classList.remove('error');
-    const alias = registerForm.elements['alias'].value.trim();
-    const email = registerForm.elements['email'].value.trim();
-    const password = registerForm.elements['password'].value;
     registerForm.classList.add('loading');
-    const response = await fetch('/api/register', {
+    let response = await fetch('/api/register', {
       method: 'POST',
       body: new FormData(registerForm)
     });
 
     if (response.ok) {
-        messageElement.textContent = `Registration successful for ${email}! Redirecting to login...`;
+        messageElement.textContent = `Registration successful! Redirecting to profile...`;
+        response = await fetch('/api/userinfo');
+        if (response.ok) {
+          const userInfo = await response.json() as UserInfo;
+          console.log('Registered user info:', userInfo);
+        }
         //await new Promise(resolve => setTimeout(resolve, 1500));
         //showView('login-screen');
     } else {

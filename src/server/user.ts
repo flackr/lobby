@@ -3,7 +3,8 @@ import type { ClockAPI } from '../common/interfaces.ts';
 import type { PGInterface } from './types.ts';
 import type { TransportInterface, LimitsConfig } from './server.ts';
 import { randomBytes } from 'crypto';
-import type { User, VerificationEmail, Session } from './db.ts';
+import type { UserInfo, User, Session } from '../common/types.ts';
+import type { VerificationEmail } from './db.ts';
 
 export type RegistrationData = {
   username: string | null;
@@ -32,11 +33,6 @@ export type AuthenticationHandlerConfig = {
   emailFrom: string;
   safeNames: boolean;
   limits: LimitsConfig;
-}
-
-export type UserInfo = {
-  user: User;
-  sessions: Session[];
 }
 
 const SALT_ROUNDS = 12;
